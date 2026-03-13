@@ -17,20 +17,98 @@ import {
     Vec3,
     director,
     find,
+    tween,
     view,
 } from 'cc';
 
 const { ccclass } = _decorator;
+
+/** 抽奖效果类型 */
+type LotteryEffectType = 'restoreHp' | 'restoreMana' | 'advanceLayer' | 'reduceHp' | 'reduceMana' | 'retreatPenalty';
+
+interface LotteryEffect {
+    type: LotteryEffectType;
+    value: number; // 5 | 10 | 15 或层数 5/10/15
+}
+
+interface LotteryWheelEntry {
+    name: string;
+    isBenefit: boolean;
+    effect: LotteryEffect;
+}
+
+/** 增益池：恢复血量、恢复法力、仙人指路，各 5/10/15 */
+const BENEFIT_POOL: LotteryWheelEntry[] = [
+    { name: '恢复血量5%', isBenefit: true, effect: { type: 'restoreHp', value: 5 } },
+    { name: '恢复血量10%', isBenefit: true, effect: { type: 'restoreHp', value: 10 } },
+    { name: '恢复血量15%', isBenefit: true, effect: { type: 'restoreHp', value: 15 } },
+    { name: '恢复法力5%', isBenefit: true, effect: { type: 'restoreMana', value: 5 } },
+    { name: '恢复法力10%', isBenefit: true, effect: { type: 'restoreMana', value: 10 } },
+    { name: '恢复法力15%', isBenefit: true, effect: { type: 'restoreMana', value: 15 } },
+    { name: '仙人指路5层', isBenefit: true, effect: { type: 'advanceLayer', value: 5 } },
+    { name: '仙人指路10层', isBenefit: true, effect: { type: 'advanceLayer', value: 10 } },
+    { name: '仙人指路15层', isBenefit: true, effect: { type: 'advanceLayer', value: 15 } },
+];
+
+/** 减益池：降低血量、降低法力、邪修截道，各 5/10/15 */
+const DEBUFF_POOL: LotteryWheelEntry[] = [
+    { name: '降低血量5%', isBenefit: false, effect: { type: 'reduceHp', value: 5 } },
+    { name: '降低血量10%', isBenefit: false, effect: { type: 'reduceHp', value: 10 } },
+    { name: '降低血量15%', isBenefit: false, effect: { type: 'reduceHp', value: 15 } },
+    { name: '降低法力5%', isBenefit: false, effect: { type: 'reduceMana', value: 5 } },
+    { name: '降低法力10%', isBenefit: false, effect: { type: 'reduceMana', value: 10 } },
+    { name: '降低法力15%', isBenefit: false, effect: { type: 'reduceMana', value: 15 } },
+    { name: '邪修截道5%', isBenefit: false, effect: { type: 'retreatPenalty', value: 5 } },
+    { name: '邪修截道10%', isBenefit: false, effect: { type: 'retreatPenalty', value: 10 } },
+    { name: '邪修截道15%', isBenefit: false, effect: { type: 'retreatPenalty', value: 15 } },
+];
+
+function pickRandom<T>(arr: T[], count: number): T[] {
+    const out: T[] = [];
+    for (let i = 0; i < count; i++) out.push(arr[Math.floor(Math.random() * arr.length)]);
+    return out;
+}
+
+function shuffle<T>(arr: T[]): T[] {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
 
 const DESIGN_WIDTH = 720;
 const DESIGN_HEIGHT = 1280;
 const HALF_WIDTH = DESIGN_WIDTH * 0.5;
 const HALF_HEIGHT = DESIGN_HEIGHT * 0.5;
 
-type GameState = 'home' | 'expedition_path' | 'combat' | 'result';
+type GameState = 'home' | 'expedition_path' | 'combat' | 'lottery' | 'result';
 
 /** 格子类型：点击？后揭示 */
-type SlotType = 'herb' | 'stone' | 'treasure' | 'monster' | 'trap' | 'buff' | 'boss';
+type SlotType = 'empty' | 'herb' | 'stone' | 'treasure' | 'monster' | 'trap' | 'buff' | 'boss';
+
+/** 普通层各格子类型权重（不含 boss），用于按比例随机与展示 */
+const SLOT_WEIGHTS: Record<Exclude<SlotType, 'boss'>, number> = {
+    empty: 18,
+    herb: 18,
+    stone: 18,
+    treasure: 12,
+    monster: 18,
+    trap: 8,
+    buff: 8,
+};
+
+const SLOT_WEIGHT_SUM = (Object.values(SLOT_WEIGHTS) as number[]).reduce((a, b) => a + b, 0);
+
+function pickSlotTypeByWeight(): Exclude<SlotType, 'boss'> {
+    let r = Math.random() * SLOT_WEIGHT_SUM;
+    for (const [type, w] of Object.entries(SLOT_WEIGHTS) as [Exclude<SlotType, 'boss'>, number][]) {
+        r -= w;
+        if (r <= 0) return type;
+    }
+    return 'empty';
+}
 
 interface LayerSlot {
     type: SlotType;
@@ -63,6 +141,11 @@ interface EnemyData {
     damage: number;
     radius: number;
     speed: number;
+    /** 受击后高亮恢复计时 */
+    hitTimer: number;
+    /** 血条节点（挂在 combatLayer，每帧同步到敌人头顶） */
+    hpBarNode: Node;
+    hpBarGfx: Graphics;
 }
 
 @ccclass('GrottoExpeditionDemo')
@@ -72,6 +155,7 @@ export class GrottoExpeditionDemo extends Component {
     private homeLayer!: Node;
     private expeditionLayer!: Node;
     private combatLayer!: Node;
+    private lotteryLayer!: Node;
     private resultLayer!: Node;
 
     private spiritStone = 0;
@@ -94,7 +178,11 @@ export class GrottoExpeditionDemo extends Component {
     private playerRig: CharacterRig | null = null;
     private playerHp = 100;
     private playerMaxHp = 100;
+    private playerMana = 100;
+    private playerMaxMana = 100;
     private playerDamage = 18;
+    /** 撤离资源比例乘数（邪修截道永久降低），1 = 100% */
+    private retreatRatioMultiplier = 1;
     private playerRadius = 20;
     private attackCooldown = 0;
     private attackAnimTimer = 0;
@@ -108,6 +196,11 @@ export class GrottoExpeditionDemo extends Component {
     private hintLabel!: Label;
     private combatHpLabel!: Label;
     private resultLabel!: Label;
+
+    /** 抽奖转盘：当前 8 个选项与预选结果索引（用于动画落点） */
+    private lotteryWheelEntries: LotteryWheelEntry[] = [];
+    private lotteryResultIndex = 0;
+
 
     onLoad() {
         view.setDesignResolutionSize(DESIGN_WIDTH, DESIGN_HEIGHT, ResolutionPolicy.SHOW_ALL);
@@ -123,15 +216,18 @@ export class GrottoExpeditionDemo extends Component {
         this.homeLayer = this.createFullLayer('Home');
         this.expeditionLayer = this.createFullLayer('Expedition');
         this.combatLayer = this.createFullLayer('Combat');
+        this.lotteryLayer = this.createFullLayer('Lottery');
         this.resultLayer = this.createFullLayer('Result');
 
         this.expeditionLayer.active = false;
         this.combatLayer.active = false;
+        this.lotteryLayer.active = false;
         this.resultLayer.active = false;
 
         this.buildHomeUI();
         this.buildExpeditionUI();
         this.buildCombatUI();
+        this.buildLotteryUI();
         this.buildResultUI();
     }
 
@@ -172,6 +268,8 @@ export class GrottoExpeditionDemo extends Component {
     private expeditionResLabel!: Label;
     private expeditionLayerLabel!: Label;
     private expeditionHpLabel!: Label;
+    private expeditionManaLabel!: Label;
+    private expeditionRatioLabel!: Label;
     private slotContainer!: Node;
     private nextLayerBtn!: Node;
     private nextLayerBtnLabel!: Label;
@@ -181,9 +279,12 @@ export class GrottoExpeditionDemo extends Component {
     private buildExpeditionUI() {
         const top = this.createPanel(this.expeditionLayer, 640, 100, 0, 560);
         top.name = 'Top';
-        this.expeditionLayerLabel = this.createLabel(top, '第 1 层', 28, new Vec3(-200, 18, 0), new Color(255, 248, 230, 255));
-        this.expeditionHpLabel = this.createLabel(top, '生命 100/100', 24, new Vec3(200, 18, 0), new Color(255, 200, 180, 255));
+        this.expeditionLayerLabel = this.createLabel(top, '第 1 层', 28, new Vec3(-220, 18, 0), new Color(255, 248, 230, 255));
+        this.expeditionHpLabel = this.createLabel(top, '生命 100/100', 22, new Vec3(0, 18, 0), new Color(255, 200, 180, 255));
+        this.expeditionManaLabel = this.createLabel(top, '法力 100/100', 22, new Vec3(180, 18, 0), new Color(180, 220, 255, 255));
         this.expeditionResLabel = this.createLabel(top, '灵石 0 | 灵药 0 | 天材地宝 0', 20, new Vec3(0, -28, 0), new Color(180, 220, 200, 255), 580);
+
+        this.expeditionRatioLabel = this.createLabel(this.expeditionLayer, '', 18, new Vec3(0, 498, 0), new Color(140, 160, 180, 255), 680);
 
         this.slotContainer = new Node('SlotContainer');
         this.slotContainer.layer = Layers.Enum.UI_2D;
@@ -200,13 +301,85 @@ export class GrottoExpeditionDemo extends Component {
         this.withdrawBtn.on(Node.EventType.TOUCH_END, () => this.withdrawExpedition(), this);
     }
 
-    private buildCombatUI() {
-        const top = this.createPanel(this.combatLayer, 640, 70, 0, 560);
-        this.combatHpLabel = this.createLabel(top, '生命 100/100', 26, new Vec3(0, 0, 0), new Color(255, 220, 200, 255));
+    private combatManaLabel!: Label;
+    private combatPlayerHpBarNode!: Node;
+    private combatSkillBtn!: Node;
+    private combatSkillLabel!: Label;
 
-        const skillBtn = this.createPanel(this.combatLayer, 140, 50, 260, -520, new Color(60, 70, 85, 255));
-        this.createLabel(skillBtn, '符咒', 22, new Vec3(0, 0, 0), new Color(200, 240, 255, 255));
+    private buildCombatUI() {
+        const top = this.createPanel(this.combatLayer, 640, 76, 0, 558);
+        this.combatHpLabel = this.createLabel(top, '生命 100/100', 24, new Vec3(-140, 14, 0), new Color(255, 220, 200, 255));
+        this.combatManaLabel = this.createLabel(top, '法力 100/100', 24, new Vec3(140, 14, 0), new Color(180, 220, 255, 255));
+        this.combatPlayerHpBarNode = new Node('PlayerHpBar');
+        this.combatPlayerHpBarNode.layer = Layers.Enum.UI_2D;
+        this.combatLayer.addChild(this.combatPlayerHpBarNode);
+        this.combatPlayerHpBarNode.setPosition(-140, 526, 0);
+        this.combatPlayerHpBarNode.addComponent(UITransform).setContentSize(180, 16);
+        const skillBtn = this.createPanel(this.combatLayer, 160, 52, 260, -518, new Color(60, 70, 85, 255));
+        this.combatSkillBtn = skillBtn;
+        this.combatSkillLabel = this.createLabel(skillBtn, '符咒(20)', 22, new Vec3(0, 0, 0), new Color(200, 240, 255, 255));
         skillBtn.on(Node.EventType.TOUCH_END, () => this.castSkill(), this);
+    }
+
+    private drawPlayerHpBar() {
+        if (!this.combatPlayerHpBarNode || !this.combatPlayerHpBarNode.isValid) return;
+        let g = this.combatPlayerHpBarNode.getComponent(Graphics);
+        if (!g) g = this.combatPlayerHpBarNode.addComponent(Graphics);
+        g.clear();
+        const w = 180;
+        const h = 14;
+        const ratio = Math.max(0, Math.min(1, this.playerHp / this.playerMaxHp));
+        g.fillColor = new Color(50, 35, 35, 255);
+        g.roundRect(-w / 2, -h / 2, w, h, 4);
+        g.fill();
+        g.fillColor = ratio > 0.25 ? new Color(220, 80, 70, 255) : new Color(200, 50, 50, 255);
+        g.roundRect(-w / 2, -h / 2, w * ratio, h, 4);
+        g.fill();
+        g.strokeColor = new Color(100, 80, 80, 220);
+        g.lineWidth = 2;
+        g.roundRect(-w / 2, -h / 2, w, h, 4);
+        g.stroke();
+    }
+
+    private lotteryWheelNode!: Node;
+    private lotteryTitleLabel!: Label;
+    private lotteryResultLabel!: Label;
+    private lotterySpinBtn!: Node;
+
+    private buildLotteryUI() {
+        const mask = new Node('Mask');
+        mask.layer = Layers.Enum.UI_2D;
+        this.lotteryLayer.addChild(mask);
+        mask.addComponent(UITransform).setContentSize(DESIGN_WIDTH, DESIGN_HEIGHT);
+        const g = mask.addComponent(Graphics);
+        g.fillColor = new Color(0, 0, 0, 180);
+        g.rect(-HALF_WIDTH, -HALF_HEIGHT, DESIGN_WIDTH, DESIGN_HEIGHT);
+        g.fill();
+
+        this.lotteryTitleLabel = this.createLabel(this.lotteryLayer, '福兮祸所伏', 28, new Vec3(0, 520, 0), new Color(255, 248, 220, 255));
+        this.lotteryWheelNode = new Node('Wheel');
+        this.lotteryWheelNode.layer = Layers.Enum.UI_2D;
+        this.lotteryLayer.addChild(this.lotteryWheelNode);
+        this.lotteryWheelNode.setPosition(0, 60, 0);
+        this.lotteryWheelNode.addComponent(UITransform).setContentSize(580, 580);
+
+        const pointer = new Node('Pointer');
+        pointer.layer = Layers.Enum.UI_2D;
+        this.lotteryLayer.addChild(pointer);
+        pointer.setPosition(0, 360, 0);
+        pointer.addComponent(UITransform).setContentSize(50, 60);
+        const pg = pointer.addComponent(Graphics);
+        pg.fillColor = new Color(255, 200, 80, 255);
+        pg.moveTo(-20, 0);
+        pg.lineTo(20, 0);
+        pg.lineTo(0, 45);
+        pg.close();
+        pg.fill();
+
+        this.lotteryResultLabel = this.createLabel(this.lotteryLayer, '', 22, new Vec3(0, -320, 0), new Color(200, 255, 200, 255), 500);
+        this.lotterySpinBtn = this.createPanel(this.lotteryLayer, 200, 56, 0, -420, new Color(55, 75, 65, 255));
+        this.createLabel(this.lotterySpinBtn, '开始抽奖', 26, new Vec3(0, 0, 0), new Color(200, 255, 220, 255));
+        this.lotterySpinBtn.on(Node.EventType.TOUCH_END, () => this.runLotterySpin(), this);
     }
 
     private buildResultUI() {
@@ -223,6 +396,7 @@ export class GrottoExpeditionDemo extends Component {
         this.homeLayer.active = true;
         this.expeditionLayer.active = false;
         this.combatLayer.active = false;
+        this.lotteryLayer.active = false;
         this.resultLayer.active = false;
         this.refreshHomeStatus();
     }
@@ -240,6 +414,7 @@ export class GrottoExpeditionDemo extends Component {
         this.realmLevel += 1;
         this.realmExpNeed = 30 + this.realmLevel * 15;
         this.playerMaxHp = 80 + this.realmLevel * 25;
+        this.playerMaxMana = 50 + this.realmLevel * 15;
         this.playerDamage = 12 + this.realmLevel * 6;
         this.hintLabel.string = '突破成功，生命与攻击提升';
         this.refreshHomeStatus();
@@ -258,31 +433,29 @@ export class GrottoExpeditionDemo extends Component {
         this.expeditionTreasure = 0;
         this.buffAtkPercent = 0;
         this.canSafeWithdraw = false;
+        this.retreatRatioMultiplier = 1;
         this.playerHp = this.playerMaxHp;
+        this.playerMana = this.playerMaxMana;
         this.currentLayerSlots = this.generateLayerSlots(this.currentLayer);
         this.refreshLayerUI();
     }
 
-    /** 每层 3 个格子，完全随机（可全怪/全机缘）；每 10 层必有一个 boss，其余 2 格随机 */
+    /** 每层 3 个格子，按权重随机；每 10 层必有一个 boss，其余 2 格按比例 */
     private generateLayerSlots(layer: number): LayerSlot[] {
         const isBossLayer = layer >= 10 && layer % 10 === 0;
-        const pool: SlotType[] = ['herb', 'stone', 'treasure', 'monster', 'trap', 'buff'];
         const slots: LayerSlot[] = [];
         if (isBossLayer) {
             slots.push({ type: 'boss', revealed: false });
-            for (let i = 0; i < 2; i++) {
-                slots.push({ type: pool[Math.floor(Math.random() * pool.length)], revealed: false });
-            }
+            for (let i = 0; i < 2; i++) slots.push({ type: pickSlotTypeByWeight(), revealed: false });
         } else {
-            for (let i = 0; i < 3; i++) {
-                slots.push({ type: pool[Math.floor(Math.random() * pool.length)], revealed: false });
-            }
+            for (let i = 0; i < 3; i++) slots.push({ type: pickSlotTypeByWeight(), revealed: false });
         }
         return slots;
     }
 
     private getSlotTypeName(type: SlotType): string {
         const names: Record<SlotType, string> = {
+            empty: '空',
             herb: '灵植',
             stone: '灵石',
             treasure: '天材地宝',
@@ -294,11 +467,33 @@ export class GrottoExpeditionDemo extends Component {
         return names[type];
     }
 
+    /** 本层各类型比例文案（用于 UI 展示） */
+    private getSlotRatioText(): string {
+        const parts: string[] = [];
+        const names: Record<Exclude<SlotType, 'boss'>, string> = {
+            empty: '空',
+            herb: '灵植',
+            stone: '灵石',
+            treasure: '天材地宝',
+            monster: '妖兽',
+            trap: '陷阱',
+            buff: '机缘',
+        };
+        for (const [type, w] of Object.entries(SLOT_WEIGHTS) as [Exclude<SlotType, 'boss'>, number][]) {
+            const pct = Math.round((w / SLOT_WEIGHT_SUM) * 100);
+            parts.push(`${names[type]} ${pct}%`);
+        }
+        return parts.join('  ');
+    }
+
     private refreshLayerUI() {
         this.expeditionLayerLabel.string = `第 ${this.currentLayer} 层`;
         if (this.expeditionHpLabel)
             this.expeditionHpLabel.string = `生命 ${Math.ceil(this.playerHp)}/${this.playerMaxHp}`;
+        if (this.expeditionManaLabel)
+            this.expeditionManaLabel.string = `法力 ${Math.ceil(this.playerMana)}/${this.playerMaxMana}`;
         this.expeditionResLabel.string = `灵石 ${this.expeditionSpirit} | 灵药 ${this.expeditionHerbs} | 天材地宝 ${this.expeditionTreasure}${this.buffAtkPercent > 0 ? ' | 攻+' + (this.buffAtkPercent * 100) + '%' : ''}`;
+        if (this.expeditionRatioLabel) this.expeditionRatioLabel.string = '本层比例：' + this.getSlotRatioText();
 
         this.slotContainer.removeAllChildren();
         const positions = [-200, 0, 200];
@@ -341,8 +536,170 @@ export class GrottoExpeditionDemo extends Component {
             return;
         }
 
+        if (slot.type === 'trap' || slot.type === 'buff') {
+            this.showLotteryWheel(slot.type === 'buff');
+            return;
+        }
+
         this.resolveSlot(slot);
         this.refreshLayerUI();
+    }
+
+    /** 机缘：增益 7 个 + 减益 1 个；陷阱：减益 7 个 + 增益 1 个，打乱后组成 8 格转盘 */
+    private buildLotteryWheel(isBuffSlot: boolean): LotteryWheelEntry[] {
+        const seven = isBuffSlot ? pickRandom(BENEFIT_POOL, 7) : pickRandom(DEBUFF_POOL, 7);
+        const one = isBuffSlot ? pickRandom(DEBUFF_POOL, 1) : pickRandom(BENEFIT_POOL, 1);
+        return shuffle([...seven, ...one]);
+    }
+
+    private drawLotteryWheelSegments() {
+        this.lotteryWheelNode.removeAllChildren();
+        const oldG = this.lotteryWheelNode.getComponent(Graphics);
+        if (oldG) oldG.destroy();
+
+        const R = 260;
+        const SEG_COUNT = 8;
+        const SEG_ANGLE = 360 / SEG_COUNT;
+        const entries = this.lotteryWheelEntries;
+        const toRad = (deg: number) => (deg * Math.PI) / 180;
+        const TOP_OFFSET = 90;
+
+        const ARC_STEPS = 12;
+        for (let i = 0; i < SEG_COUNT; i++) {
+            const val = entries[i].effect.value;
+            const r = val === 5 ? 45 : val === 10 ? 155 : 225;
+            const g = val === 5 ? 115 : val === 10 ? 65 : 180;
+            const b = val === 5 ? 230 : val === 10 ? 195 : 55;
+
+            const seg = new Node(`Seg_${i}`);
+            seg.layer = Layers.Enum.UI_2D;
+            this.lotteryWheelNode.addChild(seg);
+            const startDeg = TOP_OFFSET - SEG_ANGLE / 2 + i * SEG_ANGLE;
+            const endDeg = startDeg + SEG_ANGLE;
+            const startRad = toRad(startDeg);
+            const endRad = toRad(endDeg);
+            const gfx = seg.addComponent(Graphics);
+
+            gfx.fillColor = new Color(r, g, b, 255);
+            gfx.moveTo(0, 0);
+            for (let step = 0; step <= ARC_STEPS; step++) {
+                const t = step / ARC_STEPS;
+                const angle = startRad + (endRad - startRad) * t;
+                gfx.lineTo(R * Math.cos(angle), R * Math.sin(angle));
+            }
+            gfx.close();
+            gfx.fill();
+
+            gfx.strokeColor = new Color(80, 100, 110, 200);
+            gfx.lineWidth = 2;
+            gfx.moveTo(0, 0);
+            for (let step = 0; step <= ARC_STEPS; step++) {
+                const t = step / ARC_STEPS;
+                const angle = startRad + (endRad - startRad) * t;
+                gfx.lineTo(R * Math.cos(angle), R * Math.sin(angle));
+            }
+            gfx.close();
+            gfx.stroke();
+        }
+
+        const labelParent = new Node('WheelLabels');
+        labelParent.layer = Layers.Enum.UI_2D;
+        this.lotteryWheelNode.addChild(labelParent);
+        const labelR = R * 0.62;
+        for (let i = 0; i < SEG_COUNT; i++) {
+            const midDeg = TOP_OFFSET - SEG_ANGLE / 2 + (i + 0.5) * SEG_ANGLE;
+            const midRad = toRad(midDeg);
+            const labelNode = new Node(`Lbl_${i}`);
+            labelNode.layer = Layers.Enum.UI_2D;
+            labelParent.addChild(labelNode);
+            labelNode.setPosition(labelR * Math.cos(midRad), labelR * Math.sin(midRad), 0);
+            labelNode.angle = midDeg;
+            labelNode.addComponent(UITransform).setContentSize(130, 48);
+            const lbl = labelNode.addComponent(Label);
+            lbl.string = entries[i].name;
+            lbl.fontSize = 20;
+            lbl.lineHeight = 24;
+            lbl.color = new Color(255, 248, 230, 255);
+            lbl.horizontalAlign = HorizontalTextAlignment.CENTER;
+            lbl.overflow = Label.Overflow.SHRINK;
+        }
+    }
+
+    private lotteryIsBuffContext = false;
+
+    private showLotteryWheel(isBuffSlot: boolean) {
+        this.state = 'lottery';
+        this.lotteryLayer.active = true;
+        this.lotteryIsBuffContext = isBuffSlot;
+        this.lotteryWheelEntries = this.buildLotteryWheel(isBuffSlot);
+        this.lotteryTitleLabel.string = isBuffSlot ? '福兮祸所伏' : '祸兮福所倚';
+        this.lotteryResultLabel.string = '点击「开始抽奖」决定结果';
+        this.lotteryWheelNode.angle = 0;
+        this.drawLotteryWheelSegments();
+        this.lotterySpinBtn.active = true;
+    }
+
+    private runLotterySpin() {
+        this.lotterySpinBtn.active = false;
+        this.lotteryResultIndex = Math.floor(Math.random() * 8);
+        const segAngle = 45;
+        const totalRotation = 360 * 4 + (90 - this.lotteryResultIndex * segAngle - segAngle / 2);
+        tween(this.lotteryWheelNode)
+            .to(2.5, { angle: totalRotation }, { easing: 'sineOut' })
+            .call(() => {
+                const entry = this.lotteryWheelEntries[this.lotteryResultIndex];
+                this.applyLotteryEffect(entry);
+                this.lotteryResultLabel.string = `抽中：${entry.name}`;
+                this.lotteryResultLabel.color = entry.isBenefit ? new Color(180, 255, 180, 255) : new Color(255, 180, 180, 255);
+                this.scheduleOnce(() => this.closeLotteryAndResume(), 1.2);
+            })
+            .start();
+    }
+
+    private applyLotteryEffect(entry: LotteryWheelEntry) {
+        const e = entry.effect;
+        switch (e.type) {
+            case 'restoreHp': {
+                const add = Math.ceil(this.playerMaxHp * (e.value / 100));
+                this.playerHp = Math.min(this.playerMaxHp, this.playerHp + add);
+                break;
+            }
+            case 'restoreMana': {
+                const add = Math.ceil(this.playerMaxMana * (e.value / 100));
+                this.playerMana = Math.min(this.playerMaxMana, this.playerMana + add);
+                break;
+            }
+            case 'advanceLayer':
+                this.currentLayer = Math.min(100, this.currentLayer + e.value);
+                this.currentLayerSlots = this.generateLayerSlots(this.currentLayer);
+                break;
+            case 'reduceHp': {
+                const dmg = Math.ceil(this.playerMaxHp * (e.value / 100));
+                this.playerHp = Math.max(0, this.playerHp - dmg);
+                if (this.playerHp <= 0) this.endExpeditionDeath();
+                break;
+            }
+            case 'reduceMana': {
+                const cost = Math.ceil(this.playerMaxMana * (e.value / 100));
+                this.playerMana = Math.max(0, this.playerMana - cost);
+                break;
+            }
+            case 'retreatPenalty':
+                this.retreatRatioMultiplier = Math.max(0.1, this.retreatRatioMultiplier * (1 - e.value / 100));
+                break;
+            default:
+                break;
+        }
+    }
+
+    private closeLotteryAndResume() {
+        this.state = 'expedition_path';
+        this.lotteryLayer.active = false;
+        this.refreshLayerUI();
+        if (this.playerHp <= 0) return;
+        if (this.lotteryIsBuffContext && this.lotteryWheelEntries[this.lotteryResultIndex].effect.type === 'advanceLayer') {
+            this.refreshLayerUI();
+        }
     }
 
     private resolveSlot(slot: LayerSlot) {
@@ -359,18 +716,10 @@ export class GrottoExpeditionDemo extends Component {
                 this.expeditionHerbs += 3 + Math.floor(layer / 5);
                 this.expeditionTreasure += 1;
                 break;
-            case 'trap': {
-                const trapDmg = 12 + layer * 2;
-                this.playerHp = Math.max(0, this.playerHp - trapDmg);
-                this.showFloatingDamage(this.expeditionLayer, trapDmg, 0, 0);
-                if (this.playerHp <= 0) {
-                    this.endExpeditionDeath();
-                    return;
-                }
+            case 'empty':
                 break;
-            }
+            case 'trap':
             case 'buff':
-                this.buffAtkPercent += 0.15;
                 break;
             default:
                 break;
@@ -398,7 +747,8 @@ export class GrottoExpeditionDemo extends Component {
         this.expeditionLayer.active = false;
         this.resultLayer.active = true;
 
-        const ratio = safe ? 1 : Math.min(1, 0.5 + (this.currentLayer - 1) * 0.005);
+        let ratio = safe ? 1 : Math.min(1, 0.5 + (this.currentLayer - 1) * 0.005);
+        ratio *= this.retreatRatioMultiplier;
         const takeSpirit = Math.floor(this.expeditionSpirit * ratio);
         const takeHerbs = Math.floor(this.expeditionHerbs * ratio);
         const takeTreasure = Math.floor(this.expeditionTreasure * ratio);
@@ -428,6 +778,7 @@ export class GrottoExpeditionDemo extends Component {
     private endExpeditionDeath() {
         this.state = 'result';
         this.expeditionLayer.active = false;
+        this.lotteryLayer.active = false;
         this.resultLayer.active = true;
         this.spiritStone += Math.floor(this.expeditionSpirit * 0.5);
         this.realmExp += Math.floor((this.expeditionHerbs * 5 + this.expeditionTreasure * 20) * 0.3);
@@ -437,6 +788,7 @@ export class GrottoExpeditionDemo extends Component {
     private enterCombat() {
         this.state = 'combat';
         this.expeditionLayer.active = false;
+        this.lotteryLayer.active = false;
         this.combatLayer.active = true;
         this.combatElapsed = 0;
         this.attackCooldown = 0;
@@ -448,6 +800,8 @@ export class GrottoExpeditionDemo extends Component {
         this.spawnEnemies();
         this.buildCombatUI();
         this.updateCombatHud();
+        const hint = this.createLabel(this.combatLayer, this.combatIsBoss ? 'Boss 现身！' : '妖兽现身！', 28, new Vec3(0, 0, 0), new Color(255, 220, 100, 255));
+        this.scheduleOnce(() => { if (hint.node.isValid) hint.node.destroy(); }, 0.6);
     }
 
     private drawCombatField() {
@@ -470,7 +824,9 @@ export class GrottoExpeditionDemo extends Component {
         this.playerNode.layer = Layers.Enum.UI_2D;
         this.combatLayer.addChild(this.playerNode);
         this.playerNode.setPosition(-180, -180, 0);
-        this.playerNode.addComponent(UITransform).setContentSize(50, 50);
+        const put = this.playerNode.addComponent(UITransform);
+        put.setContentSize(90, 100);
+        put.setAnchorPoint(0.5, 0.5);
         this.playerRig = this.createCharacterRig(this.playerNode, new Color(90, 100, 120, 255), new Color(200, 210, 230, 255));
     }
 
@@ -484,10 +840,18 @@ export class GrottoExpeditionDemo extends Component {
             en.layer = Layers.Enum.UI_2D;
             this.combatLayer.addChild(en);
             en.setPosition(160 + i * 120, -120 + i * 40, 0);
-            en.addComponent(UITransform).setContentSize(isBoss ? 56 : 44, isBoss ? 56 : 44);
+            const ut = en.addComponent(UITransform);
+            ut.setContentSize(90, 100);
+            ut.setAnchorPoint(0.5, 0.5);
             const rig = this.createCharacterRig(en, new Color(100, 60, 60, 255), new Color(220, 120, 100, 255));
             const baseHp = isBoss ? 180 + layer * 8 : 40 + this.realmLevel * 10 + Math.floor(layer / 3) * 6;
             const baseDmg = isBoss ? 14 + Math.floor(layer / 5) * 2 : 8 + this.realmLevel * 2;
+            const hpBarNode = new Node('HpBar');
+            hpBarNode.layer = Layers.Enum.UI_2D;
+            this.combatLayer.addChild(hpBarNode);
+            hpBarNode.setPosition(160 + i * 120, -120 + i * 40 + 48, 0);
+            hpBarNode.addComponent(UITransform).setContentSize(50, 10);
+            const hpBarGfx = hpBarNode.addComponent(Graphics);
             this.enemies.push({
                 node: en,
                 rig,
@@ -496,8 +860,30 @@ export class GrottoExpeditionDemo extends Component {
                 damage: baseDmg,
                 radius: isBoss ? 26 : 18,
                 speed: isBoss ? 55 : 70,
+                hitTimer: 0,
+                hpBarNode,
+                hpBarGfx,
             });
         }
+    }
+
+    private drawEnemyHpBar(e: EnemyData) {
+        e.hpBarNode.setPosition(e.node.position.x, e.node.position.y + 48, 0);
+        const g = e.hpBarGfx;
+        g.clear();
+        const w = 50;
+        const h = 8;
+        const ratio = Math.max(0, e.hp / e.maxHp);
+        g.fillColor = new Color(40, 30, 30, 255);
+        g.rect(-w / 2, -h / 2, w, h);
+        g.fill();
+        g.fillColor = ratio > 0.4 ? new Color(200, 70, 60, 255) : new Color(220, 50, 50, 255);
+        g.rect(-w / 2, -h / 2, w * ratio, h);
+        g.fill();
+        g.strokeColor = new Color(100, 80, 80, 200);
+        g.lineWidth = 1;
+        g.rect(-w / 2, -h / 2, w, h);
+        g.stroke();
     }
 
     private createCharacterRig(parent: Node, bodyColor: Color, accentColor: Color): CharacterRig {
@@ -597,8 +983,11 @@ export class GrottoExpeditionDemo extends Component {
                 const d = enemy.node.position.clone().subtract(playerPos).length();
                 if (d <= 90) {
                     enemy.hp -= atk;
+                    enemy.hitTimer = 0.15;
                     hit = true;
                     if (enemy.hp <= 0) {
+                        this.playEnemyDeathEffect(enemy);
+                        if (enemy.hpBarNode.isValid) enemy.hpBarNode.destroy();
                         enemy.node.destroy();
                         this.enemies = this.enemies.filter((e) => e !== enemy);
                     }
@@ -611,9 +1000,22 @@ export class GrottoExpeditionDemo extends Component {
             }
         }
 
+        for (const e of this.enemies) this.drawEnemyHpBar(e);
         if (this.enemies.length === 0) {
             this.endCombat(true);
         }
+    }
+
+    private playEnemyDeathEffect(e: EnemyData) {
+        const n = new Node('DeathEffect');
+        n.layer = Layers.Enum.UI_2D;
+        this.combatLayer.addChild(n);
+        n.setPosition(e.node.position.x, e.node.position.y, 0);
+        const g = n.addComponent(Graphics);
+        g.fillColor = new Color(255, 200, 100, 200);
+        g.circle(0, 0, 25);
+        g.fill();
+        this.scheduleOnce(() => { if (n.isValid) n.destroy(); }, 0.2);
     }
 
     private animatePlayerRig(dt: number) {
@@ -635,6 +1037,9 @@ export class GrottoExpeditionDemo extends Component {
         const t = this.combatElapsed * 8;
         const run = Math.sin(t) * 0.12;
         for (const e of this.enemies) {
+            e.hitTimer = Math.max(0, e.hitTimer - dt);
+            const hitScale = e.hitTimer > 0 ? 1 + 0.2 * (e.hitTimer / 0.2) : 1;
+            e.node.setScale(hitScale, hitScale, 1);
             if (!e.rig) continue;
             const r = e.rig;
             r.root.angle = run * 6;
@@ -647,11 +1052,18 @@ export class GrottoExpeditionDemo extends Component {
         }
     }
 
+    private readonly SKILL_MANA_COST = 20;
+
     private castSkill() {
+        if (this.playerMana < this.SKILL_MANA_COST) return;
+        this.playerMana -= this.SKILL_MANA_COST;
         const dmg = this.playerDamage * (1 + this.buffAtkPercent) * 1.5;
         for (const e of this.enemies) {
             e.hp -= dmg;
+            e.hitTimer = 0.2;
             if (e.hp <= 0) {
+                this.playEnemyDeathEffect(e);
+                if (e.hpBarNode.isValid) e.hpBarNode.destroy();
                 e.node.destroy();
             }
         }
@@ -664,7 +1076,10 @@ export class GrottoExpeditionDemo extends Component {
         this.expeditionLayer.active = true;
         this.playerNode.destroy();
         this.playerRig = null;
-        for (const e of this.enemies) e.node.destroy();
+        for (const e of this.enemies) {
+            if (e.hpBarNode.isValid) e.hpBarNode.destroy();
+            e.node.destroy();
+        }
         this.enemies = [];
 
         if (victory && this.combatSlotIndex >= 0 && this.combatSlotIndex < this.currentLayerSlots.length) {
@@ -688,7 +1103,10 @@ export class GrottoExpeditionDemo extends Component {
     private endCombatPlayerDeath() {
         this.playerNode.destroy();
         this.playerRig = null;
-        for (const e of this.enemies) e.node.destroy();
+        for (const e of this.enemies) {
+            if (e.hpBarNode.isValid) e.hpBarNode.destroy();
+            e.node.destroy();
+        }
         this.enemies = [];
         this.combatSlotIndex = -1;
         this.combatIsBoss = false;
@@ -697,6 +1115,15 @@ export class GrottoExpeditionDemo extends Component {
 
     private updateCombatHud() {
         this.combatHpLabel.string = `生命 ${Math.ceil(this.playerHp)}/${this.playerMaxHp}`;
+        if (this.combatManaLabel)
+            this.combatManaLabel.string = `法力 ${Math.ceil(this.playerMana)}/${this.playerMaxMana}`;
+        this.drawPlayerHpBar();
+        if (this.combatSkillLabel) {
+            this.combatSkillLabel.string = `符咒(${this.SKILL_MANA_COST})`;
+            this.combatSkillLabel.color = this.playerMana >= this.SKILL_MANA_COST
+                ? new Color(200, 240, 255, 255)
+                : new Color(120, 120, 130, 255);
+        }
     }
 
     /** 在指定父节点上显示扣血飘字 "-XX"，0.6 秒后消失 */
