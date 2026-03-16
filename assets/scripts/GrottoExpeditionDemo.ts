@@ -4,6 +4,7 @@
  */
 import {
     _decorator,
+    Button,
     Color,
     Component,
     Director,
@@ -24,7 +25,7 @@ import {
 const { ccclass } = _decorator;
 
 /** 抽奖效果类型 */
-type LotteryEffectType = 'restoreHp' | 'restoreMana' | 'advanceLayer' | 'reduceHp' | 'reduceMana' | 'retreatPenalty';
+type LotteryEffectType = 'restoreHp' | 'restoreMana' | 'restoreAction' | 'reduceHp' | 'reduceMana' | 'reduceAction';
 
 interface LotteryEffect {
     type: LotteryEffectType;
@@ -37,7 +38,7 @@ interface LotteryWheelEntry {
     effect: LotteryEffect;
 }
 
-/** 增益池：恢复血量、恢复法力、仙人指路，各 5/10/15 */
+/** 增益池：恢复血量、恢复法力、恢复行动力，各 5/10/15 */
 const BENEFIT_POOL: LotteryWheelEntry[] = [
     { name: '恢复血量5%', isBenefit: true, effect: { type: 'restoreHp', value: 5 } },
     { name: '恢复血量10%', isBenefit: true, effect: { type: 'restoreHp', value: 10 } },
@@ -45,12 +46,12 @@ const BENEFIT_POOL: LotteryWheelEntry[] = [
     { name: '恢复法力5%', isBenefit: true, effect: { type: 'restoreMana', value: 5 } },
     { name: '恢复法力10%', isBenefit: true, effect: { type: 'restoreMana', value: 10 } },
     { name: '恢复法力15%', isBenefit: true, effect: { type: 'restoreMana', value: 15 } },
-    { name: '仙人指路5层', isBenefit: true, effect: { type: 'advanceLayer', value: 5 } },
-    { name: '仙人指路10层', isBenefit: true, effect: { type: 'advanceLayer', value: 10 } },
-    { name: '仙人指路15层', isBenefit: true, effect: { type: 'advanceLayer', value: 15 } },
+    { name: '恢复行动力5%', isBenefit: true, effect: { type: 'restoreAction', value: 5 } },
+    { name: '恢复行动力10%', isBenefit: true, effect: { type: 'restoreAction', value: 10 } },
+    { name: '恢复行动力15%', isBenefit: true, effect: { type: 'restoreAction', value: 15 } },
 ];
 
-/** 减益池：降低血量、降低法力、邪修截道，各 5/10/15 */
+/** 减益池：降低血量、降低法力、降低行动力（邪修截道已改为独立格子） */
 const DEBUFF_POOL: LotteryWheelEntry[] = [
     { name: '降低血量5%', isBenefit: false, effect: { type: 'reduceHp', value: 5 } },
     { name: '降低血量10%', isBenefit: false, effect: { type: 'reduceHp', value: 10 } },
@@ -58,9 +59,9 @@ const DEBUFF_POOL: LotteryWheelEntry[] = [
     { name: '降低法力5%', isBenefit: false, effect: { type: 'reduceMana', value: 5 } },
     { name: '降低法力10%', isBenefit: false, effect: { type: 'reduceMana', value: 10 } },
     { name: '降低法力15%', isBenefit: false, effect: { type: 'reduceMana', value: 15 } },
-    { name: '邪修截道5%', isBenefit: false, effect: { type: 'retreatPenalty', value: 5 } },
-    { name: '邪修截道10%', isBenefit: false, effect: { type: 'retreatPenalty', value: 10 } },
-    { name: '邪修截道15%', isBenefit: false, effect: { type: 'retreatPenalty', value: 15 } },
+    { name: '降低行动力5%', isBenefit: false, effect: { type: 'reduceAction', value: 5 } },
+    { name: '降低行动力10%', isBenefit: false, effect: { type: 'reduceAction', value: 10 } },
+    { name: '降低行动力15%', isBenefit: false, effect: { type: 'reduceAction', value: 15 } },
 ];
 
 function pickRandom<T>(arr: T[], count: number): T[] {
@@ -78,6 +79,37 @@ function shuffle<T>(arr: T[]): T[] {
     return a;
 }
 
+/** 品质分级：绿蓝紫橙 */
+type Rarity = 'green' | 'blue' | 'purple' | 'orange';
+
+const RARITY_NAMES: Record<Rarity, string> = { green: '凡品', blue: '良品', purple: '上品', orange: '极品' };
+const RARITY_COLORS: Record<Rarity, Color> = {
+    green: new Color(94, 189, 94, 255),
+    blue: new Color(94, 142, 189, 255),
+    purple: new Color(160, 94, 189, 255),
+    orange: new Color(212, 137, 63, 255),
+};
+const RARITY_MULTIPLIER: Record<Rarity, number> = { green: 1, blue: 2, purple: 4, orange: 8 };
+const RARITY_LIST: Rarity[] = ['green', 'blue', 'purple', 'orange'];
+
+/** 根据深度随机一个品质；深度越深，高品质概率越高 */
+function pickRarity(depth: number): Rarity {
+    const r = Math.random() * 100;
+    // 橙概率: 2% + depth*0.3  紫: 8% + depth*0.5  蓝: 25% + depth*0.3  其余绿
+    const orangeChance = Math.min(20, 2 + depth * 0.3);
+    const purpleChance = Math.min(30, 8 + depth * 0.5);
+    const blueChance = Math.min(40, 25 + depth * 0.3);
+    if (r < orangeChance) return 'orange';
+    if (r < orangeChance + purpleChance) return 'purple';
+    if (r < orangeChance + purpleChance + blueChance) return 'blue';
+    return 'green';
+}
+
+/** 资源类格子（herb/stone/treasure）是否需要品质 */
+function slotNeedsRarity(type: SlotType): boolean {
+    return type === 'herb' || type === 'stone' || type === 'treasure';
+}
+
 const DESIGN_WIDTH = 720;
 const DESIGN_HEIGHT = 1280;
 const HALF_WIDTH = DESIGN_WIDTH * 0.5;
@@ -86,28 +118,45 @@ const HALF_HEIGHT = DESIGN_HEIGHT * 0.5;
 type GameState = 'home' | 'expedition_path' | 'combat' | 'lottery' | 'result';
 
 /** 格子类型：点击？后揭示 */
-type SlotType = 'empty' | 'herb' | 'stone' | 'treasure' | 'monster' | 'trap' | 'buff' | 'boss';
+type SlotType = 'empty' | 'herb' | 'stone' | 'treasure' | 'monster' | 'trap' | 'buff' | 'intercept' | 'boss';
 
 /** 普通层各格子类型权重（不含 boss），用于按比例随机与展示 */
 const SLOT_WEIGHTS: Record<Exclude<SlotType, 'boss'>, number> = {
-    empty: 18,
-    herb: 18,
-    stone: 18,
-    treasure: 12,
-    monster: 18,
+    empty: 0,
+    herb: 16,
+    stone: 16,
+    treasure: 10,
+    monster: 16,
     trap: 8,
     buff: 8,
+    intercept: 6,
 };
 
 const SLOT_WEIGHT_SUM = (Object.values(SLOT_WEIGHTS) as number[]).reduce((a, b) => a + b, 0);
 
+/** 执行各类型格子消耗的行动力 */
+const ACTION_COST: Record<SlotType, number> = {
+    empty: 1,
+    herb: 3,
+    stone: 3,
+    treasure: 6,
+    monster: 8,
+    trap: 5,
+    buff: 5,
+    intercept: 6,
+    boss: 15,
+};
+
+const ACTION_POINT_BASE = 100;
+
 function pickSlotTypeByWeight(): Exclude<SlotType, 'boss'> {
     let r = Math.random() * SLOT_WEIGHT_SUM;
     for (const [type, w] of Object.entries(SLOT_WEIGHTS) as [Exclude<SlotType, 'boss'>, number][]) {
+        if (w <= 0) continue;
         r -= w;
         if (r <= 0) return type;
     }
-    return 'empty';
+    return 'herb';
 }
 
 interface LayerSlot {
@@ -116,6 +165,29 @@ interface LayerSlot {
     /** 怪物/ Boss 已击败 */
     defeated?: boolean;
 }
+
+/** 图节点：非固定层，可多分支、可汇合 */
+interface MapNode {
+    id: string;
+    depth: number;
+    type: SlotType;
+    revealed: boolean;
+    defeated?: boolean;
+    /** 是否已触发过（返回上一层后重复触发不再给奖励） */
+    triggered?: boolean;
+    /** 从此节点可前往的子节点 id 列表（按需生成） */
+    nextIds: string[];
+    /** 资源格子的品质（仅 herb/stone/treasure 有值） */
+    rarity?: Rarity;
+}
+
+let _nextNodeId = 0;
+function nextNodeId(): string {
+    return `n${++_nextNodeId}`;
+}
+
+/** 生成下一跳时，概率合并到同深度已有节点（形成「有关联」） */
+const MERGE_PROB = 0.15;
 
 interface BoneLimb {
     node: Node;
@@ -162,15 +234,25 @@ export class GrottoExpeditionDemo extends Component {
     private realmLevel = 1;
     private realmExp = 0;
     private realmExpNeed = 30;
-
-    private currentLayer = 1;
-    private currentLayerSlots: LayerSlot[] = [];
+    /** 行动力上限（局外养成）；局内带入为当前行动力 */
+    private actionPointMax = ACTION_POINT_BASE;
+    /** 秘境中当前行动力，只减不增 */
+    private actionPoints = ACTION_POINT_BASE;
+    /** 图：所有已创建的节点 */
+    private nodePool = new Map<string, MapNode>();
+    /** 当前所在节点 id */
+    private currentNodeId = '';
+    /** 返回用：来路节点 id 栈 */
+    private pathStack: string[] = [];
+    /** 探查后待选择：当前「下一跳」中的索引，-1 表示未在待选 */
+    private pendingRevealedIndex = -1;
     private expeditionSpirit = 0;
     private expeditionHerbs = 0;
     private expeditionTreasure = 0;
     private buffAtkPercent = 0;
     private combatSlotIndex = -1;
     private combatIsBoss = false;
+    private combatIsIntercept = false;
     /** 本局是否已击败过 Boss，用于触发安全撤离（100% 带走） */
     private canSafeWithdraw = false;
 
@@ -200,6 +282,8 @@ export class GrottoExpeditionDemo extends Component {
     /** 抽奖转盘：当前 8 个选项与预选结果索引（用于动画落点） */
     private lotteryWheelEntries: LotteryWheelEntry[] = [];
     private lotteryResultIndex = 0;
+    /** 当前转盘对应的格子是否已触发过（重复触发不生效奖励） */
+    private lotterySlotAlreadyTriggered = false;
 
 
     onLoad() {
@@ -262,12 +346,19 @@ export class GrottoExpeditionDemo extends Component {
         this.createLabel(goBtn, '进入秘境', 36, new Vec3(0, 0, 0), new Color(180, 255, 220, 255));
         goBtn.on(Node.EventType.TOUCH_END, () => this.startExpedition(), this);
 
-        this.hintLabel = this.createLabel(this.homeLayer, '每层3个？格子，每5层可撤出，每10层Boss', 20, new Vec3(0, -420, 0), new Color(120, 140, 160, 255), 600);
+        this.hintLabel = this.createLabel(this.homeLayer, '地图选路·行动力消耗；探查后可选执行或返回上一层', 20, new Vec3(0, -420, 0), new Color(120, 140, 160, 255), 620);
     }
 
     private expeditionResLabel!: Label;
+    private expeditionApLabel!: Label;
     private expeditionLayerLabel!: Label;
     private expeditionHpLabel!: Label;
+    private choicePanel!: Node;
+    private choiceDiscoverLabel!: Label;
+    private choiceExecuteLabel!: Label;
+    private interceptPanel!: Node;
+    private interceptOverlay!: Node;
+    private interceptPanelVisible = false;
     private expeditionManaLabel!: Label;
     private expeditionRatioLabel!: Label;
     private slotContainer!: Node;
@@ -275,6 +366,8 @@ export class GrottoExpeditionDemo extends Component {
     private nextLayerBtnLabel!: Label;
     private withdrawBtn!: Node;
     private withdrawBtnLabel!: Label;
+    private returnToPrevBtn!: Node;
+    private returnToPrevBtnLabel!: Label;
 
     private buildExpeditionUI() {
         const top = this.createPanel(this.expeditionLayer, 640, 100, 0, 560);
@@ -282,7 +375,8 @@ export class GrottoExpeditionDemo extends Component {
         this.expeditionLayerLabel = this.createLabel(top, '第 1 层', 28, new Vec3(-220, 18, 0), new Color(255, 248, 230, 255));
         this.expeditionHpLabel = this.createLabel(top, '生命 100/100', 22, new Vec3(0, 18, 0), new Color(255, 200, 180, 255));
         this.expeditionManaLabel = this.createLabel(top, '法力 100/100', 22, new Vec3(180, 18, 0), new Color(180, 220, 255, 255));
-        this.expeditionResLabel = this.createLabel(top, '灵石 0 | 灵药 0 | 天材地宝 0', 20, new Vec3(0, -28, 0), new Color(180, 220, 200, 255), 580);
+        this.expeditionApLabel = this.createLabel(top, '行动力 100/100', 22, new Vec3(-180, -28, 0), new Color(200, 220, 180, 255));
+        this.expeditionResLabel = this.createLabel(top, '灵石 0 | 灵药 0 | 天材地宝 0', 20, new Vec3(120, -28, 0), new Color(180, 220, 200, 255), 420);
 
         this.expeditionRatioLabel = this.createLabel(this.expeditionLayer, '', 18, new Vec3(0, 498, 0), new Color(140, 160, 180, 255), 680);
 
@@ -296,9 +390,53 @@ export class GrottoExpeditionDemo extends Component {
         this.nextLayerBtnLabel = this.createLabel(this.nextLayerBtn, '至少开启1格', 24, new Vec3(0, 0, 0), new Color(150, 150, 150, 255));
         this.nextLayerBtn.on(Node.EventType.TOUCH_END, () => this.goNextLayer(), this);
 
-        this.withdrawBtn = this.createPanel(this.expeditionLayer, 240, 56, 0, -300, new Color(65, 55, 70, 255));
+        const bottomY = -300;
+        this.returnToPrevBtn = this.createPanel(this.expeditionLayer, 200, 56, -140, bottomY, new Color(65, 55, 70, 255));
+        this.returnToPrevBtnLabel = this.createLabel(this.returnToPrevBtn, '返回上一层', 22, new Vec3(0, 0, 0), new Color(255, 220, 200, 255));
+        this.returnToPrevBtn.on(Node.EventType.TOUCH_END, () => this.onChoiceReturn(), this);
+
+        this.withdrawBtn = this.createPanel(this.expeditionLayer, 200, 56, 140, bottomY, new Color(65, 55, 70, 255));
         this.withdrawBtnLabel = this.createLabel(this.withdrawBtn, '紧急撤离', 24, new Vec3(0, 0, 0), new Color(255, 220, 200, 255));
         this.withdrawBtn.on(Node.EventType.TOUCH_END, () => this.withdrawExpedition(), this);
+
+        this.choicePanel = this.createPanel(this.expeditionLayer, 340, 160, 0, 0, new Color(40, 48, 56, 248));
+        this.choiceDiscoverLabel = this.createLabel(this.choicePanel, '发现：？', 26, new Vec3(0, 45, 0), new Color(255, 248, 200, 255));
+        this.choiceExecuteLabel = this.createLabel(this.choicePanel, '执行 消耗？行动力', 20, new Vec3(0, 8, 0), new Color(180, 220, 200, 255));
+        const execBtn = this.createPanel(this.choicePanel, 160, 44, 0, -50, new Color(55, 75, 65, 255));
+        this.createLabel(execBtn, '执行', 22, new Vec3(0, 0, 0), new Color(200, 255, 220, 255));
+        execBtn.on(Node.EventType.TOUCH_END, () => this.onChoiceExecute(), this);
+        const exploreBtn = this.createPanel(this.choicePanel, 140, 40, 0, -95, new Color(50, 58, 65, 255));
+        this.createLabel(exploreBtn, '继续探查', 18, new Vec3(0, 0, 0), new Color(180, 200, 220, 255));
+        exploreBtn.on(Node.EventType.TOUCH_END, () => this.onChoiceContinueExplore(), this);
+        this.choicePanel.active = false;
+
+        this.interceptOverlay = new Node('InterceptOverlay');
+        this.interceptOverlay.layer = Layers.Enum.UI_2D;
+        this.expeditionLayer.addChild(this.interceptOverlay);
+        this.interceptOverlay.setPosition(0, 0, 0);
+        this.interceptOverlay.addComponent(UITransform).setContentSize(DESIGN_WIDTH, DESIGN_HEIGHT);
+        const overlayG = this.interceptOverlay.addComponent(Graphics);
+        overlayG.fillColor = new Color(0, 0, 0, 100);
+        overlayG.rect(-HALF_WIDTH, -HALF_HEIGHT, DESIGN_WIDTH, DESIGN_HEIGHT);
+        overlayG.fill();
+        this.interceptOverlay.on(Node.EventType.TOUCH_START, (e: any) => { e.propagationStopped = true; }, this);
+        this.interceptOverlay.on(Node.EventType.TOUCH_END, (e: any) => { e.propagationStopped = true; }, this);
+        this.interceptOverlay.active = false;
+
+        this.interceptPanel = this.createPanel(this.expeditionLayer, 380, 200, 0, 0, new Color(48, 40, 44, 248));
+        this.interceptPanel.on(Node.EventType.TOUCH_START, (e: any) => { e.propagationStopped = true; }, this);
+        this.interceptPanel.on(Node.EventType.TOUCH_END, (e: any) => { e.propagationStopped = true; }, this);
+        this.createLabel(this.interceptPanel, '邪修截道', 26, new Vec3(0, 55, 0), new Color(220, 160, 160, 255));
+        this.createLabel(this.interceptPanel, '逃跑：丢失1%-20%物资  战斗：胜无损失+奖励，败丢50%', 18, new Vec3(0, 15, 0), new Color(200, 190, 180, 255), 360);
+        const fleeBtn = this.createPanel(this.interceptPanel, 160, 44, -90, -45, new Color(65, 55, 60, 255));
+        this.createLabel(fleeBtn, '逃跑', 22, new Vec3(0, 0, 0), new Color(255, 220, 200, 255));
+        fleeBtn.addComponent(Button).transition = Button.Transition.NONE;
+        fleeBtn.on(Node.EventType.TOUCH_END, () => this.onInterceptFlee(), this);
+        const fightBtn = this.createPanel(this.interceptPanel, 160, 44, 90, -45, new Color(70, 50, 55, 255));
+        this.createLabel(fightBtn, '战斗', 22, new Vec3(0, 0, 0), new Color(255, 180, 180, 255));
+        fightBtn.addComponent(Button).transition = Button.Transition.NONE;
+        fightBtn.on(Node.EventType.TOUCH_END, () => this.onInterceptFight(), this);
+        this.interceptPanel.active = false;
     }
 
     private combatManaLabel!: Label;
@@ -414,7 +552,8 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private refreshHomeStatus() {
-        this.statusLabel.string = `境界 ${this.realmLevel} 层 | 灵石 ${this.spiritStone} | 修为 ${this.realmExp}/${this.realmExpNeed}`;
+        this.actionPointMax = ACTION_POINT_BASE + (this.realmLevel - 1) * 10;
+        this.statusLabel.string = `境界 ${this.realmLevel} 层 | 灵石 ${this.spiritStone} | 修为 ${this.realmExp}/${this.realmExpNeed} | 行动力上限 ${this.actionPointMax}`;
     }
 
     private tryRealmUp() {
@@ -428,7 +567,8 @@ export class GrottoExpeditionDemo extends Component {
         this.playerMaxHp = 80 + this.realmLevel * 25;
         this.playerMaxMana = 50 + this.realmLevel * 15;
         this.playerDamage = 12 + this.realmLevel * 6;
-        this.hintLabel.string = '突破成功，生命与攻击提升';
+        this.actionPointMax = ACTION_POINT_BASE + (this.realmLevel - 1) * 10;
+        this.hintLabel.string = '突破成功，生命、攻击与行动力上限提升';
         this.refreshHomeStatus();
     }
 
@@ -439,33 +579,91 @@ export class GrottoExpeditionDemo extends Component {
         this.combatLayer.active = false;
         this.resultLayer.active = false;
 
-        this.currentLayer = 1;
+        _nextNodeId = 0;
+        this.nodePool.clear();
+        const rootId = nextNodeId();
+        this.nodePool.set(rootId, {
+            id: rootId,
+            depth: 1,
+            type: 'herb',
+            revealed: true,
+            nextIds: [],
+        });
+        this.currentNodeId = rootId;
+        this.pathStack = [];
         this.expeditionSpirit = 0;
         this.expeditionHerbs = 0;
         this.expeditionTreasure = 0;
         this.buffAtkPercent = 0;
         this.canSafeWithdraw = false;
         this.retreatRatioMultiplier = 1;
+        this.pendingRevealedIndex = -1;
+        this.actionPoints = this.actionPointMax;
         this.playerHp = this.playerMaxHp;
         this.playerMana = this.playerMaxMana;
-        this.currentLayerSlots = this.generateLayerSlots(this.currentLayer);
+        this.ensureNextNodes(this.currentNodeId);
         this.refreshLayerUI();
     }
 
-    /** 每层 3 个格子，按权重随机；每 10 层必有一个 boss，其余 2 格按比例 */
-    private generateLayerSlots(layer: number): LayerSlot[] {
-        const isBossLayer = layer >= 10 && layer % 10 === 0;
-        const slots: LayerSlot[] = [];
-        if (isBossLayer) {
-            slots.push({ type: 'boss', revealed: false });
-            for (let i = 0; i < 2; i++) slots.push({ type: pickSlotTypeByWeight(), revealed: false });
-        } else {
-            for (let i = 0; i < 3; i++) slots.push({ type: pickSlotTypeByWeight(), revealed: false });
-        }
-        return slots;
+    private getCurrentNode(): MapNode | null {
+        return this.nodePool.get(this.currentNodeId) ?? null;
     }
 
-    private getSlotTypeName(type: SlotType): string {
+    private getCurrentDepth(): number {
+        const n = this.getCurrentNode();
+        return n ? n.depth : 1;
+    }
+
+    /** 当前节点的「下一跳」节点列表（用于选路 UI） */
+    private getCurrentChoiceNodes(): MapNode[] {
+        const cur = this.getCurrentNode();
+        if (!cur) return [];
+        return cur.nextIds.map((id) => this.nodePool.get(id)).filter((n): n is MapNode => !!n);
+    }
+
+    /** 确保某节点有下一跳；若无则按图规则生成（2～4 个，可概率合并到同深度已有节点；Boss 层只生成 1 个 Boss） */
+    private ensureNextNodes(nodeId: string): void {
+        const node = this.nodePool.get(nodeId);
+        if (!node || node.nextIds.length > 0) return;
+        const nextDepth = node.depth + 1;
+        const isBossDepth = nextDepth >= 10 && nextDepth % 10 === 0;
+        if (isBossDepth) {
+            const bossId = nextNodeId();
+            this.nodePool.set(bossId, { id: bossId, depth: nextDepth, type: 'boss', revealed: false, nextIds: [] });
+            node.nextIds = [bossId];
+            return;
+        }
+        const count = 2 + Math.floor(Math.random() * 3);
+        const existingAtDepth = this.getNodesAtDepth(nextDepth);
+        const useMerge = existingAtDepth.length > 0 && Math.random() < MERGE_PROB;
+        const newCount = useMerge ? Math.max(1, count - 1) : count;
+        const ids: string[] = [];
+        for (let i = 0; i < newCount; i++) {
+            const id = nextNodeId();
+            const type = pickSlotTypeByWeight();
+            const node: MapNode = {
+                id,
+                depth: nextDepth,
+                type,
+                revealed: false,
+                nextIds: [],
+            };
+            if (slotNeedsRarity(type)) node.rarity = pickRarity(nextDepth);
+            this.nodePool.set(id, node);
+            ids.push(id);
+        }
+        if (useMerge && existingAtDepth.length > 0) {
+            const merge = existingAtDepth[Math.floor(Math.random() * existingAtDepth.length)];
+            if (merge && !ids.includes(merge.id)) ids.push(merge.id);
+        }
+        node.nextIds = ids;
+    }
+
+    private getNodesAtDepth(depth: number): MapNode[] {
+        return [...this.nodePool.values()].filter((n) => n.depth === depth);
+    }
+
+    private getSlotTypeName(type: SlotType, rarity?: Rarity): string {
         const names: Record<SlotType, string> = {
             empty: '空',
             herb: '灵植',
@@ -474,9 +672,28 @@ export class GrottoExpeditionDemo extends Component {
             monster: '妖兽',
             trap: '陷阱',
             buff: '机缘',
+            intercept: '邪修截道',
             boss: 'Boss',
         };
-        return names[type];
+        const base = names[type];
+        if (rarity && slotNeedsRarity(type)) return `${RARITY_NAMES[rarity]}${base}`;
+        return base;
+    }
+
+    /** 地图节点图标文案（妖兽=骷髅/战斗，机缘陷阱=？，资源=宝箱/灵植等） */
+    private getSlotMapIcon(type: SlotType): string {
+        const icons: Record<SlotType, string> = {
+            empty: '空',
+            herb: '灵植',
+            stone: '灵石',
+            treasure: '宝箱',
+            monster: '妖兽',
+            trap: '？',
+            buff: '？',
+            intercept: '截道',
+            boss: 'Boss',
+        };
+        return icons[type];
     }
 
     /** 本层各类型比例文案（用于 UI 展示） */
@@ -490,38 +707,104 @@ export class GrottoExpeditionDemo extends Component {
             monster: '妖兽',
             trap: '陷阱',
             buff: '机缘',
+            intercept: '邪修截道',
         };
         for (const [type, w] of Object.entries(SLOT_WEIGHTS) as [Exclude<SlotType, 'boss'>, number][]) {
+            if (w <= 0) continue;
             const pct = Math.round((w / SLOT_WEIGHT_SUM) * 100);
             parts.push(`${names[type]} ${pct}%`);
         }
         return parts.join('  ');
     }
 
+    /** 分支节点在 map 上的 X 坐标（按个数均摊，控制在设计宽内不超框） */
+    private getMapNodePositions(count: number): number[] {
+        if (count <= 0) return [];
+        if (count === 1) return [0];
+        const span = 260;
+        const step = count === 2 ? span : span * (2 / (count - 1));
+        const start = count === 2 ? -span / 2 : -span;
+        const out: number[] = [];
+        for (let i = 0; i < count; i++) out.push(start + i * step);
+        return out;
+    }
+
     private refreshLayerUI() {
-        this.expeditionLayerLabel.string = `第 ${this.currentLayer} 层`;
+        this.expeditionLayerLabel.string = `深度 ${this.getCurrentDepth()}`;
         if (this.expeditionHpLabel)
             this.expeditionHpLabel.string = `生命 ${Math.ceil(this.playerHp)}/${this.playerMaxHp}`;
         if (this.expeditionManaLabel)
             this.expeditionManaLabel.string = `法力 ${Math.ceil(this.playerMana)}/${this.playerMaxMana}`;
         this.expeditionResLabel.string = `灵石 ${this.expeditionSpirit} | 灵药 ${this.expeditionHerbs} | 天材地宝 ${this.expeditionTreasure}${this.buffAtkPercent > 0 ? ' | 攻+' + (this.buffAtkPercent * 100) + '%' : ''}`;
-        if (this.expeditionRatioLabel) this.expeditionRatioLabel.string = '本层比例：' + this.getSlotRatioText();
+        if (this.expeditionApLabel) this.expeditionApLabel.string = `行动力 ${this.actionPoints}/${this.actionPointMax}`;
+        if (this.expeditionRatioLabel) this.expeditionRatioLabel.string = '前路未卜，择一而行';
 
         this.slotContainer.removeAllChildren();
-        const positions = [-200, 0, 200];
-        this.currentLayerSlots.forEach((slot, i) => {
-            const panel = this.createPanel(this.slotContainer, 160, 180, positions[i], 0, new Color(38, 48, 58, 250));
-            const label = this.createLabel(panel, slot.revealed ? (slot.defeated ? '已击败' : this.getSlotTypeName(slot.type)) : '？', 24, new Vec3(0, 0, 0), slot.revealed ? new Color(200, 220, 240, 255) : new Color(255, 240, 180, 255));
-            if (!slot.revealed) {
+        const pathFromY = 60;
+        const nodeY = -100;
+        const choices = this.getCurrentChoiceNodes();
+        const xs = this.getMapNodePositions(choices.length);
+
+        const pathNode = new Node('Paths');
+        pathNode.layer = Layers.Enum.UI_2D;
+        pathNode.setPosition(0, 0, 0);
+        this.slotContainer.addChild(pathNode);
+        const pathGfx = pathNode.addComponent(Graphics);
+        pathGfx.strokeColor = new Color(120, 110, 95, 180);
+        pathGfx.lineWidth = 2;
+        for (let i = 0; i < xs.length; i++) {
+            const x = xs[i];
+            const dx = x - 0;
+            const dy = nodeY - pathFromY;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const steps = Math.max(8, Math.floor(len / 12));
+            for (let s = 0; s < steps; s++) {
+                const t0 = s / steps;
+                const t1 = (s + 0.5) / steps;
+                if (t1 > 1) break;
+                pathGfx.moveTo(0 + dx * t0, pathFromY + dy * t0);
+                pathGfx.lineTo(0 + dx * t1, pathFromY + dy * t1);
+                pathGfx.stroke();
+            }
+        }
+
+        const currentPanel = this.createPanel(this.slotContainer, 100, 44, 0, pathFromY, new Color(72, 82, 92, 250));
+        this.createLabel(currentPanel, '当前', 20, new Vec3(0, 0, 0), new Color(255, 248, 220, 255));
+
+        choices.forEach((slot, i) => {
+            const x = xs[i];
+            const hasRarity = slot.revealed && slot.rarity && slotNeedsRarity(slot.type);
+            const isMonster = slot.revealed && slot.type === 'monster';
+            const isBoss = slot.revealed && slot.type === 'boss';
+            const panelBg = hasRarity
+                ? new Color(RARITY_COLORS[slot.rarity!].r, RARITY_COLORS[slot.rarity!].g, RARITY_COLORS[slot.rarity!].b, 40)
+                : isBoss ? new Color(120, 30, 30, 250)
+                : isMonster ? new Color(90, 40, 40, 250)
+                : new Color(48, 52, 58, 250);
+            const panel = this.createPanel(this.slotContainer, 120, 100, x, nodeY, panelBg);
+            const text = slot.revealed ? this.getSlotTypeName(slot.type, slot.rarity) : '？';
+            const color = hasRarity ? RARITY_COLORS[slot.rarity!]
+                : isBoss ? new Color(255, 80, 80, 255)
+                : isMonster ? new Color(240, 150, 150, 255)
+                : (slot.revealed ? new Color(200, 220, 240, 255) : new Color(255, 240, 180, 255));
+            this.createLabel(panel, text, slot.revealed ? 16 : 28, new Vec3(0, 0, 0), color);
+            const ring = panel.addComponent(Graphics);
+            const ringColor = hasRarity ? RARITY_COLORS[slot.rarity!]
+                : isBoss ? new Color(255, 60, 60, 220)
+                : isMonster ? new Color(220, 120, 120, 200)
+                : new Color(140, 130, 120, 200);
+            ring.strokeColor = ringColor;
+            ring.lineWidth = (hasRarity || isBoss) ? 3 : 2;
+            ring.circle(0, 0, 48);
+            ring.stroke();
+            if (slot.revealed) {
+                panel.on(Node.EventType.TOUCH_END, () => this.onRevealedSlotTap(i), this);
+            } else {
                 panel.on(Node.EventType.TOUCH_END, () => this.onSlotTap(i), this);
             }
         });
 
-        const atLeastOneRevealed = this.currentLayerSlots.some((s) => s.revealed);
-        if (this.nextLayerBtnLabel) {
-            this.nextLayerBtnLabel.string = atLeastOneRevealed ? '下一层' : '至少开启1格';
-            this.nextLayerBtnLabel.color = atLeastOneRevealed ? new Color(200, 255, 220, 255) : new Color(150, 150, 150, 255);
-        }
+        if (this.nextLayerBtn) this.nextLayerBtn.active = false;
 
         this.withdrawBtn.active = true;
         if (this.withdrawBtnLabel) {
@@ -529,31 +812,184 @@ export class GrottoExpeditionDemo extends Component {
                 this.withdrawBtnLabel.string = '安全撤离(100%)';
                 this.withdrawBtnLabel.color = new Color(180, 255, 180, 255);
             } else {
-                const ratioPct = 50 + (this.currentLayer - 1) * 0.5;
+                const ratioPct = 50 + (this.getCurrentDepth() - 1) * 0.5;
                 this.withdrawBtnLabel.string = `紧急撤离(${ratioPct.toFixed(0)}%)`;
                 this.withdrawBtnLabel.color = new Color(255, 220, 200, 255);
             }
         }
+
+        const revealedCount = choices.filter((s) => s.revealed).length;
+        const returnCost = 1 + Math.max(0, revealedCount - 1);
+        const canReturn = this.pathStack.length > 0 && this.actionPoints >= returnCost;
+        if (this.returnToPrevBtnLabel) {
+            this.returnToPrevBtnLabel.string = this.pathStack.length === 0 ? '已在起点' : `返回上一层(消耗${returnCost})`;
+            this.returnToPrevBtnLabel.color = canReturn ? new Color(255, 220, 200, 255) : new Color(140, 140, 140, 255);
+        }
+
+        if (this.interceptPanelVisible) {
+            this.slotContainer.active = false;
+            this.returnToPrevBtn.active = false;
+            this.withdrawBtn.active = false;
+            if (this.interceptOverlay) {
+                this.interceptOverlay.active = true;
+                this.interceptOverlay.setSiblingIndex(this.expeditionLayer.children.length - 1);
+            }
+            this.interceptPanel.active = true;
+            this.interceptPanel.setSiblingIndex(this.expeditionLayer.children.length - 1);
+        }
     }
 
+    /** 首次点击「？」：消耗 1 点行动力并揭示；邪修截道立即强制触发 */
     private onSlotTap(index: number) {
-        const slot = this.currentLayerSlots[index];
+        if (this.interceptPanelVisible) return;
+        const choices = this.getCurrentChoiceNodes();
+        const slot = choices[index];
         if (!slot || slot.revealed) return;
+        if (this.actionPoints < 1) return;
+        this.actionPoints -= 1;
         slot.revealed = true;
+        if (slot.type === 'intercept') {
+            this.combatSlotIndex = index;
+            this.interceptPanelVisible = true;
+            this.refreshLayerUI();
+            return;
+        }
+        this.refreshLayerUI();
+    }
 
-        if (slot.type === 'monster' || slot.type === 'boss') {
+    /** 再次点击已揭示的格子：弹出执行/继续探查 */
+    private onRevealedSlotTap(index: number) {
+        if (this.interceptPanelVisible) return;
+        const choices = this.getCurrentChoiceNodes();
+        const slot = choices[index];
+        if (!slot || !slot.revealed) return;
+        this.pendingRevealedIndex = index;
+        this.showRevealChoicePanel();
+    }
+
+    private showRevealChoicePanel() {
+        if (this.interceptPanelVisible) return;
+        const index = this.pendingRevealedIndex;
+        const choices = this.getCurrentChoiceNodes();
+        const slot = index >= 0 && index < choices.length ? choices[index] : null;
+        if (!slot) return;
+        const isIntercept = slot.type === 'intercept';
+        const execCost = isIntercept ? 0 : ACTION_COST[slot.type];
+        const canExec = isIntercept || this.actionPoints >= execCost;
+
+        this.choiceDiscoverLabel.string = `发现：${this.getSlotTypeName(slot.type, slot.rarity)}`;
+        this.choiceDiscoverLabel.color = (slot.rarity && slotNeedsRarity(slot.type)) ? RARITY_COLORS[slot.rarity] : new Color(255, 248, 200, 255);
+        this.choiceExecuteLabel.string = isIntercept ? '执行(不消耗行动力)' : `执行 消耗${execCost}行动力`;
+        this.choiceExecuteLabel.color = canExec ? new Color(180, 220, 200, 255) : new Color(120, 120, 120, 255);
+        this.choicePanel.active = true;
+        this.choiceCanExecute = canExec;
+    }
+
+    private choiceCanExecute = false;
+
+    private onChoiceExecute() {
+        if (this.interceptPanelVisible) return;
+        const index = this.pendingRevealedIndex;
+        const choices = this.getCurrentChoiceNodes();
+        const slot = index >= 0 && index < choices.length ? choices[index] : null;
+        if (!slot || !this.choiceCanExecute) return;
+        if (slot.type !== 'intercept') {
+            const cost = ACTION_COST[slot.type];
+            if (this.actionPoints < cost) return;
+            this.actionPoints = Math.max(0, this.actionPoints - cost);
+        }
+        this.choicePanel.active = false;
+        this.pendingRevealedIndex = -1;
+
             this.combatSlotIndex = index;
             this.combatIsBoss = slot.type === 'boss';
+        if (slot.type === 'monster' || slot.type === 'boss') {
             this.enterCombat();
             return;
         }
-
         if (slot.type === 'trap' || slot.type === 'buff') {
+            this.lotterySlotAlreadyTriggered = !!slot.triggered;
             this.showLotteryWheel(slot.type === 'buff');
             return;
         }
+        if (slot.type === 'intercept') {
+            this.interceptPanelVisible = true;
+            this.returnToPrevBtn.active = false;
+            this.withdrawBtn.active = false;
+            this.setOtherButtonsGreyed(true);
+            if (this.slotContainer.parent) this.slotContainer.removeFromParent();
+            if (this.interceptOverlay) {
+                this.interceptOverlay.active = true;
+                this.interceptOverlay.setSiblingIndex(this.expeditionLayer.children.length - 1);
+            }
+            this.interceptPanel.active = true;
+            this.interceptPanel.setSiblingIndex(this.expeditionLayer.children.length - 1);
+            return;
+        }
+        this.resolveSlotAsNode(slot);
+        this.advanceToNode(slot.id);
+    }
 
-        this.resolveSlot(slot);
+    private setOtherButtonsGreyed(greyed: boolean) {
+        const grey = new Color(110, 110, 110, 255);
+        if (this.returnToPrevBtnLabel) this.returnToPrevBtnLabel.color = greyed ? grey : new Color(255, 220, 200, 255);
+        if (this.withdrawBtnLabel) this.withdrawBtnLabel.color = greyed ? grey : new Color(255, 220, 200, 255);
+    }
+
+    private onInterceptFlee() {
+        const choices = this.getCurrentChoiceNodes();
+        const slot = this.combatSlotIndex >= 0 && this.combatSlotIndex < choices.length ? choices[this.combatSlotIndex] : null;
+        if (!slot) return;
+        this.interceptPanelVisible = false;
+        if (this.interceptOverlay) this.interceptOverlay.active = false;
+        this.interceptPanel.active = false;
+        if (!this.slotContainer.parent) this.expeditionLayer.addChild(this.slotContainer, 0);
+        this.slotContainer.active = true;
+        this.returnToPrevBtn.active = true;
+        this.withdrawBtn.active = true;
+        this.setOtherButtonsGreyed(false);
+        const pct = 0.01 + Math.random() * 0.19;
+        this.expeditionSpirit = Math.floor(this.expeditionSpirit * (1 - pct));
+        this.expeditionHerbs = Math.floor(this.expeditionHerbs * (1 - pct));
+        this.expeditionTreasure = Math.floor(this.expeditionTreasure * (1 - pct));
+        slot.triggered = true;
+        this.advanceToNode(slot.id);
+        this.combatSlotIndex = -1;
+    }
+
+    private onInterceptFight() {
+        const choices = this.getCurrentChoiceNodes();
+        const slot = this.combatSlotIndex >= 0 && this.combatSlotIndex < choices.length ? choices[this.combatSlotIndex] : null;
+        if (!slot) return;
+        this.interceptPanelVisible = false;
+        if (this.interceptOverlay) this.interceptOverlay.active = false;
+        this.interceptPanel.active = false;
+        if (!this.slotContainer.parent) this.expeditionLayer.addChild(this.slotContainer, 0);
+        this.slotContainer.active = true;
+        this.returnToPrevBtn.active = true;
+        this.withdrawBtn.active = true;
+        this.setOtherButtonsGreyed(false);
+        this.combatIsIntercept = true;
+        this.enterCombat();
+    }
+
+    private onChoiceReturn() {
+        if (this.interceptPanelVisible) return;
+        const choices = this.getCurrentChoiceNodes();
+        const revealedCount = choices.filter((s) => s.revealed).length;
+        const returnCost = 1 + Math.max(0, revealedCount - 1);
+        if (this.pathStack.length === 0 || this.actionPoints < returnCost) return;
+        this.actionPoints = Math.max(0, this.actionPoints - returnCost);
+        this.currentNodeId = this.pathStack.pop()!;
+        this.choicePanel.active = false;
+        this.pendingRevealedIndex = -1;
+        this.refreshLayerUI();
+    }
+
+    private onChoiceContinueExplore() {
+        if (this.interceptPanelVisible) return;
+        this.choicePanel.active = false;
+        this.pendingRevealedIndex = -1;
         this.refreshLayerUI();
     }
 
@@ -610,14 +1046,14 @@ export class GrottoExpeditionDemo extends Component {
                 return `气血+${v}%`;
             case 'restoreMana':
                 return `灵力+${v}%`;
-            case 'advanceLayer':
-                return `前进${v}层`;
+            case 'restoreAction':
+                return `行动力+${v}%`;
             case 'reduceHp':
                 return `气血-${v}%`;
             case 'reduceMana':
                 return `灵力-${v}%`;
-            case 'retreatPenalty':
-                return `截道-${v}%`;
+            case 'reduceAction':
+                return `行动力-${v}%`;
             default:
                 return entry.name;
         }
@@ -943,6 +1379,7 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private applyLotteryEffect(entry: LotteryWheelEntry) {
+        if (this.lotterySlotAlreadyTriggered) return;
         const e = entry.effect;
         switch (e.type) {
             case 'restoreHp': {
@@ -955,10 +1392,11 @@ export class GrottoExpeditionDemo extends Component {
                 this.playerMana = Math.min(this.playerMaxMana, this.playerMana + add);
                 break;
             }
-            case 'advanceLayer':
-                this.currentLayer = Math.min(100, this.currentLayer + e.value);
-                this.currentLayerSlots = this.generateLayerSlots(this.currentLayer);
+            case 'restoreAction': {
+                const add = Math.ceil(this.actionPointMax * (e.value / 100));
+                this.actionPoints = Math.min(this.actionPointMax, this.actionPoints + add);
                 break;
+            }
             case 'reduceHp': {
                 const dmg = Math.ceil(this.playerMaxHp * (e.value / 100));
                 this.playerHp = Math.max(0, this.playerHp - dmg);
@@ -970,9 +1408,11 @@ export class GrottoExpeditionDemo extends Component {
                 this.playerMana = Math.max(0, this.playerMana - cost);
                 break;
             }
-            case 'retreatPenalty':
-                this.retreatRatioMultiplier = Math.max(0.1, this.retreatRatioMultiplier * (1 - e.value / 100));
+            case 'reduceAction': {
+                const cost = Math.ceil(this.actionPointMax * (e.value / 100));
+                this.actionPoints = Math.max(0, this.actionPoints - cost);
                 break;
+            }
             default:
                 break;
         }
@@ -981,26 +1421,37 @@ export class GrottoExpeditionDemo extends Component {
     private closeLotteryAndResume() {
         this.state = 'expedition_path';
         this.lotteryLayer.active = false;
-        this.refreshLayerUI();
         if (this.playerHp <= 0) return;
-        if (this.lotteryIsBuffContext && this.lotteryWheelEntries[this.lotteryResultIndex].effect.type === 'advanceLayer') {
-            this.refreshLayerUI();
+        if (this.combatSlotIndex >= 0) {
+            const choices = this.getCurrentChoiceNodes();
+            const slot = choices[this.combatSlotIndex];
+            if (slot) {
+                slot.triggered = true;
+                this.advanceToNode(slot.id);
+                this.combatSlotIndex = -1;
+                return;
+            }
         }
+        this.combatSlotIndex = -1;
+        this.refreshLayerUI();
     }
 
-    private resolveSlot(slot: LayerSlot) {
-        const layer = this.currentLayer;
+    private resolveSlotAsNode(slot: MapNode) {
+        if (slot.triggered) return;
+        slot.triggered = true;
+        const depth = slot.depth;
+        const mul = slot.rarity ? RARITY_MULTIPLIER[slot.rarity] : 1;
         switch (slot.type) {
             case 'herb':
-                this.expeditionHerbs += 2 + Math.floor(layer / 5);
+                this.expeditionHerbs += Math.floor((2 + Math.floor(depth / 5)) * mul);
                 break;
             case 'stone':
-                this.expeditionSpirit += 5 + Math.floor(layer / 3);
+                this.expeditionSpirit += Math.floor((5 + Math.floor(depth / 3)) * mul);
                 break;
             case 'treasure':
-                this.expeditionSpirit += 15 + layer * 2;
-                this.expeditionHerbs += 3 + Math.floor(layer / 5);
-                this.expeditionTreasure += 1;
+                this.expeditionSpirit += Math.floor((15 + depth * 2) * mul);
+                this.expeditionHerbs += Math.floor((3 + Math.floor(depth / 5)) * mul);
+                this.expeditionTreasure += Math.max(1, Math.floor(1 * mul));
                 break;
             case 'empty':
                 break;
@@ -1012,18 +1463,42 @@ export class GrottoExpeditionDemo extends Component {
         }
     }
 
-    private goNextLayer() {
-        if (!this.currentLayerSlots.some((s) => s.revealed)) return;
-        this.currentLayer += 1;
-        if (this.currentLayer > 100) {
+    /** 移动到目标节点（压栈、设当前、生成其下一跳；深度>100 则结算） */
+    private advanceToNode(nodeId: string) {
+        this.pathStack.push(this.currentNodeId);
+        this.currentNodeId = nodeId;
+        this.ensureNextNodes(nodeId);
+        this.pendingRevealedIndex = -1;
+        if (this.getCurrentDepth() > 100) {
             this.endExpedition(true);
             return;
         }
-        this.currentLayerSlots = this.generateLayerSlots(this.currentLayer);
+        this.refreshLayerUI();
+    }
+
+    private goNextLayer() {
+        if (this.interceptPanelVisible) return;
+        this.refreshLayerUI();
+    }
+
+    /** 仙人指路：跳到指定深度（新建节点并设为当前） */
+    private jumpToDepth(depth: number) {
+        const jumpId = nextNodeId();
+        this.nodePool.set(jumpId, {
+            id: jumpId,
+            depth,
+            type: 'herb',
+            revealed: true,
+            nextIds: [],
+        });
+        this.pathStack.push(this.currentNodeId);
+        this.currentNodeId = jumpId;
+        this.ensureNextNodes(jumpId);
         this.refreshLayerUI();
     }
 
     private withdrawExpedition() {
+        if (this.interceptPanelVisible) return;
         this.endExpeditionWithdraw(this.canSafeWithdraw);
     }
 
@@ -1033,7 +1508,7 @@ export class GrottoExpeditionDemo extends Component {
         this.expeditionLayer.active = false;
         this.resultLayer.active = true;
 
-        let ratio = safe ? 1 : Math.min(1, 0.5 + (this.currentLayer - 1) * 0.005);
+        let ratio = safe ? 1 : Math.min(1, 0.5 + (this.getCurrentDepth() - 1) * 0.005);
         ratio *= this.retreatRatioMultiplier;
         const takeSpirit = Math.floor(this.expeditionSpirit * ratio);
         const takeHerbs = Math.floor(this.expeditionHerbs * ratio);
@@ -1046,8 +1521,8 @@ export class GrottoExpeditionDemo extends Component {
 
         const ratioPct = (ratio * 100).toFixed(0);
         this.resultLabel.string = safe
-            ? `安全撤离（击败Boss）\n抵达第 ${this.currentLayer} 层\n带走灵石 ${takeSpirit}，灵药 ${takeHerbs}，天材地宝 ${takeTreasure}\n修为 +${takeExp}`
-            : `紧急撤离（带走 ${ratioPct}%）\n抵达第 ${this.currentLayer} 层\n带走灵石 ${takeSpirit}，灵药 ${takeHerbs}，天材地宝 ${takeTreasure}\n修为 +${takeExp}`;
+            ? `安全撤离（击败Boss）\n深度 ${this.getCurrentDepth()}\n带走灵石 ${takeSpirit}，灵药 ${takeHerbs}，天材地宝 ${takeTreasure}\n修为 +${takeExp}`
+            : `紧急撤离（带走 ${ratioPct}%）\n深度 ${this.getCurrentDepth()}\n带走灵石 ${takeSpirit}，灵药 ${takeHerbs}，天材地宝 ${takeTreasure}\n修为 +${takeExp}`;
         this.canSafeWithdraw = false;
     }
 
@@ -1058,7 +1533,7 @@ export class GrottoExpeditionDemo extends Component {
         this.spiritStone += this.expeditionSpirit;
         const expGain = this.expeditionHerbs * 5 + this.expeditionTreasure * 20 + (reachedExit ? 50 : 0);
         this.realmExp += expGain;
-        this.resultLabel.string = `抵达第 ${this.currentLayer} 层\n获得灵石 ${this.expeditionSpirit}，灵药 ${this.expeditionHerbs}，天材地宝 ${this.expeditionTreasure}\n修为 +${expGain}\n${reachedExit ? '通关百层！' : '已撤出秘境'}`;
+        this.resultLabel.string = `深度 ${this.getCurrentDepth()}\n获得灵石 ${this.expeditionSpirit}，灵药 ${this.expeditionHerbs}，天材地宝 ${this.expeditionTreasure}\n修为 +${expGain}\n${reachedExit ? '通关百层！' : '已撤出秘境'}`;
     }
 
     private endExpeditionDeath() {
@@ -1068,7 +1543,7 @@ export class GrottoExpeditionDemo extends Component {
         this.resultLayer.active = true;
         this.spiritStone += Math.floor(this.expeditionSpirit * 0.5);
         this.realmExp += Math.floor((this.expeditionHerbs * 5 + this.expeditionTreasure * 20) * 0.3);
-        this.resultLabel.string = `神识受损，撤回避难洞府\n抵达第 ${this.currentLayer} 层\n损失部分收获：灵石 ${Math.floor(this.expeditionSpirit * 0.5)}，修为 +${Math.floor((this.expeditionHerbs * 5 + this.expeditionTreasure * 20) * 0.3)}`;
+        this.resultLabel.string = `神识受损，撤回避难洞府\n深度 ${this.getCurrentDepth()}\n损失部分收获：灵石 ${Math.floor(this.expeditionSpirit * 0.5)}，修为 +${Math.floor((this.expeditionHerbs * 5 + this.expeditionTreasure * 20) * 0.3)}`;
     }
 
     private enterCombat() {
@@ -1086,7 +1561,8 @@ export class GrottoExpeditionDemo extends Component {
         this.spawnEnemies();
         this.buildCombatUI();
         this.updateCombatHud();
-        const hint = this.createLabel(this.combatLayer, this.combatIsBoss ? 'Boss 现身！' : '妖兽现身！', 28, new Vec3(0, 0, 0), new Color(255, 220, 100, 255));
+        const hintText = this.combatIsIntercept ? '邪修截道！' : this.combatIsBoss ? 'Boss 现身！' : '妖兽现身！';
+        const hint = this.createLabel(this.combatLayer, hintText, 28, new Vec3(0, 0, 0), new Color(255, 220, 100, 255));
         this.scheduleOnce(() => { if (hint.node.isValid) hint.node.destroy(); }, 0.6);
     }
 
@@ -1118,20 +1594,23 @@ export class GrottoExpeditionDemo extends Component {
 
     private spawnEnemies() {
         this.enemies = [];
+        const isIntercept = this.combatIsIntercept;
         const isBoss = this.combatIsBoss;
-        const count = isBoss ? 1 : 1 + (this.realmLevel > 2 ? 1 : 0);
-        const layer = this.currentLayer;
+        const count = isIntercept ? 1 : isBoss ? 1 : 1 + (this.realmLevel > 2 ? 1 : 0);
+        const choices = this.getCurrentChoiceNodes();
+        const slot = this.combatSlotIndex >= 0 && this.combatSlotIndex < choices.length ? choices[this.combatSlotIndex] : null;
+        const layer = slot ? slot.depth : this.getCurrentDepth();
         for (let i = 0; i < count; i++) {
-            const en = new Node(isBoss ? 'Boss' : `Enemy_${i}`);
+            const en = new Node(isIntercept ? '邪修' : isBoss ? 'Boss' : `Enemy_${i}`);
             en.layer = Layers.Enum.UI_2D;
             this.combatLayer.addChild(en);
             en.setPosition(160 + i * 120, -120 + i * 40, 0);
             const ut = en.addComponent(UITransform);
             ut.setContentSize(90, 100);
             ut.setAnchorPoint(0.5, 0.5);
-            const rig = this.createCharacterRig(en, new Color(100, 60, 60, 255), new Color(220, 120, 100, 255));
-            const baseHp = isBoss ? 180 + layer * 8 : 40 + this.realmLevel * 10 + Math.floor(layer / 3) * 6;
-            const baseDmg = isBoss ? 14 + Math.floor(layer / 5) * 2 : 8 + this.realmLevel * 2;
+            const rig = this.createCharacterRig(en, isIntercept ? new Color(80, 50, 60, 255) : new Color(100, 60, 60, 255), isIntercept ? new Color(180, 80, 100, 255) : new Color(220, 120, 100, 255));
+            const baseHp = isIntercept ? 60 + layer * 4 : isBoss ? 180 + layer * 8 : 40 + this.realmLevel * 10 + Math.floor(layer / 3) * 6;
+            const baseDmg = isIntercept ? 10 + Math.floor(layer / 4) : isBoss ? 14 + Math.floor(layer / 5) * 2 : 8 + this.realmLevel * 2;
             const hpBarNode = new Node('HpBar');
             hpBarNode.layer = Layers.Enum.UI_2D;
             this.combatLayer.addChild(hpBarNode);
@@ -1368,25 +1847,50 @@ export class GrottoExpeditionDemo extends Component {
         }
         this.enemies = [];
 
-        if (victory && this.combatSlotIndex >= 0 && this.combatSlotIndex < this.currentLayerSlots.length) {
-            this.currentLayerSlots[this.combatSlotIndex].defeated = true;
-            const layer = this.currentLayer;
+        let advanced = false;
+        if (victory && this.combatSlotIndex >= 0) {
+            const choices = this.getCurrentChoiceNodes();
+            const slot = choices[this.combatSlotIndex];
+            if (slot) {
+                slot.defeated = true;
+                if (this.combatIsIntercept) {
+                    if (!slot.triggered) {
+                        const depth = slot.depth;
+                        this.expeditionSpirit += 15 + Math.floor(depth / 3);
+                        this.expeditionHerbs += 2;
+                    }
+                    slot.triggered = true;
+                    this.advanceToNode(slot.id);
+                    advanced = true;
+                } else if (!slot.triggered) {
+                    slot.triggered = true;
+                    const depth = slot.depth;
             if (this.combatIsBoss) {
                 this.canSafeWithdraw = true;
-                this.expeditionSpirit += 30 + layer * 3;
-                this.expeditionHerbs += 5 + Math.floor(layer / 5);
+                        this.expeditionSpirit += 30 + depth * 3;
+                        this.expeditionHerbs += 5 + Math.floor(depth / 5);
                 this.expeditionTreasure += 2;
             } else {
-                this.expeditionSpirit += 12 + Math.floor(layer / 4);
+                        this.expeditionSpirit += 12 + Math.floor(depth / 4);
                 this.expeditionHerbs += 1;
+                    }
+                    this.advanceToNode(slot.id);
+                    advanced = true;
+                } else {
+                    this.advanceToNode(slot.id);
+                    advanced = true;
+                }
             }
         }
         this.combatSlotIndex = -1;
         this.combatIsBoss = false;
-        this.refreshLayerUI();
+        this.combatIsIntercept = false;
+        if (victory && !advanced) this.refreshLayerUI();
     }
 
     private endCombatPlayerDeath() {
+        const wasIntercept = this.combatIsIntercept;
+        const slotIndex = this.combatSlotIndex;
         this.playerNode.destroy();
         this.playerRig = null;
         for (const e of this.enemies) {
@@ -1396,6 +1900,21 @@ export class GrottoExpeditionDemo extends Component {
         this.enemies = [];
         this.combatSlotIndex = -1;
         this.combatIsBoss = false;
+        this.combatIsIntercept = false;
+        if (wasIntercept && slotIndex >= 0) {
+            const choices = this.getCurrentChoiceNodes();
+            const slot = slotIndex < choices.length ? choices[slotIndex] : null;
+            if (slot) {
+                this.expeditionSpirit = Math.floor(this.expeditionSpirit * 0.5);
+                this.expeditionHerbs = Math.floor(this.expeditionHerbs * 0.5);
+                this.expeditionTreasure = Math.floor(this.expeditionTreasure * 0.5);
+                this.state = 'expedition_path';
+                this.combatLayer.active = false;
+                this.expeditionLayer.active = true;
+                this.advanceToNode(slot.id);
+                return;
+            }
+        }
         this.endExpeditionDeath();
     }
 
