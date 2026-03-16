@@ -343,8 +343,11 @@ export class GrottoExpeditionDemo extends Component {
 
     private lotteryWheelNode!: Node;
     private lotteryTitleLabel!: Label;
+    private lotterySubtitleLabel!: Label;
     private lotteryResultLabel!: Label;
     private lotterySpinBtn!: Node;
+    private lotteryPointerNode!: Node;
+    private lotteryPointerGfx!: Graphics;
 
     private buildLotteryUI() {
         const mask = new Node('Mask');
@@ -352,11 +355,12 @@ export class GrottoExpeditionDemo extends Component {
         this.lotteryLayer.addChild(mask);
         mask.addComponent(UITransform).setContentSize(DESIGN_WIDTH, DESIGN_HEIGHT);
         const g = mask.addComponent(Graphics);
-        g.fillColor = new Color(0, 0, 0, 180);
+        g.fillColor = new Color(6, 8, 12, 215);
         g.rect(-HALF_WIDTH, -HALF_HEIGHT, DESIGN_WIDTH, DESIGN_HEIGHT);
         g.fill();
 
-        this.lotteryTitleLabel = this.createLabel(this.lotteryLayer, '福兮祸所伏', 28, new Vec3(0, 520, 0), new Color(255, 248, 220, 255));
+        this.lotteryTitleLabel = this.createLabel(this.lotteryLayer, '福兮祸所伏', 30, new Vec3(0, 526, 0), new Color(228, 213, 168, 255));
+        this.lotterySubtitleLabel = this.createLabel(this.lotteryLayer, '天机轮转  因果自成', 18, new Vec3(0, 490, 0), new Color(130, 162, 150, 255), 320);
         this.lotteryWheelNode = new Node('Wheel');
         this.lotteryWheelNode.layer = Layers.Enum.UI_2D;
         this.lotteryLayer.addChild(this.lotteryWheelNode);
@@ -366,19 +370,27 @@ export class GrottoExpeditionDemo extends Component {
         const pointer = new Node('Pointer');
         pointer.layer = Layers.Enum.UI_2D;
         this.lotteryLayer.addChild(pointer);
-        pointer.setPosition(0, 360, 0);
-        pointer.addComponent(UITransform).setContentSize(50, 60);
+        pointer.setPosition(0, 352, 0);
+        pointer.addComponent(UITransform).setContentSize(28, 72);
         const pg = pointer.addComponent(Graphics);
-        pg.fillColor = new Color(255, 200, 80, 255);
-        pg.moveTo(-20, 0);
-        pg.lineTo(20, 0);
-        pg.lineTo(0, 45);
+        this.lotteryPointerNode = pointer;
+        this.lotteryPointerGfx = pg;
+        pg.fillColor = new Color(112, 126, 118, 255);
+        pg.roundRect(-3, -8, 6, 20, 2);
+        pg.fill();
+        pg.fillColor = new Color(182, 154, 98, 255);
+        pg.roundRect(-5, 10, 10, 18, 3);
+        pg.fill();
+        pg.fillColor = new Color(215, 184, 120, 255);
+        pg.moveTo(0, 44);
+        pg.lineTo(-12, 18);
+        pg.lineTo(12, 18);
         pg.close();
         pg.fill();
 
-        this.lotteryResultLabel = this.createLabel(this.lotteryLayer, '', 22, new Vec3(0, -320, 0), new Color(200, 255, 200, 255), 500);
-        this.lotterySpinBtn = this.createPanel(this.lotteryLayer, 200, 56, 0, -420, new Color(55, 75, 65, 255));
-        this.createLabel(this.lotterySpinBtn, '开始抽奖', 26, new Vec3(0, 0, 0), new Color(200, 255, 220, 255));
+        this.lotteryResultLabel = this.createLabel(this.lotteryLayer, '', 22, new Vec3(0, -320, 0), new Color(208, 218, 228, 255), 520);
+        this.lotterySpinBtn = this.createPanel(this.lotteryLayer, 200, 56, 0, -420, new Color(50, 62, 72, 255));
+        this.createLabel(this.lotterySpinBtn, '窥天机', 26, new Vec3(0, 0, 0), new Color(210, 225, 235, 255));
         this.lotterySpinBtn.on(Node.EventType.TOUCH_END, () => this.runLotterySpin(), this);
     }
 
@@ -552,25 +564,117 @@ export class GrottoExpeditionDemo extends Component {
         return shuffle([...seven, ...one]);
     }
 
+    private getLotteryLevelColor(value: number): Color {
+        if (value >= 15) return new Color(184, 152, 86, 255);
+        if (value >= 10) return new Color(116, 88, 148, 255);
+        return new Color(74, 112, 122, 255);
+    }
+
+    private drawLotteryPointer() {
+        if (!this.lotteryPointerGfx) return;
+        const pg = this.lotteryPointerGfx;
+        pg.clear();
+        if (this.lotteryIsBuffContext) {
+            pg.fillColor = new Color(102, 128, 126, 255);
+            pg.roundRect(-3, -8, 6, 20, 2);
+            pg.fill();
+            pg.fillColor = new Color(187, 160, 103, 255);
+            pg.roundRect(-5, 10, 10, 18, 3);
+            pg.fill();
+            pg.fillColor = new Color(220, 194, 130, 255);
+            pg.moveTo(0, 44);
+            pg.lineTo(-12, 18);
+            pg.lineTo(12, 18);
+            pg.close();
+            pg.fill();
+        } else {
+            pg.fillColor = new Color(96, 72, 92, 255);
+            pg.roundRect(-3, -8, 6, 20, 2);
+            pg.fill();
+            pg.fillColor = new Color(136, 74, 94, 255);
+            pg.roundRect(-5, 10, 10, 18, 3);
+            pg.fill();
+            pg.fillColor = new Color(196, 92, 108, 255);
+            pg.moveTo(0, 44);
+            pg.lineTo(-12, 18);
+            pg.lineTo(12, 18);
+            pg.close();
+            pg.fill();
+        }
+    }
+
+    private getLotteryShortName(entry: LotteryWheelEntry): string {
+        const v = entry.effect.value;
+        switch (entry.effect.type) {
+            case 'restoreHp':
+                return `气血+${v}%`;
+            case 'restoreMana':
+                return `灵力+${v}%`;
+            case 'advanceLayer':
+                return `前进${v}层`;
+            case 'reduceHp':
+                return `气血-${v}%`;
+            case 'reduceMana':
+                return `灵力-${v}%`;
+            case 'retreatPenalty':
+                return `截道-${v}%`;
+            default:
+                return entry.name;
+        }
+    }
+
     private drawLotteryWheelSegments() {
         this.lotteryWheelNode.removeAllChildren();
         const oldG = this.lotteryWheelNode.getComponent(Graphics);
         if (oldG) oldG.destroy();
 
-        const R = 260;
+        const OUTER_R = 248;
+        const INNER_R = 112;
         const SEG_COUNT = 8;
         const SEG_ANGLE = 360 / SEG_COUNT;
         const entries = this.lotteryWheelEntries;
         const toRad = (deg: number) => (deg * Math.PI) / 180;
         const TOP_OFFSET = 90;
 
+        const runeRing = new Node('RuneRing');
+        runeRing.layer = Layers.Enum.UI_2D;
+        this.lotteryWheelNode.addChild(runeRing);
+        runeRing.addComponent(UITransform).setContentSize(OUTER_R * 2 + 40, OUTER_R * 2 + 40);
+        const rg = runeRing.addComponent(Graphics);
+        rg.strokeColor = this.lotteryIsBuffContext ? new Color(86, 108, 102, 150) : new Color(120, 74, 98, 150);
+        rg.lineWidth = 2;
+        rg.circle(0, 0, OUTER_R + 14);
+        rg.stroke();
+        rg.strokeColor = this.lotteryIsBuffContext ? new Color(176, 150, 96, 120) : new Color(172, 84, 110, 120);
+        rg.lineWidth = 1;
+        rg.circle(0, 0, OUTER_R - 2);
+        rg.stroke();
+        for (let i = 0; i < SEG_COUNT; i++) {
+            const a = toRad(TOP_OFFSET + i * SEG_ANGLE);
+            const x = (OUTER_R + 14) * Math.cos(a);
+            const y = (OUTER_R + 14) * Math.sin(a);
+            rg.fillColor = this.lotteryIsBuffContext ? new Color(176, 150, 96, 150) : new Color(172, 84, 110, 150);
+            rg.circle(x, y, 4);
+            rg.fill();
+        }
+        if (this.lotteryIsBuffContext) {
+            rg.strokeColor = new Color(96, 146, 136, 110);
+            rg.lineWidth = 1;
+            rg.circle(0, 0, OUTER_R + 28);
+            rg.stroke();
+        } else {
+            rg.strokeColor = new Color(128, 54, 78, 95);
+            rg.lineWidth = 1;
+            for (let i = 0; i < 4; i++) {
+                const a = toRad(45 + i * 90);
+                rg.moveTo(0, 0);
+                rg.lineTo((OUTER_R + 28) * Math.cos(a), (OUTER_R + 28) * Math.sin(a));
+                rg.stroke();
+            }
+        }
+
         const ARC_STEPS = 12;
         for (let i = 0; i < SEG_COUNT; i++) {
-            const val = entries[i].effect.value;
-            const r = val === 5 ? 45 : val === 10 ? 155 : 225;
-            const g = val === 5 ? 115 : val === 10 ? 65 : 180;
-            const b = val === 5 ? 230 : val === 10 ? 195 : 55;
-
             const seg = new Node(`Seg_${i}`);
             seg.layer = Layers.Enum.UI_2D;
             this.lotteryWheelNode.addChild(seg);
@@ -580,32 +684,125 @@ export class GrottoExpeditionDemo extends Component {
             const endRad = toRad(endDeg);
             const gfx = seg.addComponent(Graphics);
 
-            gfx.fillColor = new Color(r, g, b, 255);
-            gfx.moveTo(0, 0);
+            gfx.fillColor = this.lotteryIsBuffContext ? new Color(28, 42, 40, 242) : new Color(42, 24, 32, 242);
+            gfx.moveTo(INNER_R * Math.cos(startRad), INNER_R * Math.sin(startRad));
             for (let step = 0; step <= ARC_STEPS; step++) {
                 const t = step / ARC_STEPS;
                 const angle = startRad + (endRad - startRad) * t;
-                gfx.lineTo(R * Math.cos(angle), R * Math.sin(angle));
+                gfx.lineTo(OUTER_R * Math.cos(angle), OUTER_R * Math.sin(angle));
+            }
+            for (let step = ARC_STEPS; step >= 0; step--) {
+                const t = step / ARC_STEPS;
+                const angle = startRad + (endRad - startRad) * t;
+                gfx.lineTo(INNER_R * Math.cos(angle), INNER_R * Math.sin(angle));
             }
             gfx.close();
             gfx.fill();
 
-            gfx.strokeColor = new Color(80, 100, 110, 200);
-            gfx.lineWidth = 2;
-            gfx.moveTo(0, 0);
+            const levelColor = this.getLotteryLevelColor(entries[i].effect.value);
+            gfx.strokeColor = new Color(levelColor.r, levelColor.g, levelColor.b, 235);
+            gfx.lineWidth = 3;
+            gfx.moveTo(INNER_R * Math.cos(startRad), INNER_R * Math.sin(startRad));
             for (let step = 0; step <= ARC_STEPS; step++) {
                 const t = step / ARC_STEPS;
                 const angle = startRad + (endRad - startRad) * t;
-                gfx.lineTo(R * Math.cos(angle), R * Math.sin(angle));
+                gfx.lineTo(OUTER_R * Math.cos(angle), OUTER_R * Math.sin(angle));
+            }
+            for (let step = ARC_STEPS; step >= 0; step--) {
+                const t = step / ARC_STEPS;
+                const angle = startRad + (endRad - startRad) * t;
+                gfx.lineTo(INNER_R * Math.cos(angle), INNER_R * Math.sin(angle));
             }
             gfx.close();
             gfx.stroke();
+
+            gfx.fillColor = new Color(levelColor.r, levelColor.g, levelColor.b, this.lotteryIsBuffContext ? 62 : 84);
+            gfx.moveTo((OUTER_R - 10) * Math.cos(startRad), (OUTER_R - 10) * Math.sin(startRad));
+            for (let step = 0; step <= ARC_STEPS; step++) {
+                const t = step / ARC_STEPS;
+                const angle = startRad + (endRad - startRad) * t;
+                gfx.lineTo(OUTER_R * Math.cos(angle), OUTER_R * Math.sin(angle));
+            }
+            for (let step = ARC_STEPS; step >= 0; step--) {
+                const t = step / ARC_STEPS;
+                const angle = startRad + (endRad - startRad) * t;
+                gfx.lineTo((OUTER_R - 10) * Math.cos(angle), (OUTER_R - 10) * Math.sin(angle));
+            }
+            gfx.close();
+            gfx.fill();
+
+            const runeMid = (startRad + endRad) * 0.5;
+            const runeInner = INNER_R + 20;
+            const runeOuter = INNER_R + 36;
+            gfx.strokeColor = this.lotteryIsBuffContext ? new Color(190, 174, 132, 110) : new Color(180, 96, 122, 110);
+            gfx.lineWidth = 1;
+            gfx.moveTo(runeInner * Math.cos(runeMid), runeInner * Math.sin(runeMid));
+            gfx.lineTo(runeOuter * Math.cos(runeMid), runeOuter * Math.sin(runeMid));
+            gfx.stroke();
+            if (!this.lotteryIsBuffContext) {
+                const spikeR = OUTER_R - 22;
+                gfx.fillColor = new Color(166, 82, 108, 90);
+                gfx.moveTo(spikeR * Math.cos(runeMid), spikeR * Math.sin(runeMid));
+                gfx.lineTo((spikeR - 12) * Math.cos(runeMid - 0.06), (spikeR - 12) * Math.sin(runeMid - 0.06));
+                gfx.lineTo((spikeR - 12) * Math.cos(runeMid + 0.06), (spikeR - 12) * Math.sin(runeMid + 0.06));
+                gfx.close();
+                gfx.fill();
+            }
         }
+
+        const center = new Node('CenterDisk');
+        center.layer = Layers.Enum.UI_2D;
+        this.lotteryWheelNode.addChild(center);
+        center.addComponent(UITransform).setContentSize(INNER_R * 2, INNER_R * 2);
+        const cg = center.addComponent(Graphics);
+        cg.fillColor = this.lotteryIsBuffContext ? new Color(18, 28, 30, 255) : new Color(30, 18, 24, 255);
+        cg.circle(0, 0, INNER_R - 8);
+        cg.fill();
+        cg.strokeColor = this.lotteryIsBuffContext ? new Color(154, 134, 92, 220) : new Color(178, 86, 116, 220);
+        cg.lineWidth = 2;
+        cg.circle(0, 0, INNER_R - 8);
+        cg.stroke();
+        cg.strokeColor = this.lotteryIsBuffContext ? new Color(82, 122, 112, 180) : new Color(112, 56, 76, 180);
+        cg.lineWidth = 1;
+        cg.circle(0, 0, INNER_R - 24);
+        cg.stroke();
+        if (this.lotteryIsBuffContext) {
+            cg.moveTo(-24, 0);
+            cg.lineTo(24, 0);
+            cg.moveTo(0, -24);
+            cg.lineTo(0, 24);
+            cg.moveTo(-17, -17);
+            cg.lineTo(17, 17);
+            cg.moveTo(-17, 17);
+            cg.lineTo(17, -17);
+            cg.stroke();
+        } else {
+            for (let i = 0; i < 6; i++) {
+                const a = toRad(i * 60);
+                const b = toRad(i * 60 + 180);
+                cg.moveTo(22 * Math.cos(a), 22 * Math.sin(a));
+                cg.lineTo(22 * Math.cos(b), 22 * Math.sin(b));
+                cg.stroke();
+            }
+            cg.strokeColor = new Color(168, 74, 102, 120);
+            cg.lineWidth = 1;
+            cg.circle(0, 0, 12);
+            cg.stroke();
+        }
+        const centerLabel = this.createLabel(
+            center,
+            this.lotteryIsBuffContext ? '福兮\n祸所伏' : '祸兮\n福所倚',
+            24,
+            new Vec3(0, 0, 0),
+            this.lotteryIsBuffContext ? new Color(228, 222, 198, 255) : new Color(230, 198, 206, 255),
+            150
+        );
+        centerLabel.lineHeight = 28;
 
         const labelParent = new Node('WheelLabels');
         labelParent.layer = Layers.Enum.UI_2D;
         this.lotteryWheelNode.addChild(labelParent);
-        const labelR = R * 0.62;
+        const labelR = (OUTER_R + INNER_R) * 0.5;
         for (let i = 0; i < SEG_COUNT; i++) {
             const midDeg = TOP_OFFSET - SEG_ANGLE / 2 + (i + 0.5) * SEG_ANGLE;
             const midRad = toRad(midDeg);
@@ -614,12 +811,12 @@ export class GrottoExpeditionDemo extends Component {
             labelParent.addChild(labelNode);
             labelNode.setPosition(labelR * Math.cos(midRad), labelR * Math.sin(midRad), 0);
             labelNode.angle = midDeg;
-            labelNode.addComponent(UITransform).setContentSize(130, 48);
+            labelNode.addComponent(UITransform).setContentSize(108, 42);
             const lbl = labelNode.addComponent(Label);
-            lbl.string = entries[i].name;
-            lbl.fontSize = 20;
-            lbl.lineHeight = 24;
-            lbl.color = new Color(255, 248, 230, 255);
+            lbl.string = this.getLotteryShortName(entries[i]);
+            lbl.fontSize = 16;
+            lbl.lineHeight = 20;
+            lbl.color = this.lotteryIsBuffContext ? new Color(224, 230, 214, 255) : new Color(230, 210, 220, 255);
             lbl.horizontalAlign = HorizontalTextAlignment.CENTER;
             lbl.overflow = Label.Overflow.SHRINK;
         }
@@ -633,7 +830,14 @@ export class GrottoExpeditionDemo extends Component {
         this.lotteryIsBuffContext = isBuffSlot;
         this.lotteryWheelEntries = this.buildLotteryWheel(isBuffSlot);
         this.lotteryTitleLabel.string = isBuffSlot ? '福兮祸所伏' : '祸兮福所倚';
-        this.lotteryResultLabel.string = '点击「开始抽奖」决定结果';
+        this.lotteryTitleLabel.color = isBuffSlot ? new Color(228, 213, 168, 255) : new Color(214, 132, 152, 255);
+        if (this.lotterySubtitleLabel) {
+            this.lotterySubtitleLabel.string = isBuffSlot ? '仙门法器  灵机自显' : '诡阵迷离  劫数自生';
+            this.lotterySubtitleLabel.color = isBuffSlot ? new Color(130, 162, 150, 255) : new Color(146, 92, 112, 255);
+        }
+        this.lotteryResultLabel.string = isBuffSlot ? '灵机流转，且看天意落于何方' : '劫数已起，且看因果落于何方';
+        this.lotteryResultLabel.color = isBuffSlot ? new Color(176, 206, 186, 255) : new Color(214, 186, 186, 255);
+        this.drawLotteryPointer();
         this.lotteryWheelNode.angle = 0;
         this.drawLotteryWheelSegments();
         this.lotterySpinBtn.active = true;
@@ -649,8 +853,8 @@ export class GrottoExpeditionDemo extends Component {
             .call(() => {
                 const entry = this.lotteryWheelEntries[this.lotteryResultIndex];
                 this.applyLotteryEffect(entry);
-                this.lotteryResultLabel.string = `抽中：${entry.name}`;
-                this.lotteryResultLabel.color = entry.isBenefit ? new Color(180, 255, 180, 255) : new Color(255, 180, 180, 255);
+                this.lotteryResultLabel.string = `天机所示：${entry.name}`;
+                this.lotteryResultLabel.color = entry.isBenefit ? new Color(184, 220, 196, 255) : new Color(226, 180, 180, 255);
                 this.scheduleOnce(() => this.closeLotteryAndResume(), 1.2);
             })
             .start();
