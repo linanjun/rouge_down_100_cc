@@ -12,12 +12,15 @@ import {
     HorizontalTextAlignment,
     Label,
     Layers,
+    Mask,
     Node,
     ResolutionPolicy,
+    ScrollView,
     UITransform,
     Vec3,
     director,
     find,
+    game,
     tween,
     view,
 } from 'cc';
@@ -283,6 +286,64 @@ interface EnemyData {
     hpBarGfx: Graphics;
 }
 
+type ShopCurrency = 'gold' | 'diamond' | 'mijing';
+type ShopRefreshType = 'none' | 'daily' | 'weekly';
+type ShopRewardType = 'hp' | 'mana' | 'atk' | 'ap' | 'exp' | 'crystal';
+
+interface ShopItemDef {
+    id: string;
+    name: string;
+    currency: ShopCurrency;
+    cost: number;
+    rewardText: string;
+    description: string;
+    limit: number;
+    refresh: ShopRefreshType;
+    effect: ShopRewardType;
+    effectValue: number;
+}
+
+interface ShopItemWidget {
+    button: Node;
+    stockLabel: Label;
+}
+
+const GOLD_DAILY_SHOP_ITEMS: ShopItemDef[] = [
+    { id: 'gold_daily_hp', name: '炼体膏', currency: 'gold', cost: 900, rewardText: '气血上限 +8', description: '每日补体', limit: 1, refresh: 'daily', effect: 'hp', effectValue: 8 },
+    { id: 'gold_daily_mana', name: '养气丹', currency: 'gold', cost: 1100, rewardText: '真元上限 +6', description: '吐纳凝元', limit: 1, refresh: 'daily', effect: 'mana', effectValue: 6 },
+    { id: 'gold_daily_exp', name: '聚灵香', currency: 'gold', cost: 1400, rewardText: '修为 +18', description: '静室修行', limit: 1, refresh: 'daily', effect: 'exp', effectValue: 18 },
+    { id: 'gold_daily_atk', name: '攻伐符', currency: 'gold', cost: 1700, rewardText: '术攻 +1', description: '临战养锋', limit: 1, refresh: 'daily', effect: 'atk', effectValue: 1 },
+    { id: 'gold_daily_ap', name: '行气帖', currency: 'gold', cost: 2200, rewardText: '行动力上限 +2', description: '周天顺行', limit: 1, refresh: 'daily', effect: 'ap', effectValue: 2 },
+    { id: 'gold_daily_crystal', name: '小秘晶匣', currency: 'gold', cost: 2800, rewardText: '钻石 +1', description: '偶得秘匣', limit: 1, refresh: 'daily', effect: 'crystal', effectValue: 1 },
+];
+
+const GOLD_WEEKLY_SHOP_ITEMS: ShopItemDef[] = [
+    { id: 'gold_weekly_hp', name: '玄龟膏', currency: 'gold', cost: 5600, rewardText: '气血上限 +20', description: '周常重养', limit: 1, refresh: 'weekly', effect: 'hp', effectValue: 20 },
+    { id: 'gold_weekly_mana', name: '凝海露', currency: 'gold', cost: 6200, rewardText: '真元上限 +18', description: '周常聚元', limit: 1, refresh: 'weekly', effect: 'mana', effectValue: 18 },
+    { id: 'gold_weekly_exp', name: '悟道香案', currency: 'gold', cost: 7600, rewardText: '修为 +72', description: '周常参悟', limit: 1, refresh: 'weekly', effect: 'exp', effectValue: 72 },
+    { id: 'gold_weekly_atk', name: '破军符卷', currency: 'gold', cost: 8800, rewardText: '术攻 +3', description: '周常攻伐', limit: 1, refresh: 'weekly', effect: 'atk', effectValue: 3 },
+    { id: 'gold_weekly_ap', name: '周天总纲', currency: 'gold', cost: 9800, rewardText: '行动力上限 +6', description: '周常行气', limit: 1, refresh: 'weekly', effect: 'ap', effectValue: 6 },
+    { id: 'gold_weekly_crystal', name: '秘晶礼盒', currency: 'gold', cost: 12800, rewardText: '钻石 +4', description: '周常折换', limit: 1, refresh: 'weekly', effect: 'crystal', effectValue: 4 },
+];
+
+const MIJING_SHOP_ITEMS: ShopItemDef[] = [
+    { id: 'mijing_hp', name: '镇岳丹', currency: 'mijing', cost: 18, rewardText: '气血上限 +16', description: '秘境专供', limit: 1, refresh: 'weekly', effect: 'hp', effectValue: 16 },
+    { id: 'mijing_mana', name: '灵魄瓶', currency: 'mijing', cost: 24, rewardText: '真元上限 +14', description: '秘境专供', limit: 1, refresh: 'weekly', effect: 'mana', effectValue: 14 },
+    { id: 'mijing_exp', name: '悟道残页', currency: 'mijing', cost: 30, rewardText: '修为 +60', description: '秘境专供', limit: 1, refresh: 'weekly', effect: 'exp', effectValue: 60 },
+    { id: 'mijing_atk', name: '镇煞印', currency: 'mijing', cost: 38, rewardText: '术攻 +2', description: '秘境专供', limit: 1, refresh: 'weekly', effect: 'atk', effectValue: 2 },
+    { id: 'mijing_ap', name: '遁空符', currency: 'mijing', cost: 46, rewardText: '行动力上限 +4', description: '秘境专供', limit: 1, refresh: 'weekly', effect: 'ap', effectValue: 4 },
+    { id: 'mijing_crystal', name: '宝箱钥片', currency: 'mijing', cost: 58, rewardText: '钻石 +2', description: '秘境专供', limit: 1, refresh: 'weekly', effect: 'crystal', effectValue: 2 },
+];
+
+const DIAMOND_SHOP_ITEMS: ShopItemDef[] = [
+    { id: 'diamond_hp', name: '龙血玉露', currency: 'diamond', cost: 60, rewardText: '气血上限 +30', description: '常驻精选', limit: 2, refresh: 'weekly', effect: 'hp', effectValue: 30 },
+    { id: 'diamond_mana', name: '太虚灵液', currency: 'diamond', cost: 90, rewardText: '真元上限 +28', description: '常驻精选', limit: 2, refresh: 'weekly', effect: 'mana', effectValue: 28 },
+    { id: 'diamond_exp', name: '顿悟金册', currency: 'diamond', cost: 120, rewardText: '修为 +120', description: '常驻精选', limit: 2, refresh: 'weekly', effect: 'exp', effectValue: 120 },
+    { id: 'diamond_atk', name: '天锋令', currency: 'diamond', cost: 180, rewardText: '术攻 +5', description: '常驻精选', limit: 1, refresh: 'weekly', effect: 'atk', effectValue: 5 },
+    { id: 'diamond_ap', name: '周天秘卷', currency: 'diamond', cost: 150, rewardText: '行动力上限 +8', description: '常驻精选', limit: 1, refresh: 'weekly', effect: 'ap', effectValue: 8 },
+    { id: 'diamond_crystal', name: '返利宝匣', currency: 'diamond', cost: 220, rewardText: '钻石 +40', description: '返利补给', limit: 1, refresh: 'weekly', effect: 'crystal', effectValue: 40 },
+];
+
 @ccclass('GrottoExpeditionDemo')
 export class GrottoExpeditionDemo extends Component {
     private state: GameState = 'home';
@@ -325,6 +386,10 @@ export class GrottoExpeditionDemo extends Component {
     private playerMana = 100;
     private playerMaxMana = 100;
     private playerDamage = 18;
+    private shopBonusHp = 0;
+    private shopBonusMana = 0;
+    private shopBonusDamage = 0;
+    private shopBonusAction = 0;
     /** 撤离资源比例乘数（邪修截道永久降低），1 = 100% */
     private retreatRatioMultiplier = 1;
     private playerRadius = 20;
@@ -335,11 +400,24 @@ export class GrottoExpeditionDemo extends Component {
     private combatElapsed = 0;
     private lastCombatPlayerHp = 100;
     private combatDamageFloatCooldown = 0;
+    private homeRoleRig: CharacterRig | null = null;
+    private homeRoleAuraOuter: Node | null = null;
+    private homeRoleAuraInner: Node | null = null;
+    private homeRolePedestal: Node | null = null;
+    private homeRoleRibbonLeft: Node | null = null;
+    private homeRoleRibbonRight: Node | null = null;
+    private homeRoleSparkles: Node[] = [];
 
     private statusLabel!: Label;
     private hintLabel!: Label;
-    private roleHintLabel!: Label;
-    private roleDetailLabel!: Label;
+    private roleHpLabel!: Label;
+    private roleManaLabel!: Label;
+    private roleAttackLabel!: Label;
+    private roleExpLabel!: Label;
+    private roleApLabel!: Label;
+    private roleBreakLabel!: Label;
+    private roleDungeonLabel!: Label;
+    private roleDungeonProgressLabel!: Label;
     private homeTab: 'dongtian' | 'mijing' | 'shop' | 'faqi' | 'role' = 'dongtian';
     private homeContentRoot!: Node;
     private homeDongtianView!: Node;
@@ -349,6 +427,21 @@ export class GrottoExpeditionDemo extends Component {
     private homeFaqiView!: Node;
     private homeGoldLabel!: Label;
     private homeDiamondLabel!: Label;
+    private dungeonBadge = 0;
+    private shopGoldTab: 'daily' | 'weekly' = 'daily';
+    private shopGoldDailyPage: Node | null = null;
+    private shopGoldWeeklyPage: Node | null = null;
+    private shopHintLabel!: Label;
+    private shopCurrencyLabel!: Label;
+    private shopScrollContent: Node | null = null;
+    private shopPurchaseCounts: Record<string, number> = {};
+    private shopDailyKey = '';
+    private shopWeeklyKey = '';
+    private shopItemWidgets = new Map<string, ShopItemWidget>();
+    private shopGoldTabButtons: Record<'daily' | 'weekly', Node | null> = {
+        daily: null,
+        weekly: null,
+    };
     private homeNavIcons: Record<'shop' | 'faqi' | 'role' | 'mijing' | 'dongtian', Node | null> = {
         shop: null,
         faqi: null,
@@ -491,30 +584,571 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private buildHomeShopView() {
-        const panel = this.createPanel(this.homeShopView, 620, 360, 0, 80, new Color(38, 44, 54, 245));
-        this.createLabel(panel, '商城', 36, new Vec3(0, 120, 0), new Color(236, 226, 190, 255));
-        this.createLabel(panel, '顶部货币栏已预留金币与钻石位置', 22, new Vec3(0, 36, 0), new Color(180, 198, 214, 255), 520);
-        this.createLabel(panel, '当前先保留页签结构，后续可接商品与充值入口', 20, new Vec3(0, -18, 0), new Color(132, 150, 168, 255), 520);
+        this.ensureShopRefreshState();
+        const scrollNode = new Node('ShopScrollView');
+        scrollNode.layer = Layers.Enum.UI_2D;
+        this.homeShopView.addChild(scrollNode);
+        scrollNode.setPosition(0, 0, 0);
+        scrollNode.addComponent(UITransform).setContentSize(676, 900);
+
+        const viewport = new Node('view');
+        viewport.layer = Layers.Enum.UI_2D;
+        scrollNode.addChild(viewport);
+        viewport.setPosition(0, 0, 0);
+        viewport.addComponent(UITransform).setContentSize(676, 900);
+        viewport.addComponent(Mask);
+
+        const content = new Node('content');
+        content.layer = Layers.Enum.UI_2D;
+        viewport.addChild(content);
+        content.addComponent(UITransform).setContentSize(660, 1440);
+        content.setPosition(0, 270, 0);
+        this.shopScrollContent = content;
+        this.attachVerticalDragScroll(viewport, content);
+
+        const header = this.createPanel(content, 640, 108, 0, 330, new Color(40, 44, 52, 245));
+        this.createLabel(header, '云游商坊', 34, new Vec3(0, 20, 0), new Color(238, 224, 180, 255));
+        this.createLabel(header, '竖向商店列表，金币商店按每日 / 每周切换，秘境商店与钻石商店支持限购与刷新', 18, new Vec3(0, -22, 0), new Color(184, 198, 210, 255), 580);
+        this.shopCurrencyLabel = this.createLabel(header, '', 18, new Vec3(0, -52, 0), new Color(210, 220, 232, 255), 580);
+
+        const goldPanel = this.buildShopSection(content, '金币商店', '消耗金币购买日常补给与周常成长材料', 126, 352, new Color(58, 52, 42, 245), new Color(230, 202, 130, 255), '金');
+        const dailyBtn = this.createPanel(goldPanel, 88, 34, 176, 86, new Color(70, 62, 48, 255));
+        const weeklyBtn = this.createPanel(goldPanel, 88, 34, 272, 86, new Color(58, 56, 50, 255));
+        this.createLabel(dailyBtn, '每日', 18, new Vec3(0, 0, 0), new Color(244, 234, 214, 255));
+        this.createLabel(weeklyBtn, '每周', 18, new Vec3(0, 0, 0), new Color(196, 190, 180, 255));
+        dailyBtn.on(Node.EventType.TOUCH_END, () => this.switchGoldShopTab('daily'), this);
+        weeklyBtn.on(Node.EventType.TOUCH_END, () => this.switchGoldShopTab('weekly'), this);
+        this.shopGoldTabButtons.daily = dailyBtn;
+        this.shopGoldTabButtons.weekly = weeklyBtn;
+
+        this.shopGoldDailyPage = new Node('GoldDailyPage');
+        this.shopGoldDailyPage.layer = Layers.Enum.UI_2D;
+        goldPanel.addChild(this.shopGoldDailyPage);
+        this.shopGoldDailyPage.addComponent(UITransform).setContentSize(596, 236);
+        this.shopGoldDailyPage.setPosition(0, -34, 0);
+        this.buildShopGrid(this.shopGoldDailyPage, GOLD_DAILY_SHOP_ITEMS, new Color(224, 200, 146, 255), new Color(72, 62, 50, 255));
+
+        this.shopGoldWeeklyPage = new Node('GoldWeeklyPage');
+        this.shopGoldWeeklyPage.layer = Layers.Enum.UI_2D;
+        goldPanel.addChild(this.shopGoldWeeklyPage);
+        this.shopGoldWeeklyPage.addComponent(UITransform).setContentSize(596, 236);
+        this.shopGoldWeeklyPage.setPosition(0, -34, 0);
+        this.buildShopGrid(this.shopGoldWeeklyPage, GOLD_WEEKLY_SHOP_ITEMS, new Color(214, 190, 162, 255), new Color(68, 60, 56, 255));
+
+        const mijingPanel = this.buildShopSection(content, '秘境商店', '每周刷新，使用秘境徽记兑换稀有材料与探索道具', -196, 310, new Color(42, 52, 56, 245), new Color(166, 214, 200, 255), '秘');
+        this.createLabel(mijingPanel, '每周一辰时刷新', 16, new Vec3(228, 72, 0), new Color(172, 214, 196, 255), 140);
+        this.buildShopGrid(mijingPanel, MIJING_SHOP_ITEMS, new Color(170, 216, 202, 255), new Color(50, 62, 66, 255));
+
+        const crystalPanel = this.buildShopSection(content, '钻石商店', '常驻出售高价值成长包、外观与便利道具', -528, 310, new Color(44, 48, 62, 245), new Color(176, 206, 242, 255), '晶');
+        this.buildShopGrid(crystalPanel, DIAMOND_SHOP_ITEMS, new Color(180, 210, 242, 255), new Color(52, 58, 74, 255));
+
+        this.shopHintLabel = this.createLabel(content, '', 18, new Vec3(0, -760, 0), new Color(160, 184, 204, 255), 620);
+
+        this.switchGoldShopTab('daily');
+        this.refreshShopStatus();
+    }
+
+    private buildShopSection(parent: Node, title: string, subtitle: string, y: number, height: number, fill: Color, accent: Color, glyph: string) {
+        const panel = this.createPanel(parent, 640, height, 0, y, fill);
+        this.decorateRoleInfoCard(panel, accent, glyph, subtitle);
+        this.createLabel(panel, title, 28, new Vec3(-220, height / 2 - 30, 0), new Color(242, 240, 230, 255), 180);
+        return panel;
+    }
+
+    private buildShopGrid(parent: Node, items: ShopItemDef[], accent: Color, fill: Color) {
+        const gridRows = Math.ceil(items.length / 3);
+        const visibleRows = Math.min(2, gridRows);
+        const viewHeight = visibleRows * 104 + 8;
+        const scrollRoot = new Node('ShopGridScroll');
+        scrollRoot.layer = Layers.Enum.UI_2D;
+        parent.addChild(scrollRoot);
+        scrollRoot.setPosition(0, -30, 0);
+        scrollRoot.addComponent(UITransform).setContentSize(606, viewHeight);
+
+        const viewNode = new Node('view');
+        viewNode.layer = Layers.Enum.UI_2D;
+        scrollRoot.addChild(viewNode);
+        viewNode.setPosition(0, 0, 0);
+        viewNode.addComponent(UITransform).setContentSize(606, viewHeight);
+        viewNode.addComponent(Mask);
+
+        const contentNode = new Node('content');
+        contentNode.layer = Layers.Enum.UI_2D;
+        viewNode.addChild(contentNode);
+        const contentHeight = Math.max(viewHeight, gridRows * 104 + 8);
+        contentNode.addComponent(UITransform).setContentSize(596, contentHeight);
+        contentNode.setPosition(0, (contentHeight - viewHeight) * 0.5, 0);
+        if (gridRows > 2) this.attachVerticalDragScroll(viewNode, contentNode);
+
+        const startX = -192;
+        const startY = contentHeight / 2 - 52;
+        const cardW = 180;
+        const cardH = 94;
+        const gapX = 192;
+        const gapY = 104;
+        for (let i = 0; i < items.length; i++) {
+            const col = i % 3;
+            const row = Math.floor(i / 3);
+            const x = startX + col * gapX;
+            const y = startY - row * gapY;
+            const card = this.createPanel(contentNode, cardW, cardH, x, y, fill);
+            this.repaintPanel(card, fill, new Color(accent.r, accent.g, accent.b, 128));
+            const icon = new Node('ShopCellIcon');
+            icon.layer = Layers.Enum.UI_2D;
+            card.addChild(icon);
+            icon.setPosition(-66, 14, 0);
+            icon.addComponent(UITransform).setContentSize(34, 34);
+            const g = icon.addComponent(Graphics);
+            g.fillColor = new Color(accent.r, accent.g, accent.b, 40);
+            g.strokeColor = new Color(accent.r, accent.g, accent.b, 210);
+            g.lineWidth = 1.8;
+            g.roundRect(-14, -14, 28, 28, 8);
+            g.fill();
+            g.roundRect(-14, -14, 28, 28, 8);
+            g.stroke();
+            g.moveTo(-6, 0);
+            g.lineTo(0, 6);
+            g.lineTo(7, -6);
+            g.stroke();
+            const name = this.createLabel(card, items[i].name, 19, new Vec3(18, 24, 0), new Color(236, 240, 244, 255), 118);
+            name.horizontalAlign = HorizontalTextAlignment.LEFT;
+            const price = this.createLabel(card, `${this.getShopCurrencyLabel(items[i].currency)} ${items[i].cost}`, 15, new Vec3(18, 2, 0), accent, 118);
+            price.horizontalAlign = HorizontalTextAlignment.LEFT;
+            const desc = this.createLabel(card, items[i].rewardText, 14, new Vec3(18, -16, 0), new Color(176, 188, 200, 255), 118);
+            desc.horizontalAlign = HorizontalTextAlignment.LEFT;
+            const stock = this.createLabel(card, '', 12, new Vec3(-26, -36, 0), new Color(196, 204, 214, 255), 104);
+            stock.horizontalAlign = HorizontalTextAlignment.LEFT;
+            const buyBtn = this.createPanel(card, 60, 28, 56, -34, new Color(76, 88, 100, 255));
+            this.createLabel(buyBtn, '购买', 14, new Vec3(0, 0, 0), new Color(240, 246, 252, 255));
+            buyBtn.on(Node.EventType.TOUCH_END, () => this.buyShopItem(items[i].id), this);
+            this.shopItemWidgets.set(items[i].id, { button: buyBtn, stockLabel: stock });
+        }
+
+        if (gridRows > 2) {
+            this.createLabel(parent, '下拉查看更多', 14, new Vec3(222, -126, 0), new Color(accent.r, accent.g, accent.b, 220), 140);
+        }
+    }
+
+    private getShopCurrencyLabel(currency: ShopCurrency) {
+        switch (currency) {
+            case 'gold':
+                return '金币';
+            case 'diamond':
+                return '钻石';
+            case 'mijing':
+                return '徽记';
+            default:
+                return '';
+        }
+    }
+
+    private attachVerticalDragScroll(viewNode: Node, contentNode: Node) {
+        const viewTransform = viewNode.getComponent(UITransform);
+        const contentTransform = contentNode.getComponent(UITransform);
+        if (!viewTransform || !contentTransform) return;
+        const maxOffset = Math.max(0, (contentTransform.contentSize.height - viewTransform.contentSize.height) * 0.5);
+        if (maxOffset <= 0) return;
+        let startPointerY = 0;
+        let startContentY = contentNode.position.y;
+        viewNode.on(Node.EventType.TOUCH_START, (event: any) => {
+            startPointerY = event.getUILocation().y;
+            startContentY = contentNode.position.y;
+        }, this);
+        viewNode.on(Node.EventType.TOUCH_MOVE, (event: any) => {
+            const deltaY = event.getUILocation().y - startPointerY;
+            const nextY = Math.max(-maxOffset, Math.min(maxOffset, startContentY + deltaY));
+            contentNode.setPosition(0, nextY, 0);
+            if (event.propagationStopped !== undefined) event.propagationStopped = true;
+        }, this);
+        viewNode.on(Node.EventType.TOUCH_END, () => {
+            startContentY = contentNode.position.y;
+        }, this);
+        viewNode.on(Node.EventType.TOUCH_CANCEL, () => {
+            startContentY = contentNode.position.y;
+        }, this);
+    }
+
+    private switchGoldShopTab(tab: 'daily' | 'weekly') {
+        this.shopGoldTab = tab;
+        if (this.shopGoldDailyPage) this.shopGoldDailyPage.active = tab === 'daily';
+        if (this.shopGoldWeeklyPage) this.shopGoldWeeklyPage.active = tab === 'weekly';
+        const dailyBtn = this.shopGoldTabButtons.daily;
+        const weeklyBtn = this.shopGoldTabButtons.weekly;
+        if (dailyBtn) {
+            this.repaintPanel(dailyBtn, tab === 'daily' ? new Color(102, 84, 58, 255) : new Color(70, 62, 48, 255), tab === 'daily' ? new Color(234, 208, 152, 220) : new Color(128, 112, 92, 180));
+            const labels = dailyBtn.getComponentsInChildren(Label);
+            labels.forEach((label) => {
+                label.color = tab === 'daily' ? new Color(255, 244, 220, 255) : new Color(208, 198, 182, 255);
+            });
+        }
+        if (weeklyBtn) {
+            this.repaintPanel(weeklyBtn, tab === 'weekly' ? new Color(92, 82, 68, 255) : new Color(58, 56, 50, 255), tab === 'weekly' ? new Color(230, 214, 184, 220) : new Color(124, 118, 108, 180));
+            const labels = weeklyBtn.getComponentsInChildren(Label);
+            labels.forEach((label) => {
+                label.color = tab === 'weekly' ? new Color(255, 244, 220, 255) : new Color(196, 190, 180, 255);
+            });
+        }
+    }
+
+    private getAllShopItems() {
+        return GOLD_DAILY_SHOP_ITEMS.concat(GOLD_WEEKLY_SHOP_ITEMS, MIJING_SHOP_ITEMS, DIAMOND_SHOP_ITEMS);
+    }
+
+    private getShopItemById(id: string) {
+        const items = this.getAllShopItems();
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].id === id) return items[i];
+        }
+        return null;
+    }
+
+    private getShopDailyKey() {
+        const now = new Date();
+        return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
+    }
+
+    private getShopWeeklyKey() {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), 0, 1);
+        const elapsedDays = Math.floor((now.getTime() - start.getTime()) / 86400000);
+        const week = Math.floor((elapsedDays + start.getDay()) / 7) + 1;
+        return `${now.getFullYear()}-W${week}`;
+    }
+
+    private clearShopPurchases(type: ShopRefreshType) {
+        const items = this.getAllShopItems();
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].refresh === type && this.shopPurchaseCounts[items[i].id] !== undefined) {
+                delete this.shopPurchaseCounts[items[i].id];
+            }
+        }
+    }
+
+    private ensureShopRefreshState() {
+        const dailyKey = this.getShopDailyKey();
+        const weeklyKey = this.getShopWeeklyKey();
+        if (this.shopDailyKey !== dailyKey) {
+            this.shopDailyKey = dailyKey;
+            this.clearShopPurchases('daily');
+        }
+        if (this.shopWeeklyKey !== weeklyKey) {
+            this.shopWeeklyKey = weeklyKey;
+            this.clearShopPurchases('weekly');
+        }
+    }
+
+    private getShopCurrencyAmount(currency: ShopCurrency) {
+        switch (currency) {
+            case 'gold':
+                return this.spiritStone;
+            case 'diamond':
+                return this.mysticCrystal;
+            case 'mijing':
+                return this.dungeonBadge;
+            default:
+                return 0;
+        }
+    }
+
+    private consumeShopCurrency(currency: ShopCurrency, amount: number) {
+        switch (currency) {
+            case 'gold':
+                this.spiritStone = Math.max(0, this.spiritStone - amount);
+                break;
+            case 'diamond':
+                this.mysticCrystal = Math.max(0, this.mysticCrystal - amount);
+                break;
+            case 'mijing':
+                this.dungeonBadge = Math.max(0, this.dungeonBadge - amount);
+                break;
+        }
+    }
+
+    private applyShopItemReward(item: ShopItemDef) {
+        switch (item.effect) {
+            case 'hp':
+                this.shopBonusHp += item.effectValue;
+                this.playerMaxHp += item.effectValue;
+                this.playerHp = this.playerMaxHp;
+                break;
+            case 'mana':
+                this.shopBonusMana += item.effectValue;
+                this.playerMaxMana += item.effectValue;
+                this.playerMana = this.playerMaxMana;
+                break;
+            case 'atk':
+                this.shopBonusDamage += item.effectValue;
+                this.playerDamage += item.effectValue;
+                break;
+            case 'ap':
+                this.shopBonusAction += item.effectValue;
+                this.actionPointMax += item.effectValue;
+                this.actionPoints = Math.min(this.actionPointMax, this.actionPoints + item.effectValue);
+                break;
+            case 'exp':
+                this.realmExp += item.effectValue;
+                break;
+            case 'crystal':
+                this.mysticCrystal += item.effectValue;
+                break;
+        }
+    }
+
+    private buyShopItem(id: string) {
+        this.ensureShopRefreshState();
+        const item = this.getShopItemById(id);
+        if (!item) return;
+        const bought = this.shopPurchaseCounts[id] || 0;
+        if (bought >= item.limit) {
+            if (this.shopHintLabel) this.shopHintLabel.string = `${item.name} 已售罄，等待${item.refresh === 'daily' ? '每日' : '每周'}刷新。`;
+            this.refreshShopStatus();
+            return;
+        }
+        if (this.getShopCurrencyAmount(item.currency) < item.cost) {
+            if (this.shopHintLabel) this.shopHintLabel.string = `${item.name} 需要 ${this.getShopCurrencyLabel(item.currency)} ${item.cost}。`;
+            this.refreshShopStatus();
+            return;
+        }
+        this.consumeShopCurrency(item.currency, item.cost);
+        this.applyShopItemReward(item);
+        this.shopPurchaseCounts[id] = bought + 1;
+        if (this.shopHintLabel) this.shopHintLabel.string = `购入 ${item.name}，获得 ${item.rewardText}。`;
+        this.refreshHomeStatus();
+    }
+
+    private refreshShopStatus() {
+        this.ensureShopRefreshState();
+        if (this.shopCurrencyLabel) {
+            this.shopCurrencyLabel.string = `金币 ${this.spiritStone}  |  秘境徽记 ${this.dungeonBadge}  |  钻石 ${this.mysticCrystal}`;
+        }
+        const items = this.getAllShopItems();
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            const widget = this.shopItemWidgets.get(item.id);
+            if (!widget) continue;
+            const bought = this.shopPurchaseCounts[item.id] || 0;
+            const soldOut = bought >= item.limit;
+            widget.stockLabel.string = soldOut ? '已售罄' : `余量 ${item.limit - bought}/${item.limit} · ${item.description}`;
+            widget.stockLabel.color = soldOut ? new Color(188, 144, 144, 255) : new Color(196, 204, 214, 255);
+            this.repaintPanel(widget.button, soldOut ? new Color(82, 68, 68, 255) : new Color(76, 88, 100, 255), soldOut ? new Color(156, 120, 120, 180) : new Color(166, 192, 216, 180));
+            const labels = widget.button.getComponentsInChildren(Label);
+            labels.forEach((label) => {
+                label.string = soldOut ? '售罄' : '购买';
+                label.color = soldOut ? new Color(214, 188, 188, 255) : new Color(240, 246, 252, 255);
+            });
+        }
     }
 
     private buildHomeFaqiView() {
-        const panel = this.createPanel(this.homeFaqiView, 620, 360, 0, 80, new Color(38, 44, 54, 245));
-        this.createLabel(panel, '法器', 36, new Vec3(0, 120, 0), new Color(220, 236, 255, 255));
-        this.createLabel(panel, '当前先拆分页签，法器养成入口预留在这里', 22, new Vec3(0, 36, 0), new Color(180, 198, 214, 255), 520);
-        this.createLabel(panel, '后续可接装备、强化、共鸣等功能', 20, new Vec3(0, -18, 0), new Color(132, 150, 168, 255), 520);
+        const left = this.createPanel(this.homeFaqiView, 256, 364, -182, 70, new Color(38, 44, 56, 245));
+        this.decorateRoleInfoCard(left, new Color(180, 214, 240, 255), '器', '本命法器');
+        this.createLabel(left, '法器养成', 30, new Vec3(0, 124, 0), new Color(228, 240, 255, 255));
+        this.createLabel(left, '预留法器立绘 / 品阶 / 灵蕴信息', 17, new Vec3(0, 88, 0), new Color(174, 192, 212, 255), 200);
+        const silhouette = new Node('FaqiSilhouette');
+        silhouette.layer = Layers.Enum.UI_2D;
+        left.addChild(silhouette);
+        silhouette.setPosition(0, -16, 0);
+        silhouette.addComponent(UITransform).setContentSize(140, 180);
+        const sg = silhouette.addComponent(Graphics);
+        sg.strokeColor = new Color(204, 220, 242, 160);
+        sg.fillColor = new Color(112, 144, 188, 30);
+        sg.lineWidth = 2;
+        sg.moveTo(0, 72);
+        sg.lineTo(-12, 48);
+        sg.lineTo(-6, 8);
+        sg.lineTo(-24, -54);
+        sg.lineTo(0, -74);
+        sg.lineTo(24, -54);
+        sg.lineTo(6, 8);
+        sg.lineTo(12, 48);
+        sg.close();
+        sg.fill();
+        sg.stroke();
+        sg.moveTo(0, 58);
+        sg.lineTo(0, -40);
+        sg.stroke();
+        sg.circle(0, -52, 10);
+        sg.stroke();
+
+        const slot1 = this.createPanel(this.homeFaqiView, 324, 104, 166, 184, new Color(44, 52, 62, 245));
+        this.decorateRoleInfoCard(slot1, new Color(210, 198, 160, 255), '剑', '主战位');
+        this.createLabel(slot1, '飞剑位', 24, new Vec3(0, 26, 0), new Color(244, 236, 216, 255));
+        this.createLabel(slot1, '接入攻击法器、剑意强化、剑魂共鸣', 16, new Vec3(0, -18, 0), new Color(192, 184, 166, 255), 270);
+
+        const slot2 = this.createPanel(this.homeFaqiView, 324, 104, 166, 52, new Color(44, 52, 62, 245));
+        this.decorateRoleInfoCard(slot2, new Color(176, 214, 238, 255), '符', '护持位');
+        this.createLabel(slot2, '护符位', 24, new Vec3(0, 26, 0), new Color(230, 242, 255, 255));
+        this.createLabel(slot2, '接入护盾、回灵、减伤类常驻效果', 16, new Vec3(0, -18, 0), new Color(176, 194, 214, 255), 270);
+
+        const slot3 = this.createPanel(this.homeFaqiView, 324, 104, 166, -80, new Color(44, 52, 62, 245));
+        this.decorateRoleInfoCard(slot3, new Color(176, 226, 196, 255), '灯', '洞府位');
+        this.createLabel(slot3, '灵灯位', 24, new Vec3(0, 26, 0), new Color(234, 248, 238, 255));
+        this.createLabel(slot3, '接入洞府增益、挂机收益与气运加成', 16, new Vec3(0, -18, 0), new Color(180, 206, 190, 255), 270);
+
+        this.createLabel(this.homeFaqiView, '后续可在此接入法器穿戴、升品、共鸣与器灵剧情', 18, new Vec3(0, -206, 0), new Color(124, 146, 164, 255), 640);
     }
 
     private buildHomeRoleView() {
-        this.buildHomePortrait(this.homeRoleView, -220, 140);
-        const stat = this.createPanel(this.homeRoleView, 420, 300, 150, 240, new Color(40, 48, 58, 245));
-        this.createLabel(stat, '角色属性', 20, new Vec3(0, 116, 0), new Color(180, 205, 225, 255));
-        this.statusLabel = this.createLabel(stat, '', 26, new Vec3(0, 74, 0), new Color(255, 240, 220, 255), 360);
-        this.roleHintLabel = this.createLabel(stat, '', 20, new Vec3(0, 18, 0), new Color(180, 214, 255, 255), 360);
-        this.roleDetailLabel = this.createLabel(stat, '', 18, new Vec3(0, -78, 0), new Color(140, 160, 180, 255), 360);
+        const upperPanel = this.createPanel(this.homeRoleView, 640, 290, 0, 250, new Color(38, 46, 56, 245));
+        this.createLabel(upperPanel, '角色形象', 20, new Vec3(0, 118, 0), new Color(180, 205, 225, 255));
+        this.buildHomeAnimatedPortrait(upperPanel, 0, -10);
 
-        const realmBtn = this.createPanel(this.homeRoleView, 220, 70, 150, 20, new Color(50, 55, 65, 255));
+        const basicPanel = this.createPanel(this.homeRoleView, 196, 240, -220, -74, new Color(40, 50, 62, 245));
+        this.decorateRoleInfoCard(basicPanel, new Color(188, 214, 238, 255), '体', '筋骨凝实');
+        this.createLabel(basicPanel, '基础属性', 20, new Vec3(0, 86, 0), new Color(180, 205, 225, 255));
+        this.statusLabel = this.createLabel(basicPanel, '', 25, new Vec3(0, 42, 0), new Color(255, 240, 220, 255), 168);
+        this.roleHpLabel = this.createRoleStatRow(basicPanel, 8, new Color(220, 146, 146, 255), 'hp');
+        this.roleManaLabel = this.createRoleStatRow(basicPanel, -24, new Color(142, 188, 234, 255), 'mana');
+        this.roleAttackLabel = this.createRoleStatRow(basicPanel, -56, new Color(228, 194, 128, 255), 'atk');
+
+        const practicePanel = this.createPanel(this.homeRoleView, 196, 240, 0, -74, new Color(44, 50, 66, 245));
+        this.decorateRoleInfoCard(practicePanel, new Color(220, 210, 170, 255), '道', '丹田运转');
+        this.createLabel(practicePanel, '修行信息', 20, new Vec3(0, 86, 0), new Color(180, 205, 225, 255));
+        this.roleExpLabel = this.createRoleStatRow(practicePanel, 18, new Color(208, 200, 154, 255), 'exp');
+        this.roleApLabel = this.createRoleStatRow(practicePanel, -14, new Color(174, 220, 174, 255), 'ap');
+        this.roleBreakLabel = this.createRoleStatRow(practicePanel, -46, new Color(216, 176, 232, 255), 'break');
+
+        const dungeonPanel = this.createPanel(this.homeRoleView, 196, 240, 220, -74, new Color(40, 50, 64, 245));
+        this.decorateRoleInfoCard(dungeonPanel, new Color(168, 214, 200, 255), '境', '游历留痕');
+        this.createLabel(dungeonPanel, '当前秘境', 20, new Vec3(0, 86, 0), new Color(180, 205, 225, 255));
+        this.roleDungeonLabel = this.createRoleStatRow(dungeonPanel, 12, new Color(160, 216, 194, 255), 'dungeon');
+        this.roleDungeonProgressLabel = this.createRoleStatRow(dungeonPanel, -36, new Color(184, 212, 228, 255), 'progress');
+
+        const realmBtn = this.createPanel(this.homeRoleView, 220, 70, 0, -252, new Color(50, 55, 65, 255));
         this.createLabel(realmBtn, '修炼突破', 28, new Vec3(0, 0, 0), new Color(200, 230, 255, 255));
         realmBtn.on(Node.EventType.TOUCH_END, () => this.tryRealmUp(), this);
+    }
+
+    private createRoleStatRow(parent: Node, y: number, accent: Color, icon: 'hp' | 'mana' | 'atk' | 'exp' | 'ap' | 'break' | 'dungeon' | 'progress') {
+        const row = new Node('RoleStatRow');
+        row.layer = Layers.Enum.UI_2D;
+        parent.addChild(row);
+        row.setPosition(0, y, 0);
+        row.addComponent(UITransform).setContentSize(164, 28);
+
+        const iconNode = new Node('RoleStatIcon');
+        iconNode.layer = Layers.Enum.UI_2D;
+        row.addChild(iconNode);
+        iconNode.setPosition(-62, 0, 0);
+        iconNode.addComponent(UITransform).setContentSize(20, 20);
+        this.drawRoleStatIcon(iconNode, icon, accent);
+
+        const label = this.createLabel(row, '', 17, new Vec3(16, 0, 0), new Color(214, 224, 236, 255), 124);
+        label.horizontalAlign = HorizontalTextAlignment.LEFT;
+        return label;
+    }
+
+    private drawRoleStatIcon(node: Node, icon: 'hp' | 'mana' | 'atk' | 'exp' | 'ap' | 'break' | 'dungeon' | 'progress', accent: Color) {
+        const g = node.addComponent(Graphics);
+        g.strokeColor = new Color(accent.r, accent.g, accent.b, 210);
+        g.fillColor = new Color(accent.r, accent.g, accent.b, 44);
+        g.lineWidth = 1.6;
+        switch (icon) {
+            case 'hp':
+                g.moveTo(0, -7);
+                g.bezierCurveTo(-8, -15, -12, -3, 0, 8);
+                g.bezierCurveTo(12, -3, 8, -15, 0, -7);
+                g.fill();
+                g.stroke();
+                break;
+            case 'mana':
+                g.moveTo(0, 8);
+                g.lineTo(-6, -1);
+                g.lineTo(0, -8);
+                g.lineTo(6, -1);
+                g.close();
+                g.fill();
+                g.stroke();
+                break;
+            case 'atk':
+                g.moveTo(0, 8);
+                g.lineTo(-5, -1);
+                g.lineTo(-1, -1);
+                g.lineTo(-4, -8);
+                g.lineTo(5, 1);
+                g.lineTo(1, 1);
+                g.lineTo(4, 8);
+                g.close();
+                g.fill();
+                g.stroke();
+                break;
+            case 'exp':
+                g.circle(0, 0, 7);
+                g.stroke();
+                g.moveTo(-4, 1);
+                g.lineTo(0, 5);
+                g.lineTo(5, -4);
+                g.stroke();
+                break;
+            case 'ap':
+                g.arc(0, 0, 7, Math.PI * 0.2, Math.PI * 1.8, false);
+                g.stroke();
+                g.moveTo(0, 0);
+                g.lineTo(4, 3);
+                g.stroke();
+                break;
+            case 'break':
+                g.rect(-6, -6, 12, 12);
+                g.stroke();
+                g.moveTo(-6, 0);
+                g.lineTo(6, 0);
+                g.moveTo(0, -6);
+                g.lineTo(0, 6);
+                g.stroke();
+                break;
+            case 'dungeon':
+                g.moveTo(0, 8);
+                g.lineTo(-7, 2);
+                g.lineTo(-4, -8);
+                g.lineTo(0, -4);
+                g.lineTo(4, -8);
+                g.lineTo(7, 2);
+                g.close();
+                g.fill();
+                g.stroke();
+                break;
+            case 'progress':
+                g.roundRect(-7, -4, 14, 8, 3);
+                g.stroke();
+                g.moveTo(-4, 0);
+                g.lineTo(0, 3);
+                g.lineTo(4, -3);
+                g.stroke();
+                break;
+        }
+    }
+
+    private decorateRoleInfoCard(panel: Node, accent: Color, glyph: string, footer: string) {
+        const topLine = new Node('CardAccent');
+        topLine.layer = Layers.Enum.UI_2D;
+        panel.addChild(topLine);
+        topLine.setPosition(0, 64, 0);
+        topLine.addComponent(UITransform).setContentSize(112, 10);
+        const line = topLine.addComponent(Graphics);
+        line.fillColor = new Color(accent.r, accent.g, accent.b, 70);
+        line.strokeColor = new Color(accent.r, accent.g, accent.b, 180);
+        line.lineWidth = 1.5;
+        line.roundRect(-56, -5, 112, 10, 5);
+        line.fill();
+        line.roundRect(-56, -5, 112, 10, 5);
+        line.stroke();
+
+        const mark = new Node('CardGlyph');
+        mark.layer = Layers.Enum.UI_2D;
+        panel.addChild(mark);
+        mark.setPosition(-66, 86, 0);
+        mark.addComponent(UITransform).setContentSize(28, 28);
+        const markG = mark.addComponent(Graphics);
+        markG.fillColor = new Color(accent.r, accent.g, accent.b, 34);
+        markG.strokeColor = new Color(accent.r, accent.g, accent.b, 165);
+        markG.lineWidth = 1.5;
+        markG.circle(0, 0, 14);
+        markG.fill();
+        markG.circle(0, 0, 14);
+        markG.stroke();
+        this.createLabel(mark, glyph, 16, new Vec3(0, 0, 0), new Color(246, 244, 236, 255), 24);
+
+        this.createLabel(panel, footer, 15, new Vec3(0, -94, 0), new Color(accent.r, accent.g, accent.b, 220), 156);
     }
 
     private buildHomeMijingView() {
@@ -562,6 +1196,7 @@ export class GrottoExpeditionDemo extends Component {
         this.homeRoleView.active = tab === 'role';
         this.homeShopView.active = tab === 'shop';
         this.homeFaqiView.active = tab === 'faqi';
+        if (tab === 'shop' && this.shopScrollContent) this.shopScrollContent.setPosition(0, 270, 0);
 
         (Object.keys(this.homeNavButtons) as Array<keyof typeof this.homeNavButtons>).forEach((key) => {
             const btn = this.homeNavButtons[key];
@@ -713,6 +1348,159 @@ export class GrottoExpeditionDemo extends Component {
         rig.legR.node.angle = 8;
 
         this.createLabel(portraitPanel, '主角', 22, new Vec3(0, -134, 0), new Color(208, 220, 235, 255));
+    }
+
+    private buildHomeAnimatedPortrait(parent: Node, x: number, y: number) {
+        const portraitPanel = this.createPanel(parent, 260, 210, x, y, new Color(36, 42, 52, 245));
+        this.homeRoleSparkles = [];
+        this.homeRoleAuraOuter = new Node('RoleAuraOuter');
+        this.homeRoleAuraOuter.layer = Layers.Enum.UI_2D;
+        portraitPanel.addChild(this.homeRoleAuraOuter);
+        this.homeRoleAuraOuter.setPosition(0, 12, 0);
+        this.homeRoleAuraOuter.addComponent(UITransform).setContentSize(220, 180);
+        const outerAura = this.homeRoleAuraOuter.addComponent(Graphics);
+        outerAura.strokeColor = new Color(180, 196, 224, 110);
+        outerAura.fillColor = new Color(80, 100, 136, 28);
+        outerAura.lineWidth = 2.5;
+        outerAura.circle(0, 12, 78);
+        outerAura.fill();
+        outerAura.stroke();
+        outerAura.circle(0, 12, 62);
+        outerAura.stroke();
+        for (let i = 0; i < 8; i++) {
+            const angle = (Math.PI * 2 * i) / 8;
+            const x1 = Math.cos(angle) * 70;
+            const y1 = 12 + Math.sin(angle) * 70;
+            const x2 = Math.cos(angle) * 86;
+            const y2 = 12 + Math.sin(angle) * 86;
+            outerAura.moveTo(x1, y1);
+            outerAura.lineTo(x2, y2);
+            outerAura.stroke();
+        }
+
+        this.homeRoleAuraInner = new Node('RoleAuraInner');
+        this.homeRoleAuraInner.layer = Layers.Enum.UI_2D;
+        portraitPanel.addChild(this.homeRoleAuraInner);
+        this.homeRoleAuraInner.setPosition(0, 18, 0);
+        this.homeRoleAuraInner.addComponent(UITransform).setContentSize(180, 150);
+        const innerAura = this.homeRoleAuraInner.addComponent(Graphics);
+        innerAura.fillColor = new Color(110, 132, 176, 42);
+        innerAura.strokeColor = new Color(210, 220, 238, 88);
+        innerAura.lineWidth = 2;
+        innerAura.circle(0, 0, 48);
+        innerAura.fill();
+        innerAura.stroke();
+        innerAura.moveTo(-42, -18);
+        innerAura.lineTo(0, 34);
+        innerAura.lineTo(42, -18);
+        innerAura.stroke();
+        innerAura.moveTo(-32, 18);
+        innerAura.lineTo(32, 18);
+        innerAura.stroke();
+
+        this.homeRolePedestal = new Node('RolePedestal');
+        this.homeRolePedestal.layer = Layers.Enum.UI_2D;
+        portraitPanel.addChild(this.homeRolePedestal);
+        this.homeRolePedestal.setPosition(0, -40, 0);
+        this.homeRolePedestal.addComponent(UITransform).setContentSize(180, 54);
+        const pedestal = this.homeRolePedestal.addComponent(Graphics);
+        pedestal.fillColor = new Color(82, 98, 124, 70);
+        pedestal.strokeColor = new Color(210, 222, 236, 100);
+        pedestal.lineWidth = 2;
+        pedestal.ellipse(0, 0, 70, 14);
+        pedestal.fill();
+        pedestal.ellipse(0, 0, 70, 14);
+        pedestal.stroke();
+        pedestal.strokeColor = new Color(168, 188, 220, 80);
+        pedestal.ellipse(0, 0, 48, 8);
+        pedestal.stroke();
+        pedestal.moveTo(-50, -4);
+        pedestal.lineTo(-20, -4);
+        pedestal.moveTo(20, -4);
+        pedestal.lineTo(50, -4);
+        pedestal.stroke();
+
+        this.homeRoleSparkles.push(this.createRoleSparkle(portraitPanel, -54, 52, 1));
+        this.homeRoleSparkles.push(this.createRoleSparkle(portraitPanel, 0, 76, 0.85));
+        this.homeRoleSparkles.push(this.createRoleSparkle(portraitPanel, 56, 44, 1.1));
+
+        this.homeRoleRibbonLeft = new Node('RoleRibbonLeft');
+        this.homeRoleRibbonLeft.layer = Layers.Enum.UI_2D;
+        portraitPanel.addChild(this.homeRoleRibbonLeft);
+        this.homeRoleRibbonLeft.setPosition(-82, -6, 0);
+        this.homeRoleRibbonLeft.addComponent(UITransform).setContentSize(56, 124);
+        const leftRibbon = this.homeRoleRibbonLeft.addComponent(Graphics);
+        leftRibbon.fillColor = new Color(96, 126, 160, 88);
+        leftRibbon.strokeColor = new Color(190, 210, 228, 120);
+        leftRibbon.lineWidth = 2;
+        leftRibbon.moveTo(18, 46);
+        leftRibbon.quadraticCurveTo(-10, 10, 0, -54);
+        leftRibbon.lineTo(16, -38);
+        leftRibbon.quadraticCurveTo(6, 2, 26, 44);
+        leftRibbon.close();
+        leftRibbon.fill();
+        leftRibbon.stroke();
+
+        this.homeRoleRibbonRight = new Node('RoleRibbonRight');
+        this.homeRoleRibbonRight.layer = Layers.Enum.UI_2D;
+        portraitPanel.addChild(this.homeRoleRibbonRight);
+        this.homeRoleRibbonRight.setPosition(82, -6, 0);
+        this.homeRoleRibbonRight.addComponent(UITransform).setContentSize(56, 124);
+        const rightRibbon = this.homeRoleRibbonRight.addComponent(Graphics);
+        rightRibbon.fillColor = new Color(96, 126, 160, 88);
+        rightRibbon.strokeColor = new Color(190, 210, 228, 120);
+        rightRibbon.lineWidth = 2;
+        rightRibbon.moveTo(-18, 46);
+        rightRibbon.quadraticCurveTo(10, 10, 0, -54);
+        rightRibbon.lineTo(-16, -38);
+        rightRibbon.quadraticCurveTo(-6, 2, -26, 44);
+        rightRibbon.close();
+        rightRibbon.fill();
+        rightRibbon.stroke();
+
+        const rigRoot = new Node('RoleRigRoot');
+        rigRoot.layer = Layers.Enum.UI_2D;
+        portraitPanel.addChild(rigRoot);
+        rigRoot.setPosition(0, -16, 0);
+        rigRoot.addComponent(UITransform).setContentSize(200, 180);
+        this.homeRoleRig = this.createCharacterRig(rigRoot, new Color(90, 100, 120, 255), new Color(200, 210, 230, 255));
+        this.homeRoleRig.root.setScale(new Vec3(3.05, 3.05, 1));
+        this.homeRoleRig.root.setPosition(0, 8, 0);
+        this.homeRoleRig.body.node.setPosition(0, 12, 0);
+        this.homeRoleRig.body.node.angle = 4;
+        this.homeRoleRig.head.node.angle = -2;
+        this.homeRoleRig.armL.node.setPosition(-10, 18, 0);
+        this.homeRoleRig.armR.node.setPosition(10, 18, 0);
+        this.homeRoleRig.armL.node.angle = -62;
+        this.homeRoleRig.armR.node.angle = 62;
+        this.homeRoleRig.legL.node.setPosition(-4, 6, 0);
+        this.homeRoleRig.legR.node.setPosition(4, 6, 0);
+        this.homeRoleRig.legL.node.angle = -112;
+        this.homeRoleRig.legR.node.angle = 112;
+
+        this.createLabel(portraitPanel, '灵台打坐', 18, new Vec3(0, -82, 0), new Color(208, 220, 235, 255));
+    }
+
+    private createRoleSparkle(parent: Node, x: number, y: number, scale: number) {
+        const sparkle = new Node('RoleSparkle');
+        sparkle.layer = Layers.Enum.UI_2D;
+        parent.addChild(sparkle);
+        sparkle.setPosition(x, y, 0);
+        sparkle.setScale(new Vec3(scale, scale, 1));
+        sparkle.addComponent(UITransform).setContentSize(18, 18);
+        const g = sparkle.addComponent(Graphics);
+        g.strokeColor = new Color(228, 236, 248, 155);
+        g.lineWidth = 1.5;
+        g.moveTo(0, 8);
+        g.lineTo(0, -8);
+        g.moveTo(-8, 0);
+        g.lineTo(8, 0);
+        g.moveTo(-5, -5);
+        g.lineTo(5, 5);
+        g.moveTo(-5, 5);
+        g.lineTo(5, -5);
+        g.stroke();
+        return sparkle;
     }
 
     private getRealmTitle(): string {
@@ -1013,7 +1801,8 @@ export class GrottoExpeditionDemo extends Component {
         this.spiritStone += rewards.spiritStone;
         this.realmExp += rewards.exp;
         this.mysticCrystal += rewards.mysticCrystal;
-        this.hintLabel.string = `领取 ${config.label}${milestone} 层宝箱：灵石 +${rewards.spiritStone}，修为 +${rewards.exp}，秘晶 +${rewards.mysticCrystal}。`;
+        this.dungeonBadge += Math.max(1, Math.floor(milestone / 10));
+        this.hintLabel.string = `领取 ${config.label}${milestone} 层宝箱：灵石 +${rewards.spiritStone}，修为 +${rewards.exp}，秘晶 +${rewards.mysticCrystal}，徽记 +${Math.max(1, Math.floor(milestone / 10))}。`;
         this.refreshHomeStatus();
     }
 
@@ -1034,17 +1823,25 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private refreshHomeStatus() {
-        this.actionPointMax = ACTION_POINT_BASE + (this.realmLevel - 1) * 10;
+        this.ensureShopRefreshState();
+        this.actionPointMax = ACTION_POINT_BASE + (this.realmLevel - 1) * 10 + this.shopBonusAction;
+        const current = this.getDungeonConfig();
+        const best = this.dungeonBestDepth[current.id] || 0;
+        const milestones = this.getProgressMilestones(current.id);
+        const nextUnclaimed = milestones.find((milestone) => !this.claimedProgressChests[this.getProgressChestKey(current.id, milestone)]);
         if (this.homeGoldLabel) this.homeGoldLabel.string = `金币 ${this.spiritStone}`;
         if (this.homeDiamondLabel) this.homeDiamondLabel.string = `钻石 ${this.mysticCrystal}`;
         this.statusLabel.string = `${this.getRealmTitle()}`;
-        if (this.roleHintLabel) {
-            this.roleHintLabel.string = `修为 ${this.realmExp}/${this.realmExpNeed} | 气血 ${this.playerMaxHp} | 真元 ${this.playerMaxMana}`;
+        if (this.roleHpLabel) this.roleHpLabel.string = `气血 ${this.playerMaxHp}`;
+        if (this.roleManaLabel) this.roleManaLabel.string = `真元 ${this.playerMaxMana}`;
+        if (this.roleAttackLabel) this.roleAttackLabel.string = `术法攻击 ${this.playerDamage}`;
+        if (this.roleExpLabel) this.roleExpLabel.string = `修为 ${this.realmExp}/${this.realmExpNeed}`;
+        if (this.roleApLabel) this.roleApLabel.string = `行动力上限 ${this.actionPointMax}`;
+        if (this.roleBreakLabel) this.roleBreakLabel.string = `下次破境 尚需 ${Math.max(0, this.realmExpNeed - this.realmExp)}`;
+        if (this.roleDungeonLabel) {
+            this.roleDungeonLabel.string = `当前 ${current.label}`;
         }
-        if (this.roleDetailLabel) {
-            this.roleDetailLabel.string = `术法攻击 ${this.playerDamage}\n行动力上限 ${this.actionPointMax}\n当前所选秘境 ${this.getDungeonConfig().label}\n最高历练 ${this.dungeonBestDepth[this.getDungeonConfig().id]}/${this.getDungeonConfig().maxDepth}层`;
-        }
-        const current = this.getDungeonConfig();
+        if (this.roleDungeonProgressLabel) this.roleDungeonProgressLabel.string = `历练 ${best}/${current.maxDepth}层  |  宝箱 ${nextUnclaimed ? `${nextUnclaimed}层` : '已清'}`;
         this.selectedDungeonInfoLabel.string = `当前：${current.label} | 解锁修为 ${current.unlockRealm} | 总层数 ${current.maxDepth}`;
         DUNGEON_CONFIGS.forEach((config) => {
             const button = this.dungeonButtonNodes[config.id];
@@ -1063,10 +1860,7 @@ export class GrottoExpeditionDemo extends Component {
                 : selected ? new Color(255, 248, 220, 255) : new Color(220, 230, 240, 255);
         });
 
-        const best = this.dungeonBestDepth[current.id] || 0;
-        const milestones = this.getProgressMilestones(current.id);
         this.progressChestTitleLabel.string = `${current.label} 进度宝箱`;
-        const nextUnclaimed = milestones.find((milestone) => !this.claimedProgressChests[this.getProgressChestKey(current.id, milestone)]);
         if (nextUnclaimed) {
             const rewards = this.getProgressChestRewards(current, nextUnclaimed);
             this.progressChestInfoLabel.string = `历史最深 ${best}/${current.maxDepth} 层 | ${nextUnclaimed}层奖励：灵石+${rewards.spiritStone} 修为+${rewards.exp} 秘晶+${rewards.mysticCrystal}`;
@@ -1094,6 +1888,7 @@ export class GrottoExpeditionDemo extends Component {
             chestLabel.string = claimed ? `${milestone}层\n已领` : claimable ? `${milestone}层\n领取` : `${milestone}层`;
             chestLabel.color = claimed ? new Color(160, 170, 175, 255) : claimable ? new Color(255, 238, 190, 255) : new Color(225, 205, 160, 255);
         }
+        this.refreshShopStatus();
     }
 
     private tryRealmUp() {
@@ -1104,10 +1899,12 @@ export class GrottoExpeditionDemo extends Component {
         this.realmExp -= this.realmExpNeed;
         this.realmLevel += 1;
         this.realmExpNeed = 30 + this.realmLevel * 15;
-        this.playerMaxHp = 100 + this.realmLevel * 30;
-        this.playerMaxMana = 70 + this.realmLevel * 18;
-        this.playerDamage = 16 + this.realmLevel * 7;
-        this.actionPointMax = ACTION_POINT_BASE + (this.realmLevel - 1) * 10;
+        this.playerMaxHp = 100 + this.realmLevel * 30 + this.shopBonusHp;
+        this.playerMaxMana = 70 + this.realmLevel * 18 + this.shopBonusMana;
+        this.playerDamage = 16 + this.realmLevel * 7 + this.shopBonusDamage;
+        this.actionPointMax = ACTION_POINT_BASE + (this.realmLevel - 1) * 10 + this.shopBonusAction;
+        this.playerHp = this.playerMaxHp;
+        this.playerMana = this.playerMaxMana;
         this.hintLabel.string = '突破成功，生命、攻击与行动力上限提升';
         this.refreshHomeStatus();
     }
@@ -2070,15 +2867,17 @@ export class GrottoExpeditionDemo extends Component {
         const takeTreasure = Math.floor(this.expeditionTreasure * ratio);
         const expBase = this.expeditionHerbs * EXP_PER_HERB + this.expeditionTreasure * EXP_PER_TREASURE;
         const takeExp = Math.floor(expBase * ratio);
+        const takeBadge = Math.max(1, Math.floor(takeTreasure * 0.6));
 
         this.spiritStone += takeSpirit;
         this.realmExp += takeExp;
+        this.dungeonBadge += takeBadge;
 
         const dungeon = this.getDungeonConfig();
         const ratioPct = (ratio * 100).toFixed(0);
         this.resultLabel.string = safe
-            ? `${dungeon.label} 安全撤离（击败Boss）\n深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n带走灵石 ${takeSpirit}，灵药 ${takeHerbs}，天材地宝 ${takeTreasure}\n修为 +${takeExp}`
-            : `${dungeon.label} 紧急撤离（带走 ${ratioPct}%）\n深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n带走灵石 ${takeSpirit}，灵药 ${takeHerbs}，天材地宝 ${takeTreasure}\n修为 +${takeExp}`;
+            ? `${dungeon.label} 安全撤离（击败Boss）\n深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n带走灵石 ${takeSpirit}，灵药 ${takeHerbs}，天材地宝 ${takeTreasure}\n修为 +${takeExp}，徽记 +${takeBadge}`
+            : `${dungeon.label} 紧急撤离（带走 ${ratioPct}%）\n深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n带走灵石 ${takeSpirit}，灵药 ${takeHerbs}，天材地宝 ${takeTreasure}\n修为 +${takeExp}，徽记 +${takeBadge}`;
     }
 
     private endExpedition(reachedExit: boolean) {
@@ -2088,9 +2887,11 @@ export class GrottoExpeditionDemo extends Component {
         this.resultLayer.active = true;
         this.spiritStone += this.expeditionSpirit;
         const expGain = this.expeditionHerbs * EXP_PER_HERB + this.expeditionTreasure * EXP_PER_TREASURE + (reachedExit ? 100 : 0);
+        const badgeGain = Math.max(1, Math.floor(this.expeditionTreasure * 0.8) + (reachedExit ? 4 : 0));
         this.realmExp += expGain;
+        this.dungeonBadge += badgeGain;
         const dungeon = this.getDungeonConfig();
-        this.resultLabel.string = `${dungeon.label}\n深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n获得灵石 ${this.expeditionSpirit}，灵药 ${this.expeditionHerbs}，天材地宝 ${this.expeditionTreasure}\n修为 +${expGain}\n${reachedExit ? `通关${dungeon.maxDepth}层！` : '已撤出秘境'}`;
+        this.resultLabel.string = `${dungeon.label}\n深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n获得灵石 ${this.expeditionSpirit}，灵药 ${this.expeditionHerbs}，天材地宝 ${this.expeditionTreasure}\n修为 +${expGain}，徽记 +${badgeGain}\n${reachedExit ? `通关${dungeon.maxDepth}层！` : '已撤出秘境'}`;
     }
 
     private endExpeditionDeath() {
@@ -2101,8 +2902,10 @@ export class GrottoExpeditionDemo extends Component {
         this.resultLayer.active = true;
         this.spiritStone += Math.floor(this.expeditionSpirit * 0.7);
         this.realmExp += Math.floor((this.expeditionHerbs * EXP_PER_HERB + this.expeditionTreasure * EXP_PER_TREASURE) * 0.5);
+        const badgeGain = Math.max(1, Math.floor(this.expeditionTreasure * 0.35));
+        this.dungeonBadge += badgeGain;
         const dungeon = this.getDungeonConfig();
-        this.resultLabel.string = `神识受损，撤回避难洞府\n${dungeon.label} 深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n保留部分收获：灵石 ${Math.floor(this.expeditionSpirit * 0.7)}，修为 +${Math.floor((this.expeditionHerbs * EXP_PER_HERB + this.expeditionTreasure * EXP_PER_TREASURE) * 0.5)}`;
+        this.resultLabel.string = `神识受损，撤回避难洞府\n${dungeon.label} 深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n保留部分收获：灵石 ${Math.floor(this.expeditionSpirit * 0.7)}，修为 +${Math.floor((this.expeditionHerbs * EXP_PER_HERB + this.expeditionTreasure * EXP_PER_TREASURE) * 0.5)}，徽记 +${badgeGain}`;
     }
 
     private enterCombat() {
@@ -2258,6 +3061,9 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     update(dt: number) {
+        if (this.state === 'home' && this.homeTab === 'role') {
+            this.animateHomeRoleRig();
+        }
         if (this.state !== 'combat') return;
         this.combatElapsed += dt;
         this.attackCooldown = Math.max(0, this.attackCooldown - dt);
@@ -2343,6 +3149,54 @@ export class GrottoExpeditionDemo extends Component {
         g.circle(0, 0, 25);
         g.fill();
         this.scheduleOnce(() => { if (n.isValid) n.destroy(); }, 0.2);
+    }
+
+    private animateHomeRoleRig() {
+        if (!this.homeRoleRig) return;
+        const r = this.homeRoleRig;
+        const t = game.totalTime / 1000;
+        const idle = Math.sin(t * 2.1) * 0.08;
+        const auraPulse = 1 + Math.sin(t * 1.8) * 0.05;
+        const auraPulseInner = 1 + Math.cos(t * 2.2) * 0.08;
+        const sway = Math.sin(t * 1.4) * 2.2;
+        r.root.angle = sway * 0.35;
+        r.root.setPosition(0, 8 + Math.sin(t * 1.6) * 2.4, 0);
+        r.body.node.angle = 4 + idle * 8;
+        r.head.node.angle = -2 - idle * 6;
+        r.armL.node.angle = -62 + sway * 0.8;
+        r.armR.node.angle = 62 - sway * 0.8;
+        r.legL.node.angle = -112 - sway * 0.4;
+        r.legR.node.angle = 112 + sway * 0.4;
+        if (this.homeRoleAuraOuter) {
+            this.homeRoleAuraOuter.angle = t * 8;
+            this.homeRoleAuraOuter.setScale(new Vec3(auraPulse, auraPulse, 1));
+        }
+        if (this.homeRoleAuraInner) {
+            this.homeRoleAuraInner.angle = -t * 14;
+            this.homeRoleAuraInner.setScale(new Vec3(auraPulseInner, auraPulseInner, 1));
+        }
+        if (this.homeRolePedestal) {
+            this.homeRolePedestal.setScale(new Vec3(1 + Math.sin(t * 1.5) * 0.025, 1, 1));
+            this.homeRolePedestal.setPosition(0, -40 + Math.sin(t * 1.3) * 1.5, 0);
+        }
+        if (this.homeRoleRibbonLeft) {
+            this.homeRoleRibbonLeft.angle = -10 + Math.sin(t * 1.7) * 5;
+            this.homeRoleRibbonLeft.setPosition(-82, -6 + Math.sin(t * 1.7) * 4, 0);
+        }
+        if (this.homeRoleRibbonRight) {
+            this.homeRoleRibbonRight.angle = 10 - Math.cos(t * 1.6) * 5;
+            this.homeRoleRibbonRight.setPosition(82, -6 + Math.cos(t * 1.6) * 4, 0);
+        }
+        for (let i = 0; i < this.homeRoleSparkles.length; i++) {
+            const sparkle = this.homeRoleSparkles[i];
+            const phase = t * (1.1 + i * 0.2) + i * 0.9;
+            const baseX = i === 0 ? -54 : i === 1 ? 0 : 56;
+            const baseY = i === 0 ? 52 : i === 1 ? 76 : 44;
+            sparkle.angle = phase * 32;
+            sparkle.setPosition(baseX + Math.sin(phase) * 6, baseY + Math.cos(phase * 1.3) * 8, 0);
+            const scale = (i === 0 ? 1 : i === 1 ? 0.85 : 1.1) + Math.sin(phase * 1.8) * 0.08;
+            sparkle.setScale(new Vec3(scale, scale, 1));
+        }
     }
 
     private animatePlayerRig(dt: number) {
