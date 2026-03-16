@@ -662,6 +662,26 @@ export class GrottoExpeditionDemo extends Component {
             rg.lineWidth = 1;
             rg.circle(0, 0, OUTER_R + 28);
             rg.stroke();
+            rg.strokeColor = new Color(188, 168, 118, 100);
+            rg.lineWidth = 1;
+            for (let i = 0; i < 24; i++) {
+                const a = toRad(i * 15);
+                const r1 = OUTER_R + 6;
+                const r2 = OUTER_R + 10;
+                const dx = 2;
+                rg.moveTo(r1 * Math.cos(a), r1 * Math.sin(a));
+                rg.lineTo(r2 * Math.cos(a) + dx * Math.cos(a + 0.3), r2 * Math.sin(a) + dx * Math.sin(a + 0.3));
+                rg.lineTo((r2 + 4) * Math.cos(a), (r2 + 4) * Math.sin(a));
+                rg.stroke();
+            }
+            for (let k = 0; k < 8; k++) {
+                const baseA = toRad(TOP_OFFSET + k * 45 + 12);
+                const r0 = OUTER_R - 18;
+                rg.strokeColor = new Color(200, 182, 128, 85);
+                rg.lineWidth = 1;
+                rg.arc(0, 0, r0, baseA, baseA + toRad(18), false);
+                rg.stroke();
+            }
         } else {
             rg.strokeColor = new Color(128, 54, 78, 95);
             rg.lineWidth = 1;
@@ -669,6 +689,26 @@ export class GrottoExpeditionDemo extends Component {
                 const a = toRad(45 + i * 90);
                 rg.moveTo(0, 0);
                 rg.lineTo((OUTER_R + 28) * Math.cos(a), (OUTER_R + 28) * Math.sin(a));
+                rg.stroke();
+            }
+            rg.fillColor = new Color(100, 48, 72, 55);
+            rg.circle(0, 0, OUTER_R + 32);
+            rg.fill();
+            rg.strokeColor = new Color(160, 70, 100, 75);
+            rg.lineWidth = 1;
+            for (let r = OUTER_R + 8; r <= OUTER_R + 24; r += 6) {
+                rg.circle(0, 0, r);
+                rg.stroke();
+            }
+            for (let i = 0; i < 12; i++) {
+                const a = toRad(i * 30);
+                const rIn = INNER_R + 8;
+                const rOut = OUTER_R - 10;
+                const a2 = a + 0.12;
+                rg.strokeColor = new Color(150, 68, 95, 70);
+                rg.moveTo(rIn * Math.cos(a), rIn * Math.sin(a));
+                rg.lineTo((rIn + rOut) * 0.5 * Math.cos(a + 0.06), (rIn + rOut) * 0.5 * Math.sin(a + 0.06));
+                rg.lineTo(rOut * Math.cos(a2), rOut * Math.sin(a2));
                 rg.stroke();
             }
         }
@@ -739,7 +779,14 @@ export class GrottoExpeditionDemo extends Component {
             gfx.moveTo(runeInner * Math.cos(runeMid), runeInner * Math.sin(runeMid));
             gfx.lineTo(runeOuter * Math.cos(runeMid), runeOuter * Math.sin(runeMid));
             gfx.stroke();
-            if (!this.lotteryIsBuffContext) {
+            if (this.lotteryIsBuffContext) {
+                const cloudR = (INNER_R + OUTER_R) * 0.42;
+                gfx.strokeColor = new Color(140, 170, 158, 75);
+                gfx.arc(0, 0, cloudR, runeMid - 0.08, runeMid + 0.08, false);
+                gfx.stroke();
+                gfx.arc(0, 0, cloudR - 18, runeMid - 0.05, runeMid + 0.06, false);
+                gfx.stroke();
+            } else {
                 const spikeR = OUTER_R - 22;
                 gfx.fillColor = new Color(166, 82, 108, 90);
                 gfx.moveTo(spikeR * Math.cos(runeMid), spikeR * Math.sin(runeMid));
@@ -776,6 +823,41 @@ export class GrottoExpeditionDemo extends Component {
             cg.moveTo(-17, 17);
             cg.lineTo(17, -17);
             cg.stroke();
+            cg.strokeColor = new Color(178, 158, 108, 160);
+            cg.lineWidth = 1.5;
+            const baguaR = 38;
+            for (let i = 0; i < 8; i++) {
+                const a = toRad(i * 45);
+                const solid = (i % 2) === 0;
+                for (let line = 0; line < 3; line++) {
+                    const off = (line - 1) * 6;
+                    const x0 = (baguaR - 14 + line * 2) * Math.cos(a) + off * Math.cos(a + Math.PI / 2);
+                    const y0 = (baguaR - 14 + line * 2) * Math.sin(a) + off * Math.sin(a + Math.PI / 2);
+                    const x1 = (baguaR + 14 - line * 2) * Math.cos(a) + off * Math.cos(a + Math.PI / 2);
+                    const y1 = (baguaR + 14 - line * 2) * Math.sin(a) + off * Math.sin(a + Math.PI / 2);
+                    if (solid) {
+                        cg.moveTo(x0, y0);
+                        cg.lineTo(x1, y1);
+                        cg.stroke();
+                    } else {
+                        const mx = (x0 + x1) / 2;
+                        const my = (y0 + y1) / 2;
+                        cg.moveTo(x0, y0);
+                        cg.lineTo(mx, my);
+                        cg.stroke();
+                        cg.moveTo(mx, my);
+                        cg.lineTo(x1, y1);
+                        cg.stroke();
+                    }
+                }
+            }
+            cg.strokeColor = new Color(120, 160, 150, 90);
+            cg.lineWidth = 1;
+            for (let w = 0; w < 3; w++) {
+                const r = 28 + w * 8;
+                cg.arc(0, 0, r, 0, Math.PI * 2, false);
+                cg.stroke();
+            }
         } else {
             for (let i = 0; i < 6; i++) {
                 const a = toRad(i * 60);
