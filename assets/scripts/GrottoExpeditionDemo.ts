@@ -332,6 +332,23 @@ export class GrottoExpeditionDemo extends Component {
 
     private statusLabel!: Label;
     private hintLabel!: Label;
+    private roleHintLabel!: Label;
+    private homeTab: 'dongtian' | 'mijing' | 'shop' | 'faqi' | 'role' = 'dongtian';
+    private homeContentRoot!: Node;
+    private homeDongtianView!: Node;
+    private homeMijingView!: Node;
+    private homeRoleView!: Node;
+    private homeShopView!: Node;
+    private homeFaqiView!: Node;
+    private homeGoldLabel!: Label;
+    private homeDiamondLabel!: Label;
+    private homeNavButtons: Record<'shop' | 'faqi' | 'role' | 'mijing' | 'dongtian', Node | null> = {
+        shop: null,
+        faqi: null,
+        role: null,
+        mijing: null,
+        dongtian: null,
+    };
     private combatHpLabel!: Label;
     private resultLabel!: Label;
     private selectedDungeonInfoLabel!: Label;
@@ -396,15 +413,92 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private buildHomeUI() {
-        const title = this.createPanel(this.homeLayer, 600, 160, 0, 480);
-        this.createLabel(title, '洞府', 52, new Vec3(0, 20, 0), new Color(220, 220, 230, 255));
-        this.createLabel(title, '分境秘境试炼', 24, new Vec3(0, -35, 0), new Color(160, 180, 200, 255));
+        const topBar = this.createPanel(this.homeLayer, 700, 74, 0, 560, new Color(28, 34, 42, 248));
+        const avatar = this.createPanel(topBar, 52, 52, -300, 0, new Color(62, 72, 90, 255));
+        this.createLabel(avatar, '道', 24, new Vec3(0, 0, 0), new Color(216, 226, 238, 255));
+        this.homeGoldLabel = this.createLabel(topBar, '金币 0', 22, new Vec3(-170, 0, 0), new Color(255, 220, 120, 255), 140);
+        this.homeDiamondLabel = this.createLabel(topBar, '钻石 0', 22, new Vec3(-20, 0, 0), new Color(160, 210, 255, 255), 140);
 
-        const stat = this.createPanel(this.homeLayer, 560, 120, 0, 330);
-        this.statusLabel = this.createLabel(stat, '', 26, new Vec3(0, 20, 0), new Color(255, 240, 220, 255), 520);
-        this.createLabel(stat, '境界提升可增加生命与攻击', 20, new Vec3(0, -35, 0), new Color(140, 160, 180, 255), 520);
+        this.homeContentRoot = new Node('HomeContentRoot');
+        this.homeContentRoot.layer = Layers.Enum.UI_2D;
+        this.homeLayer.addChild(this.homeContentRoot);
+        this.homeContentRoot.setPosition(0, -12, 0);
+        this.homeContentRoot.addComponent(UITransform).setContentSize(DESIGN_WIDTH, 980);
 
-        const dungeonPanel = this.createPanel(this.homeLayer, 620, 220, 0, 70, new Color(40, 48, 58, 245));
+        this.homeDongtianView = this.createHomeView('DongtianView');
+        this.homeShopView = this.createHomeView('ShopView');
+        this.homeFaqiView = this.createHomeView('FaqiView');
+        this.homeRoleView = this.createHomeView('RoleView');
+        this.homeMijingView = this.createHomeView('MijingView');
+
+        this.buildHomeDongtianView();
+        this.buildHomeShopView();
+        this.buildHomeFaqiView();
+        this.buildHomeRoleView();
+        this.buildHomeMijingView();
+
+        const navBar = this.createPanel(this.homeLayer, 700, 82, 0, -570, new Color(32, 38, 48, 250));
+        const tabs: Array<{ key: 'shop' | 'faqi' | 'role' | 'mijing' | 'dongtian'; label: string }> = [
+            { key: 'shop', label: '商城' },
+            { key: 'faqi', label: '法器' },
+            { key: 'role', label: '角色' },
+            { key: 'mijing', label: '秘境' },
+            { key: 'dongtian', label: '洞天' },
+        ];
+        tabs.forEach((tab, index) => {
+            const x = -280 + index * 140;
+            const btn = this.createPanel(navBar, 112, 56, x, 0, new Color(45, 52, 62, 255));
+            const icon = this.createLabel(btn, tab.label.slice(0, 1), 22, new Vec3(0, 10, 0), new Color(220, 232, 244, 255));
+            icon.isBold = true;
+            this.createLabel(btn, tab.label, 16, new Vec3(0, -14, 0), new Color(180, 195, 210, 255));
+            btn.on(Node.EventType.TOUCH_END, () => this.switchHomeTab(tab.key), this);
+            this.homeNavButtons[tab.key] = btn;
+        });
+
+        this.switchHomeTab('mijing');
+    }
+
+    private createHomeView(name: string) {
+        const viewNode = new Node(name);
+        viewNode.layer = Layers.Enum.UI_2D;
+        this.homeContentRoot.addChild(viewNode);
+        viewNode.addComponent(UITransform).setContentSize(DESIGN_WIDTH, 980);
+        viewNode.active = false;
+        return viewNode;
+    }
+
+    private buildHomeDongtianView() {
+        // 洞天功能独立实现，这里仅保留页签容器，不在首页拆分时占用其内容区域。
+    }
+
+    private buildHomeShopView() {
+        const panel = this.createPanel(this.homeShopView, 620, 360, 0, 80, new Color(38, 44, 54, 245));
+        this.createLabel(panel, '商城', 36, new Vec3(0, 120, 0), new Color(236, 226, 190, 255));
+        this.createLabel(panel, '顶部货币栏已预留金币与钻石位置', 22, new Vec3(0, 36, 0), new Color(180, 198, 214, 255), 520);
+        this.createLabel(panel, '当前先保留页签结构，后续可接商品与充值入口', 20, new Vec3(0, -18, 0), new Color(132, 150, 168, 255), 520);
+    }
+
+    private buildHomeFaqiView() {
+        const panel = this.createPanel(this.homeFaqiView, 620, 360, 0, 80, new Color(38, 44, 54, 245));
+        this.createLabel(panel, '法器', 36, new Vec3(0, 120, 0), new Color(220, 236, 255, 255));
+        this.createLabel(panel, '当前先拆分页签，法器养成入口预留在这里', 22, new Vec3(0, 36, 0), new Color(180, 198, 214, 255), 520);
+        this.createLabel(panel, '后续可接装备、强化、共鸣等功能', 20, new Vec3(0, -18, 0), new Color(132, 150, 168, 255), 520);
+    }
+
+    private buildHomeRoleView() {
+        this.buildHomePortrait(this.homeRoleView, -220, 140);
+        const stat = this.createPanel(this.homeRoleView, 410, 160, 140, 300, new Color(40, 48, 58, 245));
+        this.statusLabel = this.createLabel(stat, '', 24, new Vec3(0, 34, 0), new Color(255, 240, 220, 255), 360);
+        this.createLabel(stat, '角色属性', 20, new Vec3(0, 0, 0), new Color(180, 205, 225, 255));
+        this.roleHintLabel = this.createLabel(stat, '', 18, new Vec3(0, -38, 0), new Color(140, 160, 180, 255), 360);
+
+        const realmBtn = this.createPanel(this.homeRoleView, 220, 70, 150, 150, new Color(50, 55, 65, 255));
+        this.createLabel(realmBtn, '修炼突破', 28, new Vec3(0, 0, 0), new Color(200, 230, 255, 255));
+        realmBtn.on(Node.EventType.TOUCH_END, () => this.tryRealmUp(), this);
+    }
+
+    private buildHomeMijingView() {
+        const dungeonPanel = this.createPanel(this.homeMijingView, 620, 220, 0, 220, new Color(40, 48, 58, 245));
         this.createLabel(dungeonPanel, '选择秘境', 26, new Vec3(0, 84, 0), new Color(228, 220, 200, 255));
         this.selectedDungeonInfoLabel = this.createLabel(dungeonPanel, '', 18, new Vec3(0, 50, 0), new Color(150, 175, 195, 255), 560);
         DUNGEON_CONFIGS.forEach((config, index) => {
@@ -419,7 +513,7 @@ export class GrottoExpeditionDemo extends Component {
             this.dungeonButtonLabels[config.id] = label;
         });
 
-        const chestPanel = this.createPanel(this.homeLayer, 620, 220, 0, -190, new Color(44, 38, 32, 245));
+        const chestPanel = this.createPanel(this.homeMijingView, 620, 220, 0, -40, new Color(44, 38, 32, 245));
         this.progressChestTitleLabel = this.createLabel(chestPanel, '', 24, new Vec3(0, 84, 0), new Color(230, 215, 175, 255), 560);
         this.progressChestInfoLabel = this.createLabel(chestPanel, '', 18, new Vec3(0, 54, 0), new Color(170, 160, 145, 255), 560);
         for (let i = 0; i < MAX_PROGRESS_CHESTS; i++) {
@@ -434,15 +528,65 @@ export class GrottoExpeditionDemo extends Component {
             this.progressChestLabels.push(chestLabel);
         }
 
-        const realmBtn = this.createPanel(this.homeLayer, 220, 70, -150, -430, new Color(50, 55, 65, 255));
-        this.createLabel(realmBtn, '修炼突破', 28, new Vec3(0, 0, 0), new Color(200, 230, 255, 255));
-        realmBtn.on(Node.EventType.TOUCH_END, () => this.tryRealmUp(), this);
-
-        const goBtn = this.createPanel(this.homeLayer, 260, 76, 150, -430, new Color(45, 70, 60, 255));
+        const goBtn = this.createPanel(this.homeMijingView, 260, 76, 0, -300, new Color(45, 70, 60, 255));
         this.createLabel(goBtn, '进入秘境', 36, new Vec3(0, 0, 0), new Color(180, 255, 220, 255));
         goBtn.on(Node.EventType.TOUCH_END, () => this.tryStartExpedition(), this);
 
-        this.hintLabel = this.createLabel(this.homeLayer, '选择秘境后进入挑战；每 10 层一位 Boss，首个 10/20/30 层宝箱可在洞府领取', 20, new Vec3(0, -540, 0), new Color(120, 140, 160, 255), 660);
+        this.hintLabel = this.createLabel(this.homeMijingView, '选择秘境后进入挑战；每 10 层一位 Boss，首个 10/20/30 层宝箱可在洞府领取', 20, new Vec3(0, -410, 0), new Color(120, 140, 160, 255), 660);
+    }
+
+    private switchHomeTab(tab: 'dongtian' | 'mijing' | 'shop' | 'faqi' | 'role') {
+        this.homeTab = tab;
+        this.homeDongtianView.active = tab === 'dongtian';
+        this.homeMijingView.active = tab === 'mijing';
+        this.homeRoleView.active = tab === 'role';
+        this.homeShopView.active = tab === 'shop';
+        this.homeFaqiView.active = tab === 'faqi';
+
+        (Object.keys(this.homeNavButtons) as Array<keyof typeof this.homeNavButtons>).forEach((key) => {
+            const btn = this.homeNavButtons[key];
+            if (!btn) return;
+            const active = key === tab;
+            this.repaintPanel(btn, active ? new Color(62, 78, 96, 255) : new Color(45, 52, 62, 255), active ? new Color(152, 192, 224, 220) : new Color(70, 85, 100, 200));
+            const labels = btn.getComponentsInChildren(Label);
+            labels.forEach((label, index) => {
+                label.color = active
+                    ? (index === 0 ? new Color(244, 248, 255, 255) : new Color(220, 232, 244, 255))
+                    : (index === 0 ? new Color(220, 232, 244, 255) : new Color(180, 195, 210, 255));
+            });
+        });
+
+        this.refreshHomeStatus();
+    }
+
+    private buildHomePortrait(parent: Node, x: number, y: number) {
+        const portraitPanel = this.createPanel(parent, 220, 330, x, y, new Color(36, 42, 52, 245));
+        const portraitRoot = new Node('HomePortrait');
+        portraitRoot.layer = Layers.Enum.UI_2D;
+        portraitPanel.addChild(portraitRoot);
+        portraitRoot.setPosition(0, -12, 0);
+        portraitRoot.addComponent(UITransform).setContentSize(180, 260);
+
+        const aura = portraitRoot.addComponent(Graphics);
+        aura.fillColor = new Color(68, 84, 108, 90);
+        aura.circle(0, 30, 74);
+        aura.fill();
+        aura.strokeColor = new Color(126, 152, 188, 120);
+        aura.lineWidth = 3;
+        aura.circle(0, 30, 86);
+        aura.stroke();
+
+        const rig = this.createCharacterRig(portraitRoot, new Color(90, 100, 120, 255), new Color(200, 210, 230, 255));
+        rig.root.setScale(new Vec3(2.4, 2.4, 1));
+        rig.root.setPosition(0, 36, 0);
+        rig.body.node.angle = 0;
+        rig.head.node.angle = 0;
+        rig.armL.node.angle = -24;
+        rig.armR.node.angle = 24;
+        rig.legL.node.angle = -8;
+        rig.legR.node.angle = 8;
+
+        this.createLabel(portraitPanel, '主角', 22, new Vec3(0, -134, 0), new Color(208, 220, 235, 255));
     }
 
     private expeditionResLabel!: Label;
@@ -757,7 +901,12 @@ export class GrottoExpeditionDemo extends Component {
 
     private refreshHomeStatus() {
         this.actionPointMax = ACTION_POINT_BASE + (this.realmLevel - 1) * 10;
-        this.statusLabel.string = `境界 ${this.realmLevel} 层 | 灵石 ${this.spiritStone} | 秘晶 ${this.mysticCrystal} | 修为 ${this.realmExp}/${this.realmExpNeed} | 行动力 ${this.actionPoints}/${this.actionPointMax}`;
+        if (this.homeGoldLabel) this.homeGoldLabel.string = `金币 ${this.spiritStone}`;
+        if (this.homeDiamondLabel) this.homeDiamondLabel.string = `钻石 ${this.mysticCrystal}`;
+        this.statusLabel.string = `境界 ${this.realmLevel} 层 | 修为 ${this.realmExp}/${this.realmExpNeed}`;
+        if (this.roleHintLabel) {
+            this.roleHintLabel.string = `生命 ${this.playerMaxHp} | 法力 ${this.playerMaxMana} | 攻击 ${this.playerDamage} | 行动力 ${this.actionPoints}/${this.actionPointMax}`;
+        }
         const current = this.getDungeonConfig();
         this.selectedDungeonInfoLabel.string = `当前：${current.label} | 解锁修为 ${current.unlockRealm} | 总层数 ${current.maxDepth}`;
         DUNGEON_CONFIGS.forEach((config) => {
