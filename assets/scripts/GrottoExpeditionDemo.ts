@@ -117,35 +117,60 @@ const HALF_HEIGHT = DESIGN_HEIGHT * 0.5;
 
 type GameState = 'home' | 'expedition_path' | 'combat' | 'lottery' | 'result';
 
+type DungeonId = 'qi' | 'zhuji' | 'jindan' | 'yuanying';
+
+interface DungeonConfig {
+    id: DungeonId;
+    label: string;
+    unlockRealm: number;
+    maxDepth: number;
+    accent: Color;
+}
+
+const DUNGEON_CONFIGS: DungeonConfig[] = [
+    { id: 'qi', label: '练气秘境', unlockRealm: 1, maxDepth: 30, accent: new Color(110, 170, 130, 255) },
+    { id: 'zhuji', label: '筑基秘境', unlockRealm: 10, maxDepth: 60, accent: new Color(120, 150, 200, 255) },
+    { id: 'jindan', label: '金丹秘境', unlockRealm: 20, maxDepth: 90, accent: new Color(190, 150, 80, 255) },
+    { id: 'yuanying', label: '元婴秘境', unlockRealm: 30, maxDepth: 100, accent: new Color(190, 110, 160, 255) },
+];
+
+const MAX_PROGRESS_CHESTS = 10;
+
 /** 格子类型：点击？后揭示 */
 type SlotType = 'empty' | 'herb' | 'stone' | 'treasure' | 'monster' | 'trap' | 'buff' | 'intercept' | 'boss';
 
 /** 普通层各格子类型基础权重（不含 boss）；天材地宝/邪修按层数在 pickSlotTypeByWeight 中处理 */
 const SLOT_WEIGHTS: Record<Exclude<SlotType, 'boss'>, number> = {
     empty: 0,
-    herb: 16,
-    stone: 16,
-    treasure: 10,
-    monster: 16,
+    herb: 20,
+    stone: 20,
+    treasure: 14,
+    monster: 10,
     trap: 0,
-    buff: 16,
+    buff: 20,
     intercept: 0,
 };
 
 /** 执行各类型格子消耗的行动力 */
 const ACTION_COST: Record<SlotType, number> = {
     empty: 1,
-    herb: 3,
-    stone: 3,
-    treasure: 6,
-    monster: 8,
-    trap: 5,
-    buff: 5,
-    intercept: 6,
-    boss: 15,
+    herb: 2,
+    stone: 2,
+    treasure: 3,
+    monster: 4,
+    trap: 3,
+    buff: 2,
+    intercept: 3,
+    boss: 8,
 };
 
-const ACTION_POINT_BASE = 100;
+const ACTION_POINT_BASE = 180;
+const EXP_PER_HERB = 8;
+const EXP_PER_TREASURE = 35;
+const VICTORY_HP_RESTORE_RATIO = 0.12;
+const VICTORY_MANA_RESTORE_RATIO = 0.18;
+const VICTORY_ACTION_RESTORE = 8;
+const BOSS_VICTORY_ACTION_RESTORE = 20;
 
 /** 按层数动态权重抽格子类型（不含 boss）；邪修不在本函数内抽，由 ensureNextNodes 每 10 层单独放 1 个 */
 function pickSlotTypeByWeight(depth: number): Exclude<SlotType, 'boss'> {
@@ -282,6 +307,16 @@ export class GrottoExpeditionDemo extends Component {
     private hintLabel!: Label;
     private combatHpLabel!: Label;
     private resultLabel!: Label;
+    private selectedDungeonInfoLabel!: Label;
+    private progressChestTitleLabel!: Label;
+    private progressChestInfoLabel!: Label;
+    private dungeonButtonNodes: Record<DungeonId, Node | null> = { qi: null, zhuji: null, jindan: null, yuanying: null };
+    private dungeonButtonLabels: Record<DungeonId, Label | null> = { qi: null, zhuji: null, jindan: null, yuanying: null };
+    private progressChestNodes: Node[] = [];
+    private progressChestLabels: Label[] = [];
+    private selectedDungeonId: DungeonId = 'qi';
+    private dungeonBestDepth: Record<DungeonId, number> = { qi: 0, zhuji: 0, jindan: 0, yuanying: 0 };
+    private claimedProgressChests: Record<string, boolean> = {};
 
     /** 抽奖转盘：当前 8 个选项与预选结果索引（用于动画落点） */
     private lotteryWheelEntries: LotteryWheelEntry[] = [];
@@ -336,21 +371,51 @@ export class GrottoExpeditionDemo extends Component {
     private buildHomeUI() {
         const title = this.createPanel(this.homeLayer, 600, 160, 0, 480);
         this.createLabel(title, '洞府', 52, new Vec3(0, 20, 0), new Color(220, 220, 230, 255));
-        this.createLabel(title, '是仙人就下100层', 24, new Vec3(0, -35, 0), new Color(160, 180, 200, 255));
+        this.createLabel(title, '分境秘境试炼', 24, new Vec3(0, -35, 0), new Color(160, 180, 200, 255));
 
-        const stat = this.createPanel(this.homeLayer, 560, 120, 0, 320);
+        const stat = this.createPanel(this.homeLayer, 560, 120, 0, 330);
         this.statusLabel = this.createLabel(stat, '', 26, new Vec3(0, 20, 0), new Color(255, 240, 220, 255), 520);
         this.createLabel(stat, '境界提升可增加生命与攻击', 20, new Vec3(0, -35, 0), new Color(140, 160, 180, 255), 520);
 
-        const realmBtn = this.createPanel(this.homeLayer, 240, 70, 0, 180, new Color(50, 55, 65, 255));
+        const dungeonPanel = this.createPanel(this.homeLayer, 620, 220, 0, 70, new Color(40, 48, 58, 245));
+        this.createLabel(dungeonPanel, '选择秘境', 26, new Vec3(0, 84, 0), new Color(228, 220, 200, 255));
+        this.selectedDungeonInfoLabel = this.createLabel(dungeonPanel, '', 18, new Vec3(0, 50, 0), new Color(150, 175, 195, 255), 560);
+        DUNGEON_CONFIGS.forEach((config, index) => {
+            const col = index % 2;
+            const row = Math.floor(index / 2);
+            const x = col === 0 ? -145 : 145;
+            const y = row === 0 ? 0 : -72;
+            const btn = this.createPanel(dungeonPanel, 250, 54, x, y, new Color(54, 60, 70, 255));
+            const label = this.createLabel(btn, config.label, 22, new Vec3(0, 0, 0), new Color(220, 230, 240, 255), 220);
+            btn.on(Node.EventType.TOUCH_END, () => this.selectDungeon(config.id), this);
+            this.dungeonButtonNodes[config.id] = btn;
+            this.dungeonButtonLabels[config.id] = label;
+        });
+
+        const chestPanel = this.createPanel(this.homeLayer, 620, 220, 0, -190, new Color(44, 38, 32, 245));
+        this.progressChestTitleLabel = this.createLabel(chestPanel, '', 24, new Vec3(0, 84, 0), new Color(230, 215, 175, 255), 560);
+        this.progressChestInfoLabel = this.createLabel(chestPanel, '', 18, new Vec3(0, 54, 0), new Color(170, 160, 145, 255), 560);
+        for (let i = 0; i < MAX_PROGRESS_CHESTS; i++) {
+            const col = i % 5;
+            const row = Math.floor(i / 5);
+            const x = -220 + col * 110;
+            const y = row === 0 ? -6 : -74;
+            const chestBtn = this.createPanel(chestPanel, 92, 48, x, y, new Color(88, 72, 45, 255));
+            const chestLabel = this.createLabel(chestBtn, '', 18, new Vec3(0, 0, 0), new Color(240, 220, 180, 255), 84);
+            chestBtn.on(Node.EventType.TOUCH_END, () => this.claimProgressChest(i), this);
+            this.progressChestNodes.push(chestBtn);
+            this.progressChestLabels.push(chestLabel);
+        }
+
+        const realmBtn = this.createPanel(this.homeLayer, 220, 70, -150, -430, new Color(50, 55, 65, 255));
         this.createLabel(realmBtn, '修炼突破', 28, new Vec3(0, 0, 0), new Color(200, 230, 255, 255));
         realmBtn.on(Node.EventType.TOUCH_END, () => this.tryRealmUp(), this);
 
-        const goBtn = this.createPanel(this.homeLayer, 320, 90, 0, -200, new Color(45, 70, 60, 255));
+        const goBtn = this.createPanel(this.homeLayer, 260, 76, 150, -430, new Color(45, 70, 60, 255));
         this.createLabel(goBtn, '进入秘境', 36, new Vec3(0, 0, 0), new Color(180, 255, 220, 255));
-        goBtn.on(Node.EventType.TOUCH_END, () => this.startExpedition(), this);
+        goBtn.on(Node.EventType.TOUCH_END, () => this.tryStartExpedition(), this);
 
-        this.hintLabel = this.createLabel(this.homeLayer, '地图选路·行动力消耗；探查后可选执行或返回上一层', 20, new Vec3(0, -420, 0), new Color(120, 140, 160, 255), 620);
+        this.hintLabel = this.createLabel(this.homeLayer, '选择秘境后进入挑战；每 10 层一位 Boss，首个 10/20/30 层宝箱可在洞府领取', 20, new Vec3(0, -540, 0), new Color(120, 140, 160, 255), 660);
     }
 
     private expeditionResLabel!: Label;
@@ -376,7 +441,7 @@ export class GrottoExpeditionDemo extends Component {
     private buildExpeditionUI() {
         const top = this.createPanel(this.expeditionLayer, 640, 100, 0, 560);
         top.name = 'Top';
-        this.expeditionLayerLabel = this.createLabel(top, '第 1 层', 28, new Vec3(-220, 18, 0), new Color(255, 248, 230, 255));
+        this.expeditionLayerLabel = this.createLabel(top, '练气秘境 1/30层', 28, new Vec3(-220, 18, 0), new Color(255, 248, 230, 255));
         this.expeditionHpLabel = this.createLabel(top, '生命 100/100', 22, new Vec3(0, 18, 0), new Color(255, 200, 180, 255));
         this.expeditionManaLabel = this.createLabel(top, '法力 100/100', 22, new Vec3(180, 18, 0), new Color(180, 220, 255, 255));
         this.expeditionApLabel = this.createLabel(top, '行动力 100/100', 22, new Vec3(-180, -28, 0), new Color(200, 220, 180, 255));
@@ -555,9 +620,122 @@ export class GrottoExpeditionDemo extends Component {
         this.refreshHomeStatus();
     }
 
+    private getDungeonConfig(id: DungeonId = this.selectedDungeonId): DungeonConfig {
+        return DUNGEON_CONFIGS.find((config) => config.id === id) || DUNGEON_CONFIGS[0];
+    }
+
+    private getProgressMilestones(id: DungeonId): number[] {
+        const milestones: number[] = [];
+        const maxDepth = this.getDungeonConfig(id).maxDepth;
+        for (let floor = 10; floor <= maxDepth; floor += 10) milestones.push(floor);
+        return milestones;
+    }
+
+    private isDungeonUnlocked(id: DungeonId): boolean {
+        return this.realmLevel >= this.getDungeonConfig(id).unlockRealm;
+    }
+
+    private selectDungeon(id: DungeonId) {
+        const config = this.getDungeonConfig(id);
+        if (!this.isDungeonUnlocked(id)) {
+            this.hintLabel.string = `${config.label} 需修为 ${config.unlockRealm} 层解锁。`;
+            return;
+        }
+        this.selectedDungeonId = id;
+        this.hintLabel.string = `已选择 ${config.label}，共 ${config.maxDepth} 层。`;
+        this.refreshHomeStatus();
+    }
+
+    private tryStartExpedition() {
+        const config = this.getDungeonConfig();
+        if (!this.isDungeonUnlocked(config.id)) {
+            this.hintLabel.string = `${config.label} 需修为 ${config.unlockRealm} 层解锁。`;
+            return;
+        }
+        this.startExpedition();
+    }
+
+    private getProgressChestKey(dungeonId: DungeonId, milestone: number): string {
+        return `${dungeonId}:${milestone}`;
+    }
+
+    private claimProgressChest(index: number) {
+        const config = this.getDungeonConfig();
+        const milestones = this.getProgressMilestones(config.id);
+        if (index >= milestones.length) return;
+        const milestone = milestones[index];
+        const best = this.dungeonBestDepth[config.id] || 0;
+        const key = this.getProgressChestKey(config.id, milestone);
+        if (this.claimedProgressChests[key]) {
+            this.hintLabel.string = `${config.label} ${milestone} 层宝箱已领取。`;
+            return;
+        }
+        if (best < milestone) {
+            this.hintLabel.string = `需先在 ${config.label} 达到 ${milestone} 层。当前最高 ${best} 层。`;
+            return;
+        }
+        const tierIndex = DUNGEON_CONFIGS.findIndex((item) => item.id === config.id) + 1;
+        const spiritReward = milestone * 12 * tierIndex;
+        const expReward = milestone * 8 * tierIndex;
+        this.claimedProgressChests[key] = true;
+        this.spiritStone += spiritReward;
+        this.realmExp += expReward;
+        this.hintLabel.string = `领取 ${config.label}${milestone} 层宝箱：灵石 +${spiritReward}，修为 +${expReward}。`;
+        this.refreshHomeStatus();
+    }
+
+    private recordDungeonProgress(depth: number = this.getCurrentDepth()) {
+        const config = this.getDungeonConfig();
+        this.dungeonBestDepth[config.id] = Math.max(this.dungeonBestDepth[config.id], Math.min(depth, config.maxDepth));
+    }
+
     private refreshHomeStatus() {
         this.actionPointMax = ACTION_POINT_BASE + (this.realmLevel - 1) * 10;
         this.statusLabel.string = `境界 ${this.realmLevel} 层 | 灵石 ${this.spiritStone} | 修为 ${this.realmExp}/${this.realmExpNeed} | 行动力 ${this.actionPoints}/${this.actionPointMax}`;
+        const current = this.getDungeonConfig();
+        this.selectedDungeonInfoLabel.string = `当前：${current.label} | 解锁修为 ${current.unlockRealm} | 总层数 ${current.maxDepth}`;
+        DUNGEON_CONFIGS.forEach((config) => {
+            const button = this.dungeonButtonNodes[config.id];
+            const label = this.dungeonButtonLabels[config.id];
+            if (!button || !label) return;
+            const unlocked = this.isDungeonUnlocked(config.id);
+            const selected = this.selectedDungeonId === config.id;
+            this.repaintPanel(
+                button,
+                !unlocked ? new Color(55, 55, 60, 255) : selected ? config.accent : new Color(54, 60, 70, 255),
+                selected ? new Color(240, 220, 180, 220) : new Color(70, 85, 100, 200)
+            );
+            label.string = unlocked ? `${config.label} ${config.maxDepth}层` : `${config.label} (${config.unlockRealm}层解锁)`;
+            label.color = !unlocked
+                ? new Color(130, 130, 140, 255)
+                : selected ? new Color(255, 248, 220, 255) : new Color(220, 230, 240, 255);
+        });
+
+        const best = this.dungeonBestDepth[current.id] || 0;
+        const milestones = this.getProgressMilestones(current.id);
+        this.progressChestTitleLabel.string = `${current.label} 进度宝箱`;
+        this.progressChestInfoLabel.string = `历史最深 ${best}/${current.maxDepth} 层 | 达到对应层数即可领取`;
+        for (let i = 0; i < MAX_PROGRESS_CHESTS; i++) {
+            const chestNode = this.progressChestNodes[i];
+            const chestLabel = this.progressChestLabels[i];
+            const milestone = milestones[i];
+            if (!chestNode || !chestLabel) continue;
+            if (!milestone) {
+                chestNode.active = false;
+                continue;
+            }
+            chestNode.active = true;
+            const key = this.getProgressChestKey(current.id, milestone);
+            const claimed = !!this.claimedProgressChests[key];
+            const claimable = best >= milestone && !claimed;
+            this.repaintPanel(
+                chestNode,
+                claimed ? new Color(70, 78, 82, 255) : claimable ? new Color(156, 110, 52, 255) : new Color(88, 72, 45, 255),
+                claimable ? new Color(235, 205, 130, 220) : new Color(110, 90, 58, 200)
+            );
+            chestLabel.string = claimed ? `${milestone}层\n已领` : claimable ? `${milestone}层\n领取` : `${milestone}层`;
+            chestLabel.color = claimed ? new Color(160, 170, 175, 255) : claimable ? new Color(255, 238, 190, 255) : new Color(225, 205, 160, 255);
+        }
     }
 
     private tryRealmUp() {
@@ -568,9 +746,9 @@ export class GrottoExpeditionDemo extends Component {
         this.realmExp -= this.realmExpNeed;
         this.realmLevel += 1;
         this.realmExpNeed = 30 + this.realmLevel * 15;
-        this.playerMaxHp = 80 + this.realmLevel * 25;
-        this.playerMaxMana = 50 + this.realmLevel * 15;
-        this.playerDamage = 12 + this.realmLevel * 6;
+        this.playerMaxHp = 100 + this.realmLevel * 30;
+        this.playerMaxMana = 70 + this.realmLevel * 18;
+        this.playerDamage = 16 + this.realmLevel * 7;
         this.actionPointMax = ACTION_POINT_BASE + (this.realmLevel - 1) * 10;
         this.hintLabel.string = '突破成功，生命、攻击与行动力上限提升';
         this.refreshHomeStatus();
@@ -602,8 +780,8 @@ export class GrottoExpeditionDemo extends Component {
         this.canSafeWithdraw = false;
         this.retreatRatioMultiplier = 1;
         this.pendingRevealedIndex = -1;
-        /** 行动力出秘境不重置，仅保证不超过当前上限 */
-        this.actionPoints = Math.min(this.actionPoints, this.actionPointMax);
+        /** 测试版数值：每次进秘境补满行动力，避免连续测试被行动力卡死 */
+        this.actionPoints = this.actionPointMax;
         this.playerHp = this.playerMaxHp;
         this.playerMana = this.playerMaxMana;
         this.ensureNextNodes(this.currentNodeId);
@@ -723,14 +901,15 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private refreshLayerUI() {
-        this.expeditionLayerLabel.string = `深度 ${this.getCurrentDepth()}`;
+        const dungeon = this.getDungeonConfig();
+        this.expeditionLayerLabel.string = `${dungeon.label} ${this.getCurrentDepth()}/${dungeon.maxDepth}层`;
         if (this.expeditionHpLabel)
             this.expeditionHpLabel.string = `生命 ${Math.ceil(this.playerHp)}/${this.playerMaxHp}`;
         if (this.expeditionManaLabel)
             this.expeditionManaLabel.string = `法力 ${Math.ceil(this.playerMana)}/${this.playerMaxMana}`;
         this.expeditionResLabel.string = `灵石 ${this.expeditionSpirit} | 灵药 ${this.expeditionHerbs} | 天材地宝 ${this.expeditionTreasure}${this.buffAtkPercent > 0 ? ' | 攻+' + (this.buffAtkPercent * 100) + '%' : ''}`;
         if (this.expeditionApLabel) this.expeditionApLabel.string = `行动力 ${this.actionPoints}/${this.actionPointMax}`;
-        if (this.expeditionRatioLabel) this.expeditionRatioLabel.string = '前路未卜，择一而行';
+        if (this.expeditionRatioLabel) this.expeditionRatioLabel.string = `${dungeon.label} · 每10层Boss · 当前历史最高 ${this.dungeonBestDepth[dungeon.id]}/${dungeon.maxDepth}`;
 
         this.slotContainer.removeAllChildren();
         const pathFromY = 60;
@@ -1436,15 +1615,15 @@ export class GrottoExpeditionDemo extends Component {
         const mul = slot.rarity ? RARITY_MULTIPLIER[slot.rarity] : 1;
         switch (slot.type) {
             case 'herb':
-                this.expeditionHerbs += Math.floor((2 + Math.floor(depth / 5)) * mul);
+                this.expeditionHerbs += Math.floor((4 + Math.floor(depth / 4)) * mul);
                 break;
             case 'stone':
-                this.expeditionSpirit += Math.floor((5 + Math.floor(depth / 3)) * mul);
+                this.expeditionSpirit += Math.floor((10 + Math.floor(depth / 2)) * mul);
                 break;
             case 'treasure':
-                this.expeditionSpirit += Math.floor((15 + depth * 2) * mul);
-                this.expeditionHerbs += Math.floor((3 + Math.floor(depth / 5)) * mul);
-                this.expeditionTreasure += Math.max(1, Math.floor(1 * mul));
+                this.expeditionSpirit += Math.floor((30 + depth * 3) * mul);
+                this.expeditionHerbs += Math.floor((6 + Math.floor(depth / 4)) * mul);
+                this.expeditionTreasure += Math.max(2, Math.floor(2 * mul));
                 break;
             case 'empty':
                 break;
@@ -1460,12 +1639,13 @@ export class GrottoExpeditionDemo extends Component {
     private advanceToNode(nodeId: string) {
         this.pathStack.push(this.currentNodeId);
         this.currentNodeId = nodeId;
-        this.ensureNextNodes(nodeId);
         this.pendingRevealedIndex = -1;
-        if (this.getCurrentDepth() > 100) {
+        const dungeon = this.getDungeonConfig();
+        if (this.getCurrentDepth() >= dungeon.maxDepth) {
             this.endExpedition(true);
             return;
         }
+        this.ensureNextNodes(nodeId);
         this.refreshLayerUI();
     }
 
@@ -1497,46 +1677,52 @@ export class GrottoExpeditionDemo extends Component {
 
     /** 撤离：安全撤离 100%；否则按 50% + 每层 0.5% 带走资源 */
     private endExpeditionWithdraw(safe: boolean) {
+        this.recordDungeonProgress();
         this.state = 'result';
         this.expeditionLayer.active = false;
         this.resultLayer.active = true;
 
-        let ratio = safe ? 1 : Math.min(1, 0.5 + (this.getCurrentDepth() - 1) * 0.005);
+        let ratio = safe ? 1 : Math.min(1, 0.8 + (this.getCurrentDepth() - 1) * 0.003);
         ratio *= this.retreatRatioMultiplier;
         const takeSpirit = Math.floor(this.expeditionSpirit * ratio);
         const takeHerbs = Math.floor(this.expeditionHerbs * ratio);
         const takeTreasure = Math.floor(this.expeditionTreasure * ratio);
-        const expBase = this.expeditionHerbs * 5 + this.expeditionTreasure * 20;
+        const expBase = this.expeditionHerbs * EXP_PER_HERB + this.expeditionTreasure * EXP_PER_TREASURE;
         const takeExp = Math.floor(expBase * ratio);
 
         this.spiritStone += takeSpirit;
         this.realmExp += takeExp;
 
+        const dungeon = this.getDungeonConfig();
         const ratioPct = (ratio * 100).toFixed(0);
         this.resultLabel.string = safe
-            ? `安全撤离（击败Boss）\n深度 ${this.getCurrentDepth()}\n带走灵石 ${takeSpirit}，灵药 ${takeHerbs}，天材地宝 ${takeTreasure}\n修为 +${takeExp}`
-            : `紧急撤离（带走 ${ratioPct}%）\n深度 ${this.getCurrentDepth()}\n带走灵石 ${takeSpirit}，灵药 ${takeHerbs}，天材地宝 ${takeTreasure}\n修为 +${takeExp}`;
+            ? `${dungeon.label} 安全撤离（击败Boss）\n深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n带走灵石 ${takeSpirit}，灵药 ${takeHerbs}，天材地宝 ${takeTreasure}\n修为 +${takeExp}`
+            : `${dungeon.label} 紧急撤离（带走 ${ratioPct}%）\n深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n带走灵石 ${takeSpirit}，灵药 ${takeHerbs}，天材地宝 ${takeTreasure}\n修为 +${takeExp}`;
         this.canSafeWithdraw = false;
     }
 
     private endExpedition(reachedExit: boolean) {
+        this.recordDungeonProgress();
         this.state = 'result';
         this.expeditionLayer.active = false;
         this.resultLayer.active = true;
         this.spiritStone += this.expeditionSpirit;
-        const expGain = this.expeditionHerbs * 5 + this.expeditionTreasure * 20 + (reachedExit ? 50 : 0);
+        const expGain = this.expeditionHerbs * EXP_PER_HERB + this.expeditionTreasure * EXP_PER_TREASURE + (reachedExit ? 100 : 0);
         this.realmExp += expGain;
-        this.resultLabel.string = `深度 ${this.getCurrentDepth()}\n获得灵石 ${this.expeditionSpirit}，灵药 ${this.expeditionHerbs}，天材地宝 ${this.expeditionTreasure}\n修为 +${expGain}\n${reachedExit ? '通关百层！' : '已撤出秘境'}`;
+        const dungeon = this.getDungeonConfig();
+        this.resultLabel.string = `${dungeon.label}\n深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n获得灵石 ${this.expeditionSpirit}，灵药 ${this.expeditionHerbs}，天材地宝 ${this.expeditionTreasure}\n修为 +${expGain}\n${reachedExit ? `通关${dungeon.maxDepth}层！` : '已撤出秘境'}`;
     }
 
     private endExpeditionDeath() {
+        this.recordDungeonProgress();
         this.state = 'result';
         this.expeditionLayer.active = false;
         this.lotteryLayer.active = false;
         this.resultLayer.active = true;
-        this.spiritStone += Math.floor(this.expeditionSpirit * 0.5);
-        this.realmExp += Math.floor((this.expeditionHerbs * 5 + this.expeditionTreasure * 20) * 0.3);
-        this.resultLabel.string = `神识受损，撤回避难洞府\n深度 ${this.getCurrentDepth()}\n损失部分收获：灵石 ${Math.floor(this.expeditionSpirit * 0.5)}，修为 +${Math.floor((this.expeditionHerbs * 5 + this.expeditionTreasure * 20) * 0.3)}`;
+        this.spiritStone += Math.floor(this.expeditionSpirit * 0.7);
+        this.realmExp += Math.floor((this.expeditionHerbs * EXP_PER_HERB + this.expeditionTreasure * EXP_PER_TREASURE) * 0.5);
+        const dungeon = this.getDungeonConfig();
+        this.resultLabel.string = `神识受损，撤回避难洞府\n${dungeon.label} 深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n保留部分收获：灵石 ${Math.floor(this.expeditionSpirit * 0.7)}，修为 +${Math.floor((this.expeditionHerbs * EXP_PER_HERB + this.expeditionTreasure * EXP_PER_TREASURE) * 0.5)}`;
     }
 
     private enterCombat() {
@@ -1589,7 +1775,7 @@ export class GrottoExpeditionDemo extends Component {
         this.enemies = [];
         const isIntercept = this.combatIsIntercept;
         const isBoss = this.combatIsBoss;
-        const count = isIntercept ? 1 : isBoss ? 1 : 1 + (this.realmLevel > 2 ? 1 : 0);
+        const count = 1;
         const choices = this.getCurrentChoiceNodes();
         const slot = this.combatSlotIndex >= 0 && this.combatSlotIndex < choices.length ? choices[this.combatSlotIndex] : null;
         const layer = slot ? slot.depth : this.getCurrentDepth();
@@ -1602,8 +1788,8 @@ export class GrottoExpeditionDemo extends Component {
             ut.setContentSize(90, 100);
             ut.setAnchorPoint(0.5, 0.5);
             const rig = this.createCharacterRig(en, isIntercept ? new Color(80, 50, 60, 255) : new Color(100, 60, 60, 255), isIntercept ? new Color(180, 80, 100, 255) : new Color(220, 120, 100, 255));
-            const baseHp = isIntercept ? 60 + layer * 4 : isBoss ? 180 + layer * 8 : 40 + this.realmLevel * 10 + Math.floor(layer / 3) * 6;
-            const baseDmg = isIntercept ? 10 + Math.floor(layer / 4) : isBoss ? 14 + Math.floor(layer / 5) * 2 : 8 + this.realmLevel * 2;
+            const baseHp = isIntercept ? 45 + layer * 3 : isBoss ? 130 + layer * 5 : 28 + this.realmLevel * 7 + Math.floor(layer / 4) * 4;
+            const baseDmg = isIntercept ? 7 + Math.floor(layer / 5) : isBoss ? 9 + Math.floor(layer / 8) * 2 : 4 + this.realmLevel;
             const hpBarNode = new Node('HpBar');
             hpBarNode.layer = Layers.Enum.UI_2D;
             this.combatLayer.addChild(hpBarNode);
@@ -1617,7 +1803,7 @@ export class GrottoExpeditionDemo extends Component {
                 maxHp: baseHp,
                 damage: baseDmg,
                 radius: isBoss ? 26 : 18,
-                speed: isBoss ? 55 : 70,
+                speed: isBoss ? 45 : 58,
                 hitTimer: 0,
                 hpBarNode,
                 hpBarGfx,
@@ -1810,12 +1996,12 @@ export class GrottoExpeditionDemo extends Component {
         }
     }
 
-    private readonly SKILL_MANA_COST = 20;
+    private readonly SKILL_MANA_COST = 12;
 
     private castSkill() {
         if (this.playerMana < this.SKILL_MANA_COST) return;
         this.playerMana -= this.SKILL_MANA_COST;
-        const dmg = this.playerDamage * (1 + this.buffAtkPercent) * 1.5;
+        const dmg = this.playerDamage * (1 + this.buffAtkPercent) * 2;
         for (const e of this.enemies) {
             e.hp -= dmg;
             e.hitTimer = 0.2;
@@ -1849,8 +2035,8 @@ export class GrottoExpeditionDemo extends Component {
                 if (this.combatIsIntercept) {
                     if (!slot.triggered) {
                         const depth = slot.depth;
-                        this.expeditionSpirit += 15 + Math.floor(depth / 3);
-                        this.expeditionHerbs += 2;
+                        this.expeditionSpirit += 24 + Math.floor(depth / 2);
+                        this.expeditionHerbs += 4;
                     }
                     slot.triggered = true;
                     this.advanceToNode(slot.id);
@@ -1858,14 +2044,14 @@ export class GrottoExpeditionDemo extends Component {
                 } else if (!slot.triggered) {
                     slot.triggered = true;
                     const depth = slot.depth;
-            if (this.combatIsBoss) {
-                this.canSafeWithdraw = true;
-                        this.expeditionSpirit += 30 + depth * 3;
-                        this.expeditionHerbs += 5 + Math.floor(depth / 5);
-                this.expeditionTreasure += 2;
-            } else {
-                        this.expeditionSpirit += 12 + Math.floor(depth / 4);
-                this.expeditionHerbs += 1;
+                    if (this.combatIsBoss) {
+                        this.canSafeWithdraw = true;
+                        this.expeditionSpirit += 60 + depth * 4;
+                        this.expeditionHerbs += 10 + Math.floor(depth / 4);
+                        this.expeditionTreasure += 4;
+                    } else {
+                        this.expeditionSpirit += 18 + Math.floor(depth / 3);
+                        this.expeditionHerbs += 3;
                     }
                     this.advanceToNode(slot.id);
                     advanced = true;
@@ -1875,10 +2061,16 @@ export class GrottoExpeditionDemo extends Component {
                 }
             }
         }
+        if (victory) {
+            const actionRestore = this.combatIsBoss ? BOSS_VICTORY_ACTION_RESTORE : VICTORY_ACTION_RESTORE;
+            this.playerHp = Math.min(this.playerMaxHp, this.playerHp + Math.ceil(this.playerMaxHp * VICTORY_HP_RESTORE_RATIO));
+            this.playerMana = Math.min(this.playerMaxMana, this.playerMana + Math.ceil(this.playerMaxMana * VICTORY_MANA_RESTORE_RATIO));
+            this.actionPoints = Math.min(this.actionPointMax, this.actionPoints + actionRestore);
+        }
         this.combatSlotIndex = -1;
         this.combatIsBoss = false;
         this.combatIsIntercept = false;
-        if (victory && !advanced) this.refreshLayerUI();
+        if (victory && this.state === 'expedition_path') this.refreshLayerUI();
     }
 
     private endCombatPlayerDeath() {
@@ -1964,6 +2156,23 @@ export class GrottoExpeditionDemo extends Component {
         g.roundRect(-w / 2, -h / 2, w, h, 16);
         g.stroke();
         return panel;
+    }
+
+    private repaintPanel(panel: Node, fill: Color, stroke = new Color(70, 85, 100, 200)) {
+        const transform = panel.getComponent(UITransform);
+        const g = panel.getComponent(Graphics);
+        if (!transform || !g) return;
+        const size = transform.contentSize;
+        const w = size.width;
+        const h = size.height;
+        g.clear();
+        g.fillColor = fill;
+        g.roundRect(-w / 2, -h / 2, w, h, 16);
+        g.fill();
+        g.strokeColor = stroke;
+        g.lineWidth = 2;
+        g.roundRect(-w / 2, -h / 2, w, h, 16);
+        g.stroke();
     }
 
     private createLabel(parent: Node, text: string, fontSize: number, pos: Vec3, color: Color, width = 0): Label {
