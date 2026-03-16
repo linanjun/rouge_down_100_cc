@@ -120,19 +120,17 @@ type GameState = 'home' | 'expedition_path' | 'combat' | 'lottery' | 'result';
 /** 格子类型：点击？后揭示 */
 type SlotType = 'empty' | 'herb' | 'stone' | 'treasure' | 'monster' | 'trap' | 'buff' | 'intercept' | 'boss';
 
-/** 普通层各格子类型权重（不含 boss），用于按比例随机与展示 */
+/** 普通层各格子类型基础权重（不含 boss）；天材地宝/邪修按层数在 pickSlotTypeByWeight 中处理 */
 const SLOT_WEIGHTS: Record<Exclude<SlotType, 'boss'>, number> = {
     empty: 0,
     herb: 16,
     stone: 16,
     treasure: 10,
     monster: 16,
-    trap: 8,
-    buff: 8,
-    intercept: 6,
+    trap: 0,
+    buff: 16,
+    intercept: 0,
 };
-
-const SLOT_WEIGHT_SUM = (Object.values(SLOT_WEIGHTS) as number[]).reduce((a, b) => a + b, 0);
 
 /** 执行各类型格子消耗的行动力 */
 const ACTION_COST: Record<SlotType, number> = {
@@ -149,11 +147,17 @@ const ACTION_COST: Record<SlotType, number> = {
 
 const ACTION_POINT_BASE = 100;
 
-function pickSlotTypeByWeight(): Exclude<SlotType, 'boss'> {
-    let r = Math.random() * SLOT_WEIGHT_SUM;
-    for (const [type, w] of Object.entries(SLOT_WEIGHTS) as [Exclude<SlotType, 'boss'>, number][]) {
-        if (w <= 0) continue;
-        r -= w;
+/** 按层数动态权重抽格子类型（不含 boss）；邪修不在本函数内抽，由 ensureNextNodes 每 10 层单独放 1 个 */
+function pickSlotTypeByWeight(depth: number): Exclude<SlotType, 'boss'> {
+    const w: Record<Exclude<SlotType, 'boss'>, number> = { ...SLOT_WEIGHTS };
+    w.intercept = 0;
+    if (depth % 10 !== 1) w.treasure = 0;
+    const sum = (Object.values(w) as number[]).reduce((a, b) => a + b, 0);
+    if (sum <= 0) return 'herb';
+    let r = Math.random() * sum;
+    for (const [type, weight] of Object.entries(w) as [Exclude<SlotType, 'boss'>, number][]) {
+        if (weight <= 0) continue;
+        r -= weight;
         if (r <= 0) return type;
     }
     return 'herb';
@@ -553,7 +557,7 @@ export class GrottoExpeditionDemo extends Component {
 
     private refreshHomeStatus() {
         this.actionPointMax = ACTION_POINT_BASE + (this.realmLevel - 1) * 10;
-        this.statusLabel.string = `境界 ${this.realmLevel} 层 | 灵石 ${this.spiritStone} | 修为 ${this.realmExp}/${this.realmExpNeed} | 行动力上限 ${this.actionPointMax}`;
+        this.statusLabel.string = `境界 ${this.realmLevel} 层 | 灵石 ${this.spiritStone} | 修为 ${this.realmExp}/${this.realmExpNeed} | 行动力 ${this.actionPoints}/${this.actionPointMax}`;
     }
 
     private tryRealmUp() {
@@ -598,7 +602,8 @@ export class GrottoExpeditionDemo extends Component {
         this.canSafeWithdraw = false;
         this.retreatRatioMultiplier = 1;
         this.pendingRevealedIndex = -1;
-        this.actionPoints = this.actionPointMax;
+        /** 行动力出秘境不重置，仅保证不超过当前上限 */
+        this.actionPoints = Math.min(this.actionPoints, this.actionPointMax);
         this.playerHp = this.playerMaxHp;
         this.playerMana = this.playerMaxMana;
         this.ensureNextNodes(this.currentNodeId);
@@ -637,10 +642,14 @@ export class GrottoExpeditionDemo extends Component {
         const existingAtDepth = this.getNodesAtDepth(nextDepth);
         const useMerge = existingAtDepth.length > 0 && Math.random() < MERGE_PROB;
         const newCount = useMerge ? Math.max(1, count - 1) : count;
+        const isInterceptLayer = nextDepth >= 5 && nextDepth % 10 === 5;
+        const hasInterceptAlready = existingAtDepth.some((n) => n.type === 'intercept');
+        const interceptIndex = isInterceptLayer && !hasInterceptAlready ? Math.floor(Math.random() * newCount) : -1;
         const ids: string[] = [];
         for (let i = 0; i < newCount; i++) {
             const id = nextNodeId();
-            const type = pickSlotTypeByWeight();
+            let type: Exclude<SlotType, 'boss'> = i === interceptIndex ? 'intercept' : pickSlotTypeByWeight(nextDepth);
+            if (type === 'buff') type = Math.random() < 0.5 ? 'trap' : 'buff';
             const node: MapNode = {
                 id,
                 depth: nextDepth,
@@ -670,7 +679,7 @@ export class GrottoExpeditionDemo extends Component {
             stone: '灵石',
             treasure: '天材地宝',
             monster: '妖兽',
-            trap: '陷阱',
+            trap: '机缘',
             buff: '机缘',
             intercept: '邪修截道',
             boss: 'Boss',
@@ -680,7 +689,7 @@ export class GrottoExpeditionDemo extends Component {
         return base;
     }
 
-    /** 地图节点图标文案（妖兽=骷髅/战斗，机缘陷阱=？，资源=宝箱/灵植等） */
+    /** 地图节点图标文案（妖兽=骷髅/战斗，机缘=？，资源=宝箱/灵植等） */
     private getSlotMapIcon(type: SlotType): string {
         const icons: Record<SlotType, string> = {
             empty: '空',
@@ -696,25 +705,9 @@ export class GrottoExpeditionDemo extends Component {
         return icons[type];
     }
 
-    /** 本层各类型比例文案（用于 UI 展示） */
+    /** 本层各类型比例文案（邪修每10层1个；天材地宝仅Boss下一层；机缘55开好坏） */
     private getSlotRatioText(): string {
-        const parts: string[] = [];
-        const names: Record<Exclude<SlotType, 'boss'>, string> = {
-            empty: '空',
-            herb: '灵植',
-            stone: '灵石',
-            treasure: '天材地宝',
-            monster: '妖兽',
-            trap: '陷阱',
-            buff: '机缘',
-            intercept: '邪修截道',
-        };
-        for (const [type, w] of Object.entries(SLOT_WEIGHTS) as [Exclude<SlotType, 'boss'>, number][]) {
-            if (w <= 0) continue;
-            const pct = Math.round((w / SLOT_WEIGHT_SUM) * 100);
-            parts.push(`${names[type]} ${pct}%`);
-        }
-        return parts.join('  ');
+        return '灵植/灵石/妖兽 约20%  机缘 20%(55开好坏)  天材地宝仅Boss下一层  邪修每10层(5,15,25…)1个';
     }
 
     /** 分支节点在 map 上的 X 坐标（按个数均摊，控制在设计宽内不超框） */
