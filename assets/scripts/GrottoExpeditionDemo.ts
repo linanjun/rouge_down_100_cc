@@ -199,16 +199,22 @@ const VICTORY_HP_RESTORE_RATIO = 0.12;
 const VICTORY_MANA_RESTORE_RATIO = 0.18;
 const VICTORY_ACTION_RESTORE = 8;
 const BOSS_VICTORY_ACTION_RESTORE = 20;
+const SLOT_WEIGHT_KEYS: Exclude<SlotType, 'boss'>[] = ['empty', 'herb', 'stone', 'treasure', 'monster', 'trap', 'buff', 'intercept'];
 
 /** 按层数与秘境权重抽格子类型（不含 boss）；邪修不在本函数内抽，由 ensureNextNodes 每 10 层单独放 1 个 */
 function pickSlotTypeByWeight(depth: number, slotWeights: Record<Exclude<SlotType, 'boss'>, number>): Exclude<SlotType, 'boss'> {
     const w: Record<Exclude<SlotType, 'boss'>, number> = { ...slotWeights };
     w.intercept = 0;
     if (depth % 10 !== 1) w.treasure = 0;
-    const sum = (Object.values(w) as number[]).reduce((a, b) => a + b, 0);
+    let sum = 0;
+    for (let i = 0; i < SLOT_WEIGHT_KEYS.length; i++) {
+        sum += w[SLOT_WEIGHT_KEYS[i]];
+    }
     if (sum <= 0) return 'herb';
     let r = Math.random() * sum;
-    for (const [type, weight] of Object.entries(w) as [Exclude<SlotType, 'boss'>, number][]) {
+    for (let i = 0; i < SLOT_WEIGHT_KEYS.length; i++) {
+        const type = SLOT_WEIGHT_KEYS[i];
+        const weight = w[type];
         if (weight <= 0) continue;
         r -= weight;
         if (r <= 0) return type;
@@ -333,6 +339,7 @@ export class GrottoExpeditionDemo extends Component {
     private statusLabel!: Label;
     private hintLabel!: Label;
     private roleHintLabel!: Label;
+    private roleDetailLabel!: Label;
     private homeTab: 'dongtian' | 'mijing' | 'shop' | 'faqi' | 'role' = 'dongtian';
     private homeContentRoot!: Node;
     private homeDongtianView!: Node;
@@ -342,6 +349,13 @@ export class GrottoExpeditionDemo extends Component {
     private homeFaqiView!: Node;
     private homeGoldLabel!: Label;
     private homeDiamondLabel!: Label;
+    private homeNavIcons: Record<'shop' | 'faqi' | 'role' | 'mijing' | 'dongtian', Node | null> = {
+        shop: null,
+        faqi: null,
+        role: null,
+        mijing: null,
+        dongtian: null,
+    };
     private homeNavButtons: Record<'shop' | 'faqi' | 'role' | 'mijing' | 'dongtian', Node | null> = {
         shop: null,
         faqi: null,
@@ -448,14 +462,19 @@ export class GrottoExpeditionDemo extends Component {
         tabs.forEach((tab, index) => {
             const x = -280 + index * 140;
             const btn = this.createPanel(navBar, 112, 56, x, 0, new Color(45, 52, 62, 255));
-            const icon = this.createLabel(btn, tab.label.slice(0, 1), 22, new Vec3(0, 10, 0), new Color(220, 232, 244, 255));
-            icon.isBold = true;
+            const iconNode = new Node(`${tab.key}Icon`);
+            iconNode.layer = Layers.Enum.UI_2D;
+            btn.addChild(iconNode);
+            iconNode.setPosition(0, 11, 0);
+            iconNode.addComponent(UITransform).setContentSize(34, 30);
+            this.drawHomeNavIcon(iconNode, tab.key, false);
             this.createLabel(btn, tab.label, 16, new Vec3(0, -14, 0), new Color(180, 195, 210, 255));
             btn.on(Node.EventType.TOUCH_END, () => this.switchHomeTab(tab.key), this);
             this.homeNavButtons[tab.key] = btn;
+            this.homeNavIcons[tab.key] = iconNode;
         });
 
-        this.switchHomeTab('mijing');
+        this.switchHomeTab('role');
     }
 
     private createHomeView(name: string) {
@@ -487,12 +506,13 @@ export class GrottoExpeditionDemo extends Component {
 
     private buildHomeRoleView() {
         this.buildHomePortrait(this.homeRoleView, -220, 140);
-        const stat = this.createPanel(this.homeRoleView, 410, 160, 140, 300, new Color(40, 48, 58, 245));
-        this.statusLabel = this.createLabel(stat, '', 24, new Vec3(0, 34, 0), new Color(255, 240, 220, 255), 360);
-        this.createLabel(stat, '角色属性', 20, new Vec3(0, 0, 0), new Color(180, 205, 225, 255));
-        this.roleHintLabel = this.createLabel(stat, '', 18, new Vec3(0, -38, 0), new Color(140, 160, 180, 255), 360);
+        const stat = this.createPanel(this.homeRoleView, 420, 300, 150, 240, new Color(40, 48, 58, 245));
+        this.createLabel(stat, '角色属性', 20, new Vec3(0, 116, 0), new Color(180, 205, 225, 255));
+        this.statusLabel = this.createLabel(stat, '', 26, new Vec3(0, 74, 0), new Color(255, 240, 220, 255), 360);
+        this.roleHintLabel = this.createLabel(stat, '', 20, new Vec3(0, 18, 0), new Color(180, 214, 255, 255), 360);
+        this.roleDetailLabel = this.createLabel(stat, '', 18, new Vec3(0, -78, 0), new Color(140, 160, 180, 255), 360);
 
-        const realmBtn = this.createPanel(this.homeRoleView, 220, 70, 150, 150, new Color(50, 55, 65, 255));
+        const realmBtn = this.createPanel(this.homeRoleView, 220, 70, 150, 20, new Color(50, 55, 65, 255));
         this.createLabel(realmBtn, '修炼突破', 28, new Vec3(0, 0, 0), new Color(200, 230, 255, 255));
         realmBtn.on(Node.EventType.TOUCH_END, () => this.tryRealmUp(), this);
     }
@@ -545,18 +565,124 @@ export class GrottoExpeditionDemo extends Component {
 
         (Object.keys(this.homeNavButtons) as Array<keyof typeof this.homeNavButtons>).forEach((key) => {
             const btn = this.homeNavButtons[key];
+            const iconNode = this.homeNavIcons[key];
             if (!btn) return;
             const active = key === tab;
             this.repaintPanel(btn, active ? new Color(62, 78, 96, 255) : new Color(45, 52, 62, 255), active ? new Color(152, 192, 224, 220) : new Color(70, 85, 100, 200));
+            if (iconNode) this.drawHomeNavIcon(iconNode, key, active);
             const labels = btn.getComponentsInChildren(Label);
-            labels.forEach((label, index) => {
-                label.color = active
-                    ? (index === 0 ? new Color(244, 248, 255, 255) : new Color(220, 232, 244, 255))
-                    : (index === 0 ? new Color(220, 232, 244, 255) : new Color(180, 195, 210, 255));
+            labels.forEach((label) => {
+                label.color = active ? new Color(220, 232, 244, 255) : new Color(180, 195, 210, 255);
             });
         });
 
         this.refreshHomeStatus();
+    }
+
+    private restoreExpeditionSlotContainer() {
+        if (!this.slotContainer.parent) {
+            this.expeditionLayer.addChild(this.slotContainer);
+            this.slotContainer.setSiblingIndex(0);
+        }
+    }
+
+    private drawHomeNavIcon(node: Node, key: 'shop' | 'faqi' | 'role' | 'mijing' | 'dongtian', active: boolean) {
+        let g = node.getComponent(Graphics);
+        if (!g) g = node.addComponent(Graphics);
+        g.clear();
+
+        const stroke = active ? new Color(236, 230, 196, 255) : new Color(194, 202, 216, 255);
+        const fill = active ? new Color(210, 182, 108, 52) : new Color(128, 152, 176, 24);
+        g.strokeColor = stroke;
+        g.fillColor = fill;
+        g.lineWidth = 2.5;
+
+        switch (key) {
+            case 'shop': {
+                g.roundRect(-10, -7, 20, 14, 4);
+                g.fill();
+                g.stroke();
+                g.moveTo(-6, 7);
+                g.lineTo(-4, 11);
+                g.lineTo(4, 11);
+                g.lineTo(6, 7);
+                g.stroke();
+                g.moveTo(-3, -11);
+                g.lineTo(-1, -14);
+                g.lineTo(1, -14);
+                g.lineTo(3, -11);
+                g.stroke();
+                break;
+            }
+            case 'faqi': {
+                g.moveTo(0, 12);
+                g.lineTo(0, -10);
+                g.stroke();
+                g.moveTo(-6, -3);
+                g.lineTo(6, -3);
+                g.stroke();
+                g.circle(0, -12, 2.2);
+                g.fill();
+                g.moveTo(0, 14);
+                g.lineTo(-4, 8);
+                g.lineTo(4, 8);
+                g.close();
+                g.fill();
+                g.stroke();
+                g.arc(0, 2, 8, Math.PI * 0.15, Math.PI * 0.85, false);
+                g.stroke();
+                break;
+            }
+            case 'role': {
+                g.circle(0, 8, 5);
+                g.fill();
+                g.stroke();
+                g.moveTo(-8, -8);
+                g.quadraticCurveTo(0, 0, 8, -8);
+                g.lineTo(8, -14);
+                g.quadraticCurveTo(0, -20, -8, -14);
+                g.close();
+                g.fill();
+                g.stroke();
+                break;
+            }
+            case 'mijing': {
+                g.moveTo(0, 14);
+                g.lineTo(-11, 4);
+                g.lineTo(-6, -12);
+                g.lineTo(0, -6);
+                g.lineTo(6, -12);
+                g.lineTo(11, 4);
+                g.close();
+                g.fill();
+                g.stroke();
+                g.moveTo(0, 8);
+                g.lineTo(0, -4);
+                g.stroke();
+                g.moveTo(-4, 2);
+                g.lineTo(0, -4);
+                g.lineTo(4, 2);
+                g.stroke();
+                break;
+            }
+            case 'dongtian': {
+                g.moveTo(-12, -8);
+                g.lineTo(-3, 10);
+                g.lineTo(1, 2);
+                g.lineTo(8, 10);
+                g.lineTo(12, 6);
+                g.lineTo(12, -8);
+                g.close();
+                g.fill();
+                g.stroke();
+                g.circle(8, 12, 3);
+                g.fill();
+                g.moveTo(-9, -12);
+                g.lineTo(-1, -12);
+                g.stroke();
+                break;
+            }
+        }
     }
 
     private buildHomePortrait(parent: Node, x: number, y: number) {
@@ -587,6 +713,14 @@ export class GrottoExpeditionDemo extends Component {
         rig.legR.node.angle = 8;
 
         this.createLabel(portraitPanel, '主角', 22, new Vec3(0, -134, 0), new Color(208, 220, 235, 255));
+    }
+
+    private getRealmTitle(): string {
+        const level = this.realmLevel;
+        if (level <= 9) return `炼气${level}重`;
+        if (level <= 18) return `筑基${level - 9}重`;
+        if (level <= 27) return `金丹${level - 18}转`;
+        return `元婴${level - 27}变`;
     }
 
     private expeditionResLabel!: Label;
@@ -903,9 +1037,12 @@ export class GrottoExpeditionDemo extends Component {
         this.actionPointMax = ACTION_POINT_BASE + (this.realmLevel - 1) * 10;
         if (this.homeGoldLabel) this.homeGoldLabel.string = `金币 ${this.spiritStone}`;
         if (this.homeDiamondLabel) this.homeDiamondLabel.string = `钻石 ${this.mysticCrystal}`;
-        this.statusLabel.string = `境界 ${this.realmLevel} 层 | 修为 ${this.realmExp}/${this.realmExpNeed}`;
+        this.statusLabel.string = `${this.getRealmTitle()}`;
         if (this.roleHintLabel) {
-            this.roleHintLabel.string = `生命 ${this.playerMaxHp} | 法力 ${this.playerMaxMana} | 攻击 ${this.playerDamage} | 行动力 ${this.actionPoints}/${this.actionPointMax}`;
+            this.roleHintLabel.string = `修为 ${this.realmExp}/${this.realmExpNeed} | 气血 ${this.playerMaxHp} | 真元 ${this.playerMaxMana}`;
+        }
+        if (this.roleDetailLabel) {
+            this.roleDetailLabel.string = `术法攻击 ${this.playerDamage}\n行动力上限 ${this.actionPointMax}\n当前所选秘境 ${this.getDungeonConfig().label}\n最高历练 ${this.dungeonBestDepth[this.getDungeonConfig().id]}/${this.getDungeonConfig().maxDepth}层`;
         }
         const current = this.getDungeonConfig();
         this.selectedDungeonInfoLabel.string = `当前：${current.label} | 解锁修为 ${current.unlockRealm} | 总层数 ${current.maxDepth}`;
@@ -1062,7 +1199,7 @@ export class GrottoExpeditionDemo extends Component {
         }
         if (useMerge && existingAtDepth.length > 0) {
             const merge = existingAtDepth[Math.floor(Math.random() * existingAtDepth.length)];
-            if (merge && !ids.includes(merge.id)) ids.push(merge.id);
+            if (merge && ids.indexOf(merge.id) < 0) ids.push(merge.id);
         }
         node.nextIds = ids;
     }
@@ -1349,7 +1486,7 @@ export class GrottoExpeditionDemo extends Component {
         this.interceptPanelVisible = false;
         if (this.interceptOverlay) this.interceptOverlay.active = false;
         this.interceptPanel.active = false;
-        if (!this.slotContainer.parent) this.expeditionLayer.addChild(this.slotContainer, 0);
+        this.restoreExpeditionSlotContainer();
         this.slotContainer.active = true;
         this.returnToPrevBtn.active = true;
         this.withdrawBtn.active = true;
@@ -1371,7 +1508,7 @@ export class GrottoExpeditionDemo extends Component {
         this.interceptPanelVisible = false;
         if (this.interceptOverlay) this.interceptOverlay.active = false;
         this.interceptPanel.active = false;
-        if (!this.slotContainer.parent) this.expeditionLayer.addChild(this.slotContainer, 0);
+        this.restoreExpeditionSlotContainer();
         this.slotContainer.active = true;
         this.returnToPrevBtn.active = true;
         this.withdrawBtn.active = true;
