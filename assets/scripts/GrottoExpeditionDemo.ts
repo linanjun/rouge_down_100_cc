@@ -308,6 +308,80 @@ interface ShopItemWidget {
     stockLabel: Label;
 }
 
+type ArtifactId = 'qingshuang' | 'lihuo' | 'xuanjia' | 'huiyuan' | 'xunbao' | 'guixi';
+type ArtifactSlot = 'sword' | 'talisman' | 'lamp';
+
+interface ArtifactDef {
+    id: ArtifactId;
+    slot: ArtifactSlot;
+    name: string;
+    glyph: string;
+    title: string;
+    summary: string;
+    synthCost: number;
+    starter: boolean;
+}
+
+interface ArtifactState {
+    unlocked: boolean;
+    level: number;
+    star: number;
+    shards: number;
+}
+
+interface ArtifactBonuses {
+    hp: number;
+    mana: number;
+    damage: number;
+    action: number;
+    combatAtkPercent: number;
+    rewardMultiplier: number;
+    badgeMultiplier: number;
+    artifactExpMultiplier: number;
+    fragmentMultiplier: number;
+    retreatBonus: number;
+}
+
+interface ArtifactCardWidget {
+    node: Node;
+    titleLabel: Label;
+    infoLabel: Label;
+    stateLabel: Label;
+}
+
+const MAX_ARTIFACT_STAR = 5;
+
+const ARTIFACT_DEFS: ArtifactDef[] = [
+    { id: 'qingshuang', slot: 'sword', glyph: '霜', name: '青霜剑', title: '剑气穿心', summary: '主战飞剑，强化单体斩杀与普攻杀伤', synthCost: 0, starter: true },
+    { id: 'lihuo', slot: 'sword', glyph: '火', name: '离火剑', title: '离火灼脉', summary: '主战飞剑，强化术法爆发与秘境收益', synthCost: 14, starter: false },
+    { id: 'xuanjia', slot: 'talisman', glyph: '甲', name: '玄甲符', title: '护体镇魄', summary: '护符法器，提升气血并稳固秘境续航', synthCost: 0, starter: true },
+    { id: 'huiyuan', slot: 'talisman', glyph: '元', name: '回元符', title: '回元养气', summary: '护符法器，提升真元与行动回复能力', synthCost: 14, starter: false },
+    { id: 'xunbao', slot: 'lamp', glyph: '宝', name: '寻宝灯', title: '照见机缘', summary: '灵灯法器，强化秘境带出与法器掉落', synthCost: 0, starter: true },
+    { id: 'guixi', slot: 'lamp', glyph: '归', name: '归息灯', title: '归元守藏', summary: '灵灯法器，强化撤离收益与徽记产出', synthCost: 16, starter: false },
+];
+
+function createDefaultArtifactStates(): Record<ArtifactId, ArtifactState> {
+    return {
+        qingshuang: { unlocked: true, level: 1, star: 1, shards: 0 },
+        lihuo: { unlocked: false, level: 0, star: 0, shards: 0 },
+        xuanjia: { unlocked: true, level: 1, star: 1, shards: 0 },
+        huiyuan: { unlocked: false, level: 0, star: 0, shards: 0 },
+        xunbao: { unlocked: true, level: 1, star: 1, shards: 0 },
+        guixi: { unlocked: false, level: 0, star: 0, shards: 0 },
+    };
+}
+
+function createArtifactShardRecord(): Record<ArtifactId, number> {
+    return {
+        qingshuang: 0,
+        lihuo: 0,
+        xuanjia: 0,
+        huiyuan: 0,
+        xunbao: 0,
+        guixi: 0,
+    };
+}
+
 const GOLD_DAILY_SHOP_ITEMS: ShopItemDef[] = [
     { id: 'gold_daily_hp', name: '炼体膏', currency: 'gold', cost: 900, rewardText: '气血上限 +8', description: '每日补体', limit: 1, refresh: 'daily', effect: 'hp', effectValue: 8 },
     { id: 'gold_daily_mana', name: '养气丹', currency: 'gold', cost: 1100, rewardText: '真元上限 +6', description: '吐纳凝元', limit: 1, refresh: 'daily', effect: 'mana', effectValue: 6 },
@@ -427,6 +501,32 @@ export class GrottoExpeditionDemo extends Component {
     private homeFaqiView!: Node;
     private homeGoldLabel!: Label;
     private homeDiamondLabel!: Label;
+    private artifactExpPool = 0;
+    private expeditionArtifactExp = 0;
+    private expeditionArtifactShards: Record<ArtifactId, number> = createArtifactShardRecord();
+    private artifactSelectedId: ArtifactId = 'qingshuang';
+    private artifactListTab: ArtifactSlot = 'sword';
+    private artifactStates: Record<ArtifactId, ArtifactState> = createDefaultArtifactStates();
+    private artifactEquipped: Record<ArtifactSlot, ArtifactId | null> = {
+        sword: 'qingshuang',
+        talisman: 'xuanjia',
+        lamp: 'xunbao',
+    };
+    private artifactCardWidgets = new Map<ArtifactId, ArtifactCardWidget>();
+    private faqiExpLabel!: Label;
+    private faqiGlyphLabel!: Label;
+    private faqiDetailTitleLabel!: Label;
+    private faqiDetailInfoLabel!: Label;
+    private faqiDetailEffectLabel!: Label;
+    private faqiDetailShardLabel!: Label;
+    private faqiSlotLabels: Record<ArtifactSlot, Label | null> = { sword: null, talisman: null, lamp: null };
+    private faqiListTabButtons: Record<ArtifactSlot, Node | null> = { sword: null, talisman: null, lamp: null };
+    private faqiPrimaryBtn: Node | null = null;
+    private faqiPrimaryBtnLabel: Label | null = null;
+    private faqiUpgradeBtn: Node | null = null;
+    private faqiUpgradeBtnLabel: Label | null = null;
+    private faqiStarBtn: Node | null = null;
+    private faqiStarBtnLabel: Label | null = null;
     private dungeonBadge = 0;
     private shopGoldTab: 'daily' | 'weekly' = 'daily';
     private shopGoldDailyPage: Node | null = null;
@@ -748,24 +848,20 @@ export class GrottoExpeditionDemo extends Component {
         if (!viewTransform || !contentTransform) return;
         const maxOffset = Math.max(0, (contentTransform.contentSize.height - viewTransform.contentSize.height) * 0.5);
         if (maxOffset <= 0) return;
-        let startPointerY = 0;
-        let startContentY = contentNode.position.y;
-        viewNode.on(Node.EventType.TOUCH_START, (event: any) => {
-            startPointerY = event.getUILocation().y;
-            startContentY = contentNode.position.y;
-        }, this);
-        viewNode.on(Node.EventType.TOUCH_MOVE, (event: any) => {
-            const deltaY = event.getUILocation().y - startPointerY;
-            const nextY = Math.max(-maxOffset, Math.min(maxOffset, startContentY + deltaY));
+        const onMove = (event: any) => {
+            const delta = typeof event.getUIDelta === 'function' ? event.getUIDelta() : { x: 0, y: 0 };
+            const nextY = Math.max(-maxOffset, Math.min(maxOffset, contentNode.position.y + delta.y));
             contentNode.setPosition(0, nextY, 0);
-            if (event.propagationStopped !== undefined) event.propagationStopped = true;
-        }, this);
-        viewNode.on(Node.EventType.TOUCH_END, () => {
-            startContentY = contentNode.position.y;
-        }, this);
-        viewNode.on(Node.EventType.TOUCH_CANCEL, () => {
-            startContentY = contentNode.position.y;
-        }, this);
+            if (typeof event.propagationStopped !== 'undefined') event.propagationStopped = true;
+        };
+        const onWheel = (event: any) => {
+            const deltaY = event.getScrollY ? event.getScrollY() : 0;
+            const nextY = Math.max(-maxOffset, Math.min(maxOffset, contentNode.position.y - deltaY * 0.18));
+            contentNode.setPosition(0, nextY, 0);
+        };
+        viewNode.on(Node.EventType.TOUCH_MOVE, onMove, this);
+        contentNode.on(Node.EventType.TOUCH_MOVE, onMove, this);
+        viewNode.on(Node.EventType.MOUSE_WHEEL, onWheel, this);
     }
 
     private switchGoldShopTab(tab: 'daily' | 'weekly') {
@@ -940,52 +1036,431 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private buildHomeFaqiView() {
-        const left = this.createPanel(this.homeFaqiView, 256, 364, -182, 70, new Color(38, 44, 56, 245));
-        this.decorateRoleInfoCard(left, new Color(180, 214, 240, 255), '器', '本命法器');
-        this.createLabel(left, '法器养成', 30, new Vec3(0, 124, 0), new Color(228, 240, 255, 255));
-        this.createLabel(left, '预留法器立绘 / 品阶 / 灵蕴信息', 17, new Vec3(0, 88, 0), new Color(174, 192, 212, 255), 200);
-        const silhouette = new Node('FaqiSilhouette');
-        silhouette.layer = Layers.Enum.UI_2D;
-        left.addChild(silhouette);
-        silhouette.setPosition(0, -16, 0);
-        silhouette.addComponent(UITransform).setContentSize(140, 180);
-        const sg = silhouette.addComponent(Graphics);
-        sg.strokeColor = new Color(204, 220, 242, 160);
-        sg.fillColor = new Color(112, 144, 188, 30);
-        sg.lineWidth = 2;
-        sg.moveTo(0, 72);
-        sg.lineTo(-12, 48);
-        sg.lineTo(-6, 8);
-        sg.lineTo(-24, -54);
-        sg.lineTo(0, -74);
-        sg.lineTo(24, -54);
-        sg.lineTo(6, 8);
-        sg.lineTo(12, 48);
-        sg.close();
-        sg.fill();
-        sg.stroke();
-        sg.moveTo(0, 58);
-        sg.lineTo(0, -40);
-        sg.stroke();
-        sg.circle(0, -52, 10);
-        sg.stroke();
+        const slots: Array<{ slot: ArtifactSlot; title: string; glyph: string; accent: Color; x: number }> = [
+            { slot: 'sword', title: '飞剑位', glyph: '剑', accent: new Color(214, 198, 160, 255), x: -214 },
+            { slot: 'talisman', title: '护符位', glyph: '符', accent: new Color(176, 214, 238, 255), x: 0 },
+            { slot: 'lamp', title: '灵灯位', glyph: '灯', accent: new Color(176, 226, 196, 255), x: 214 },
+        ];
+        const slotBand = this.createPanel(this.homeFaqiView, 676, 156, 0, 308, new Color(34, 40, 52, 220));
+        this.createLabel(slotBand, '本命法器', 28, new Vec3(-244, 46, 0), new Color(244, 238, 220, 255), 160);
+        this.createLabel(slotBand, '三槽同修，秘境生效', 16, new Vec3(-136, 16, 0), new Color(154, 170, 188, 255), 220);
+        for (let i = 0; i < slots.length; i++) {
+            const slot = slots[i];
+            const slotPanel = this.createPanel(slotBand, 198, 116, slot.x, -10, new Color(44, 52, 62, 245));
+            this.decorateRoleInfoCard(slotPanel, slot.accent, slot.glyph, '秘境生效');
+            this.createLabel(slotPanel, slot.title, 22, new Vec3(0, 28, 0), new Color(240, 240, 230, 255), 150);
+            this.faqiSlotLabels[slot.slot] = this.createLabel(slotPanel, '', 16, new Vec3(0, -18, 0), new Color(186, 202, 220, 255), 170);
+        }
 
-        const slot1 = this.createPanel(this.homeFaqiView, 324, 104, 166, 184, new Color(44, 52, 62, 245));
-        this.decorateRoleInfoCard(slot1, new Color(210, 198, 160, 255), '剑', '主战位');
-        this.createLabel(slot1, '飞剑位', 24, new Vec3(0, 26, 0), new Color(244, 236, 216, 255));
-        this.createLabel(slot1, '接入攻击法器、剑意强化、剑魂共鸣', 16, new Vec3(0, -18, 0), new Color(192, 184, 166, 255), 270);
+        const detail = this.createPanel(this.homeFaqiView, 676, 282, 0, 38, new Color(38, 44, 56, 245));
+        this.decorateRoleInfoCard(detail, new Color(180, 214, 240, 255), '器', '中枢养成');
+        this.faqiExpLabel = this.createLabel(detail, '', 19, new Vec3(0, 114, 0), new Color(220, 232, 244, 255), 620);
 
-        const slot2 = this.createPanel(this.homeFaqiView, 324, 104, 166, 52, new Color(44, 52, 62, 245));
-        this.decorateRoleInfoCard(slot2, new Color(176, 214, 238, 255), '符', '护持位');
-        this.createLabel(slot2, '护符位', 24, new Vec3(0, 26, 0), new Color(230, 242, 255, 255));
-        this.createLabel(slot2, '接入护盾、回灵、减伤类常驻效果', 16, new Vec3(0, -18, 0), new Color(176, 194, 214, 255), 270);
+        const iconPanel = this.createPanel(detail, 168, 168, -228, 2, new Color(48, 58, 72, 245));
+        this.faqiGlyphLabel = this.createLabel(iconPanel, '', 54, new Vec3(0, 22, 0), new Color(240, 244, 232, 255), 110);
+        this.createLabel(iconPanel, '当前选中', 18, new Vec3(0, -52, 0), new Color(182, 202, 220, 255), 120);
 
-        const slot3 = this.createPanel(this.homeFaqiView, 324, 104, 166, -80, new Color(44, 52, 62, 245));
-        this.decorateRoleInfoCard(slot3, new Color(176, 226, 196, 255), '灯', '洞府位');
-        this.createLabel(slot3, '灵灯位', 24, new Vec3(0, 26, 0), new Color(234, 248, 238, 255));
-        this.createLabel(slot3, '接入洞府增益、挂机收益与气运加成', 16, new Vec3(0, -18, 0), new Color(180, 206, 190, 255), 270);
+        this.faqiDetailTitleLabel = this.createLabel(detail, '', 30, new Vec3(42, 64, 0), new Color(244, 238, 220, 255), 360);
+        this.faqiDetailInfoLabel = this.createLabel(detail, '', 18, new Vec3(88, 20, 0), new Color(186, 202, 220, 255), 448);
+        this.faqiDetailEffectLabel = this.createLabel(detail, '', 18, new Vec3(88, -28, 0), new Color(214, 228, 190, 255), 448);
+        this.faqiDetailShardLabel = this.createLabel(detail, '', 16, new Vec3(88, -74, 0), new Color(162, 180, 198, 255), 448);
 
-        this.createLabel(this.homeFaqiView, '后续可在此接入法器穿戴、升品、共鸣与器灵剧情', 18, new Vec3(0, -206, 0), new Color(124, 146, 164, 255), 640);
+        const actionStrip = this.createPanel(detail, 412, 56, 118, -110, new Color(46, 54, 68, 255));
+
+        this.faqiPrimaryBtn = this.createPanel(actionStrip, 118, 38, -132, 0, new Color(66, 76, 92, 255));
+        this.faqiPrimaryBtnLabel = this.createLabel(this.faqiPrimaryBtn, '', 18, new Vec3(0, 0, 0), new Color(238, 244, 250, 255));
+        this.faqiPrimaryBtn.on(Node.EventType.TOUCH_END, () => this.onArtifactPrimaryAction(), this);
+        this.faqiUpgradeBtn = this.createPanel(actionStrip, 118, 38, 0, 0, new Color(72, 74, 84, 255));
+        this.faqiUpgradeBtnLabel = this.createLabel(this.faqiUpgradeBtn, '', 18, new Vec3(0, 0, 0), new Color(238, 244, 250, 255));
+        this.faqiUpgradeBtn.on(Node.EventType.TOUCH_END, () => this.tryUpgradeArtifact(), this);
+        this.faqiStarBtn = this.createPanel(actionStrip, 118, 38, 132, 0, new Color(82, 72, 66, 255));
+        this.faqiStarBtnLabel = this.createLabel(this.faqiStarBtn, '', 18, new Vec3(0, 0, 0), new Color(244, 238, 228, 255));
+        this.faqiStarBtn.on(Node.EventType.TOUCH_END, () => this.tryStarUpArtifact(), this);
+
+        const listPanel = this.createPanel(this.homeFaqiView, 676, 228, 0, -246, new Color(40, 46, 58, 245));
+        this.createLabel(listPanel, '法器录', 28, new Vec3(-248, 82, 0), new Color(244, 238, 220, 255), 140);
+        this.createLabel(listPanel, '同类法器并列观照，择其本命', 16, new Vec3(-92, 82, 0), new Color(150, 166, 186, 255), 260);
+        const tabDefs: Array<{ slot: ArtifactSlot; label: string; x: number; color: Color }> = [
+            { slot: 'sword', label: '飞剑', x: -132, color: new Color(214, 198, 160, 255) },
+            { slot: 'talisman', label: '护符', x: 0, color: new Color(176, 214, 238, 255) },
+            { slot: 'lamp', label: '灵灯', x: 132, color: new Color(176, 226, 196, 255) },
+        ];
+        for (let i = 0; i < tabDefs.length; i++) {
+            const tab = tabDefs[i];
+            const tabBtn = this.createPanel(listPanel, 116, 38, tab.x, 72, new Color(54, 62, 74, 255));
+            this.createLabel(tabBtn, tab.label, 18, new Vec3(0, 0, 0), new Color(tab.color.r, tab.color.g, tab.color.b, 255), 100);
+            tabBtn.on(Node.EventType.TOUCH_END, () => this.setArtifactListTab(tab.slot), this);
+            this.faqiListTabButtons[tab.slot] = tabBtn;
+        }
+
+        const slotCardIndex: Record<ArtifactSlot, number> = { sword: 0, talisman: 0, lamp: 0 };
+        const cardXs: Record<ArtifactSlot, number[]> = {
+            sword: [-166, 166],
+            talisman: [-166, 166],
+            lamp: [-166, 166],
+        };
+        for (let i = 0; i < ARTIFACT_DEFS.length; i++) {
+            const def = ARTIFACT_DEFS[i];
+            const cardIndex = slotCardIndex[def.slot];
+            slotCardIndex[def.slot] += 1;
+            const card = this.createPanel(listPanel, 286, 110, cardXs[def.slot][cardIndex], -10, new Color(42, 48, 58, 245));
+            const accent = def.slot === 'sword' ? new Color(214, 198, 160, 255) : def.slot === 'talisman' ? new Color(176, 214, 238, 255) : new Color(176, 226, 196, 255);
+            const topLine = new Node('ArtifactCardLine');
+            topLine.layer = Layers.Enum.UI_2D;
+            card.addChild(topLine);
+            topLine.setPosition(0, 46, 0);
+            topLine.addComponent(UITransform).setContentSize(220, 8);
+            const topLineG = topLine.addComponent(Graphics);
+            topLineG.fillColor = new Color(accent.r, accent.g, accent.b, 70);
+            topLineG.strokeColor = new Color(accent.r, accent.g, accent.b, 170);
+            topLineG.lineWidth = 1.5;
+            topLineG.roundRect(-110, -4, 220, 8, 4);
+            topLineG.fill();
+            topLineG.roundRect(-110, -4, 220, 8, 4);
+            topLineG.stroke();
+            this.createLabel(card, def.glyph, 28, new Vec3(-108, 12, 0), new Color(accent.r, accent.g, accent.b, 255), 30);
+            const titleLabel = this.createLabel(card, def.name, 24, new Vec3(18, 24, 0), new Color(242, 238, 224, 255), 200);
+            const infoLabel = this.createLabel(card, '', 16, new Vec3(26, -4, 0), new Color(186, 202, 220, 255), 210);
+            const stateLabel = this.createLabel(card, '', 15, new Vec3(26, -32, 0), new Color(160, 178, 196, 255), 210);
+            card.on(Node.EventType.TOUCH_END, () => this.selectArtifact(def.id), this);
+            this.artifactCardWidgets.set(def.id, { node: card, titleLabel, infoLabel, stateLabel });
+        }
+
+        this.refreshFaqiStatus();
+    }
+
+    private getArtifactDef(id: ArtifactId) {
+        for (let i = 0; i < ARTIFACT_DEFS.length; i++) {
+            if (ARTIFACT_DEFS[i].id === id) return ARTIFACT_DEFS[i];
+        }
+        return ARTIFACT_DEFS[0];
+    }
+
+    private getArtifactLevelCap(state: ArtifactState) {
+        return 5 + (state.star - 1) * 5;
+    }
+
+    private getArtifactUpgradeCost(state: ArtifactState) {
+        return 16 + state.level * 10;
+    }
+
+    private getArtifactStarCost(state: ArtifactState) {
+        return 8 + state.star * 6;
+    }
+
+    private getArtifactPower(state: ArtifactState) {
+        return state.level + (state.star - 1) * 3;
+    }
+
+    private getArtifactBonusById(id: ArtifactId, state: ArtifactState): ArtifactBonuses {
+        const power = this.getArtifactPower(state);
+        const bonus: ArtifactBonuses = {
+            hp: 0,
+            mana: 0,
+            damage: 0,
+            action: 0,
+            combatAtkPercent: 0,
+            rewardMultiplier: 0,
+            badgeMultiplier: 0,
+            artifactExpMultiplier: 0,
+            fragmentMultiplier: 0,
+            retreatBonus: 0,
+        };
+        switch (id) {
+            case 'qingshuang':
+                bonus.damage = 2 + power;
+                bonus.combatAtkPercent = 0.03 * state.star;
+                break;
+            case 'lihuo':
+                bonus.damage = 1 + Math.floor(power * 0.8);
+                bonus.rewardMultiplier = 0.04 * state.star;
+                bonus.combatAtkPercent = 0.015 * state.level;
+                break;
+            case 'xuanjia':
+                bonus.hp = 24 + power * 6;
+                bonus.retreatBonus = 0.01 * state.star;
+                break;
+            case 'huiyuan':
+                bonus.mana = 18 + power * 5;
+                bonus.action = 1 + Math.floor(power / 4);
+                break;
+            case 'xunbao':
+                bonus.rewardMultiplier = 0.08 + state.level * 0.01 + state.star * 0.03;
+                bonus.fragmentMultiplier = 0.06 * state.star;
+                break;
+            case 'guixi':
+                bonus.badgeMultiplier = 0.1 + state.star * 0.04;
+                bonus.artifactExpMultiplier = 0.08 + state.star * 0.03;
+                bonus.retreatBonus = 0.02 + state.star * 0.02;
+                break;
+        }
+        return bonus;
+    }
+
+    private getEquippedArtifactBonuses() {
+        const total: ArtifactBonuses = {
+            hp: 0,
+            mana: 0,
+            damage: 0,
+            action: 0,
+            combatAtkPercent: 0,
+            rewardMultiplier: 0,
+            badgeMultiplier: 0,
+            artifactExpMultiplier: 0,
+            fragmentMultiplier: 0,
+            retreatBonus: 0,
+        };
+        const slots: ArtifactSlot[] = ['sword', 'talisman', 'lamp'];
+        for (let i = 0; i < slots.length; i++) {
+            const id = this.artifactEquipped[slots[i]];
+            if (!id) continue;
+            const state = this.artifactStates[id];
+            if (!state.unlocked) continue;
+            const bonus = this.getArtifactBonusById(id, state);
+            total.hp += bonus.hp;
+            total.mana += bonus.mana;
+            total.damage += bonus.damage;
+            total.action += bonus.action;
+            total.combatAtkPercent += bonus.combatAtkPercent;
+            total.rewardMultiplier += bonus.rewardMultiplier;
+            total.badgeMultiplier += bonus.badgeMultiplier;
+            total.artifactExpMultiplier += bonus.artifactExpMultiplier;
+            total.fragmentMultiplier += bonus.fragmentMultiplier;
+            total.retreatBonus += bonus.retreatBonus;
+        }
+        return total;
+    }
+
+    private getArtifactEffectSummary(id: ArtifactId) {
+        const state = this.artifactStates[id];
+        const bonus = this.getArtifactBonusById(id, state);
+        switch (id) {
+            case 'qingshuang':
+                return `术攻 +${bonus.damage} | 局内攻势 +${Math.round(bonus.combatAtkPercent * 100)}%`;
+            case 'lihuo':
+                return `术攻 +${bonus.damage} | 秘境带出 +${Math.round(bonus.rewardMultiplier * 100)}%`;
+            case 'xuanjia':
+                return `气血 +${bonus.hp} | 撤离保留 +${Math.round(bonus.retreatBonus * 100)}%`;
+            case 'huiyuan':
+                return `真元 +${bonus.mana} | 行动力 +${bonus.action}`;
+            case 'xunbao':
+                return `秘境收益 +${Math.round(bonus.rewardMultiplier * 100)}% | 碎片 +${Math.round(bonus.fragmentMultiplier * 100)}%`;
+            case 'guixi':
+                return `徽记 +${Math.round(bonus.badgeMultiplier * 100)}% | 法器经验 +${Math.round(bonus.artifactExpMultiplier * 100)}%`;
+            default:
+                return '';
+        }
+    }
+
+    private selectArtifact(id: ArtifactId) {
+        this.artifactSelectedId = id;
+        this.artifactListTab = this.getArtifactDef(id).slot;
+        this.refreshFaqiStatus();
+    }
+
+    private setArtifactListTab(slot: ArtifactSlot) {
+        this.artifactListTab = slot;
+        if (this.getArtifactDef(this.artifactSelectedId).slot !== slot) {
+            for (let i = 0; i < ARTIFACT_DEFS.length; i++) {
+                if (ARTIFACT_DEFS[i].slot === slot) {
+                    this.artifactSelectedId = ARTIFACT_DEFS[i].id;
+                    break;
+                }
+            }
+        }
+        this.refreshFaqiStatus();
+    }
+
+    private onArtifactPrimaryAction() {
+        const state = this.artifactStates[this.artifactSelectedId];
+        if (!state.unlocked) {
+            this.trySynthesizeArtifact();
+            return;
+        }
+        this.equipArtifact(this.artifactSelectedId);
+    }
+
+    private trySynthesizeArtifact() {
+        const def = this.getArtifactDef(this.artifactSelectedId);
+        const state = this.artifactStates[this.artifactSelectedId];
+        if (state.unlocked) return;
+        if (state.shards < def.synthCost) {
+            this.hintLabel.string = `${def.name} 碎片不足，需 ${def.synthCost}。`;
+            return;
+        }
+        state.shards -= def.synthCost;
+        state.unlocked = true;
+        state.level = 1;
+        state.star = 1;
+        this.artifactEquipped[def.slot] = def.id;
+        this.hintLabel.string = `${def.name} 合成成功，已装配到${def.slot === 'sword' ? '飞剑' : def.slot === 'talisman' ? '护符' : '灵灯'}位。`;
+        this.refreshHomeStatus();
+    }
+
+    private equipArtifact(id: ArtifactId) {
+        const state = this.artifactStates[id];
+        if (!state.unlocked) return;
+        const def = this.getArtifactDef(id);
+        this.artifactEquipped[def.slot] = id;
+        this.hintLabel.string = `${def.name} 已装配。`;
+        this.refreshHomeStatus();
+    }
+
+    private tryUpgradeArtifact() {
+        const state = this.artifactStates[this.artifactSelectedId];
+        if (!state.unlocked) {
+            this.hintLabel.string = '法器尚未合成。';
+            return;
+        }
+        const cap = this.getArtifactLevelCap(state);
+        if (state.level >= cap) {
+            this.hintLabel.string = '法器已到当前星级等级上限，需先升星。';
+            return;
+        }
+        const cost = this.getArtifactUpgradeCost(state);
+        if (this.artifactExpPool < cost) {
+            this.hintLabel.string = `法器经验不足，需 ${cost}。`;
+            return;
+        }
+        this.artifactExpPool -= cost;
+        state.level += 1;
+        this.hintLabel.string = `${this.getArtifactDef(this.artifactSelectedId).name} 升至 ${state.level} 级。`;
+        this.refreshHomeStatus();
+    }
+
+    private tryStarUpArtifact() {
+        const state = this.artifactStates[this.artifactSelectedId];
+        if (!state.unlocked) {
+            this.hintLabel.string = '法器尚未合成。';
+            return;
+        }
+        if (state.star >= MAX_ARTIFACT_STAR) {
+            this.hintLabel.string = '法器已升至满星。';
+            return;
+        }
+        if (state.level < this.getArtifactLevelCap(state)) {
+            this.hintLabel.string = '法器需升到当前等级上限后方可升星。';
+            return;
+        }
+        const cost = this.getArtifactStarCost(state);
+        if (state.shards < cost) {
+            this.hintLabel.string = `升星碎片不足，需 ${cost}。`;
+            return;
+        }
+        state.shards -= cost;
+        state.star += 1;
+        this.hintLabel.string = `${this.getArtifactDef(this.artifactSelectedId).name} 升至 ${state.star} 星。`;
+        this.refreshHomeStatus();
+    }
+
+    private refreshFaqiStatus() {
+        if (!this.faqiExpLabel) return;
+        this.faqiExpLabel.string = `法器经验 ${this.artifactExpPool}  |  秘境徽记 ${this.dungeonBadge}`;
+        const equippedSlots: ArtifactSlot[] = ['sword', 'talisman', 'lamp'];
+        for (let i = 0; i < equippedSlots.length; i++) {
+            const slot = equippedSlots[i];
+            const label = this.faqiSlotLabels[slot];
+            if (!label) continue;
+            const id = this.artifactEquipped[slot];
+            if (!id) {
+                label.string = '未装配';
+                continue;
+            }
+            const state = this.artifactStates[id];
+            label.string = `${this.getArtifactDef(id).name}  Lv.${state.level}  ${'★'.repeat(state.star)}`;
+        }
+        const selectedDef = this.getArtifactDef(this.artifactSelectedId);
+        const selectedState = this.artifactStates[this.artifactSelectedId];
+        this.faqiDetailTitleLabel.string = `${selectedDef.name} · ${selectedDef.title}`;
+        this.faqiDetailInfoLabel.string = `${selectedDef.summary}\n${selectedState.unlocked ? `等级 ${selectedState.level}/${this.getArtifactLevelCap(selectedState)}  |  星级 ${'★'.repeat(selectedState.star)}` : '尚未合成，可通过秘境碎片合成'}`;
+        this.faqiDetailEffectLabel.string = this.getArtifactEffectSummary(this.artifactSelectedId);
+        this.faqiDetailShardLabel.string = `碎片 ${selectedState.shards}${selectedState.unlocked ? `  |  升级需经验 ${this.getArtifactUpgradeCost(selectedState)}` : `  |  合成需碎片 ${selectedDef.synthCost}`}`;
+        if (this.faqiGlyphLabel) this.faqiGlyphLabel.string = selectedDef.glyph;
+        if (this.faqiPrimaryBtn && this.faqiPrimaryBtnLabel) {
+            const equipped = this.artifactEquipped[selectedDef.slot] === selectedDef.id;
+            const primaryText = !selectedState.unlocked ? '合成' : equipped ? '已装备' : '装备';
+            this.faqiPrimaryBtnLabel.string = primaryText;
+            this.repaintPanel(this.faqiPrimaryBtn, equipped ? new Color(78, 90, 72, 255) : new Color(66, 76, 92, 255), equipped ? new Color(186, 220, 162, 200) : new Color(152, 184, 216, 180));
+        }
+        if (this.faqiUpgradeBtn && this.faqiUpgradeBtnLabel) {
+            this.faqiUpgradeBtnLabel.string = `升级(${selectedState.unlocked ? this.getArtifactUpgradeCost(selectedState) : '-'})`;
+        }
+        if (this.faqiStarBtn && this.faqiStarBtnLabel) {
+            this.faqiStarBtnLabel.string = `升星(${selectedState.unlocked ? this.getArtifactStarCost(selectedState) : '-'})`;
+        }
+        const tabAccent: Record<ArtifactSlot, Color> = {
+            sword: new Color(214, 198, 160, 255),
+            talisman: new Color(176, 214, 238, 255),
+            lamp: new Color(176, 226, 196, 255),
+        };
+        const listTabs: ArtifactSlot[] = ['sword', 'talisman', 'lamp'];
+        for (let i = 0; i < listTabs.length; i++) {
+            const slot = listTabs[i];
+            const btn = this.faqiListTabButtons[slot];
+            if (!btn) continue;
+            const active = slot === this.artifactListTab;
+            this.repaintPanel(btn, active ? new Color(70, 82, 98, 255) : new Color(54, 62, 74, 255), active ? new Color(tabAccent[slot].r, tabAccent[slot].g, tabAccent[slot].b, 220) : new Color(102, 114, 130, 180));
+            const labels = btn.getComponentsInChildren(Label);
+            labels.forEach((label) => {
+                label.color = active ? tabAccent[slot] : new Color(188, 198, 212, 255);
+            });
+        }
+        for (let i = 0; i < ARTIFACT_DEFS.length; i++) {
+            const def = ARTIFACT_DEFS[i];
+            const widget = this.artifactCardWidgets.get(def.id);
+            if (!widget) continue;
+            const state = this.artifactStates[def.id];
+            const equipped = this.artifactEquipped[def.slot] === def.id;
+            const selected = this.artifactSelectedId === def.id;
+            widget.node.active = def.slot === this.artifactListTab;
+            widget.titleLabel.string = def.name;
+            widget.infoLabel.string = state.unlocked ? `Lv.${state.level}  ${'★'.repeat(state.star)}` : `碎片 ${state.shards}/${def.synthCost}`;
+            widget.stateLabel.string = state.unlocked ? `${equipped ? '已装配' : '可装配'} · ${def.title}` : '未合成';
+            this.repaintPanel(widget.node, selected ? new Color(70, 82, 98, 255) : new Color(42, 48, 58, 245), selected ? new Color(188, 214, 240, 220) : equipped ? new Color(186, 220, 162, 180) : new Color(88, 102, 118, 180));
+        }
+    }
+
+    private getDungeonArtifactDropIds(id: DungeonId = this.selectedDungeonId): ArtifactId[] {
+        switch (id) {
+            case 'qi':
+                return ['qingshuang', 'xuanjia'];
+            case 'zhuji':
+                return ['lihuo', 'huiyuan'];
+            case 'jindan':
+                return ['xunbao', 'guixi'];
+            case 'yuanying':
+                return ['qingshuang', 'lihuo', 'xuanjia', 'huiyuan', 'xunbao', 'guixi'];
+            default:
+                return ['qingshuang', 'xuanjia'];
+        }
+    }
+
+    private addExpeditionArtifactProgress(depth: number, baseExp: number, baseShards: number) {
+        const bonuses = this.getEquippedArtifactBonuses();
+        this.expeditionArtifactExp += Math.max(1, Math.floor(baseExp * (1 + bonuses.artifactExpMultiplier)));
+        const ids = this.getDungeonArtifactDropIds();
+        const shardGain = Math.max(0, Math.floor(baseShards * (1 + bonuses.fragmentMultiplier)));
+        if (shardGain <= 0 || ids.length === 0) return;
+        const pick = ids[(depth + this.realmLevel + this.expeditionTreasure) % ids.length];
+        this.expeditionArtifactShards[pick] += shardGain;
+    }
+
+    private applyExpeditionArtifactRewards(ratio: number) {
+        const expGain = Math.max(0, Math.floor(this.expeditionArtifactExp * ratio));
+        this.artifactExpPool += expGain;
+        const summaries: string[] = [];
+        const ids: ArtifactId[] = ['qingshuang', 'lihuo', 'xuanjia', 'huiyuan', 'xunbao', 'guixi'];
+        for (let i = 0; i < ids.length; i++) {
+            const id = ids[i];
+            const gain = Math.max(0, Math.floor(this.expeditionArtifactShards[id] * ratio));
+            if (gain <= 0) continue;
+            this.artifactStates[id].shards += gain;
+            summaries.push(`${this.getArtifactDef(id).name}碎片+${gain}`);
+        }
+        return {
+            expGain,
+            shardText: summaries.length > 0 ? summaries.join('，') : '无碎片掉落',
+        };
     }
 
     private buildHomeRoleView() {
@@ -1824,7 +2299,13 @@ export class GrottoExpeditionDemo extends Component {
 
     private refreshHomeStatus() {
         this.ensureShopRefreshState();
-        this.actionPointMax = ACTION_POINT_BASE + (this.realmLevel - 1) * 10 + this.shopBonusAction;
+        const artifactBonuses = this.getEquippedArtifactBonuses();
+        this.playerMaxHp = 100 + this.realmLevel * 30 + this.shopBonusHp + artifactBonuses.hp;
+        this.playerMaxMana = 70 + this.realmLevel * 18 + this.shopBonusMana + artifactBonuses.mana;
+        this.playerDamage = 16 + this.realmLevel * 7 + this.shopBonusDamage + artifactBonuses.damage;
+        this.actionPointMax = ACTION_POINT_BASE + (this.realmLevel - 1) * 10 + this.shopBonusAction + artifactBonuses.action;
+        this.playerHp = Math.min(this.playerHp || this.playerMaxHp, this.playerMaxHp);
+        this.playerMana = Math.min(this.playerMana || this.playerMaxMana, this.playerMaxMana);
         const current = this.getDungeonConfig();
         const best = this.dungeonBestDepth[current.id] || 0;
         const milestones = this.getProgressMilestones(current.id);
@@ -1888,6 +2369,7 @@ export class GrottoExpeditionDemo extends Component {
             chestLabel.string = claimed ? `${milestone}层\n已领` : claimable ? `${milestone}层\n领取` : `${milestone}层`;
             chestLabel.color = claimed ? new Color(160, 170, 175, 255) : claimable ? new Color(255, 238, 190, 255) : new Color(225, 205, 160, 255);
         }
+        this.refreshFaqiStatus();
         this.refreshShopStatus();
     }
 
@@ -1899,17 +2381,14 @@ export class GrottoExpeditionDemo extends Component {
         this.realmExp -= this.realmExpNeed;
         this.realmLevel += 1;
         this.realmExpNeed = 30 + this.realmLevel * 15;
-        this.playerMaxHp = 100 + this.realmLevel * 30 + this.shopBonusHp;
-        this.playerMaxMana = 70 + this.realmLevel * 18 + this.shopBonusMana;
-        this.playerDamage = 16 + this.realmLevel * 7 + this.shopBonusDamage;
-        this.actionPointMax = ACTION_POINT_BASE + (this.realmLevel - 1) * 10 + this.shopBonusAction;
-        this.playerHp = this.playerMaxHp;
-        this.playerMana = this.playerMaxMana;
         this.hintLabel.string = '突破成功，生命、攻击与行动力上限提升';
         this.refreshHomeStatus();
+        this.playerHp = this.playerMaxHp;
+        this.playerMana = this.playerMaxMana;
     }
 
     private startExpedition() {
+        const artifactBonuses = this.getEquippedArtifactBonuses();
         this.state = 'expedition_path';
         this.homeLayer.active = false;
         this.expeditionLayer.active = true;
@@ -1931,8 +2410,10 @@ export class GrottoExpeditionDemo extends Component {
         this.expeditionSpirit = 0;
         this.expeditionHerbs = 0;
         this.expeditionTreasure = 0;
-        this.buffAtkPercent = 0;
-        this.retreatRatioMultiplier = 1;
+        this.expeditionArtifactExp = 0;
+        this.expeditionArtifactShards = createArtifactShardRecord();
+        this.buffAtkPercent = artifactBonuses.combatAtkPercent;
+        this.retreatRatioMultiplier = 1 + artifactBonuses.retreatBonus;
         this.pendingRevealedIndex = -1;
         /** 测试版数值：每次进秘境补满行动力，避免连续测试被行动力卡死 */
         this.actionPoints = this.actionPointMax;
@@ -2066,7 +2547,7 @@ export class GrottoExpeditionDemo extends Component {
             this.expeditionHpLabel.string = `生命 ${Math.ceil(this.playerHp)}/${this.playerMaxHp}`;
         if (this.expeditionManaLabel)
             this.expeditionManaLabel.string = `法力 ${Math.ceil(this.playerMana)}/${this.playerMaxMana}`;
-        this.expeditionResLabel.string = `灵石 ${this.expeditionSpirit} | 灵药 ${this.expeditionHerbs} | 天材地宝 ${this.expeditionTreasure}${this.buffAtkPercent > 0 ? ' | 攻+' + (this.buffAtkPercent * 100) + '%' : ''}`;
+        this.expeditionResLabel.string = `灵石 ${this.expeditionSpirit} | 灵药 ${this.expeditionHerbs} | 天材地宝 ${this.expeditionTreasure} | 器经验 ${this.expeditionArtifactExp}${this.buffAtkPercent > 0 ? ' | 攻+' + Math.round(this.buffAtkPercent * 100) + '%' : ''}`;
         if (this.expeditionApLabel) this.expeditionApLabel.string = `行动力 ${this.actionPoints}/${this.actionPointMax}`;
         if (this.expeditionRatioLabel) this.expeditionRatioLabel.string = `${dungeon.label} · 下方显示下一层节点 · ${this.getSlotRatioText()} · 历史最高 ${this.dungeonBestDepth[dungeon.id]}/${dungeon.maxDepth}`;
 
@@ -2789,11 +3270,13 @@ export class GrottoExpeditionDemo extends Component {
             case 'herb': {
                 const mul = rarityMul * this.getDungeonLootMultiplier('herb');
                 this.expeditionHerbs += Math.max(1, Math.floor((4 + Math.floor(depth / 4)) * mul));
+                this.addExpeditionArtifactProgress(depth, Math.max(1, Math.floor(2 * mul)), 0);
                 break;
             }
             case 'stone': {
                 const mul = rarityMul * this.getDungeonLootMultiplier('stone');
                 this.expeditionSpirit += Math.max(1, Math.floor((10 + Math.floor(depth / 2)) * mul));
+                this.addExpeditionArtifactProgress(depth, Math.max(1, Math.floor(2 * mul)), 0);
                 break;
             }
             case 'treasure': {
@@ -2801,6 +3284,7 @@ export class GrottoExpeditionDemo extends Component {
                 this.expeditionSpirit += Math.max(1, Math.floor((30 + depth * 3) * mul));
                 this.expeditionHerbs += Math.max(1, Math.floor((6 + Math.floor(depth / 4)) * mul));
                 this.expeditionTreasure += Math.max(2, Math.floor(2 * mul));
+                this.addExpeditionArtifactProgress(depth, Math.max(4, Math.floor(8 * mul)), 1);
                 break;
             }
             case 'empty':
@@ -2867,7 +3351,9 @@ export class GrottoExpeditionDemo extends Component {
         const takeTreasure = Math.floor(this.expeditionTreasure * ratio);
         const expBase = this.expeditionHerbs * EXP_PER_HERB + this.expeditionTreasure * EXP_PER_TREASURE;
         const takeExp = Math.floor(expBase * ratio);
-        const takeBadge = Math.max(1, Math.floor(takeTreasure * 0.6));
+        const artifactBonuses = this.getEquippedArtifactBonuses();
+        const takeBadge = Math.max(1, Math.floor(takeTreasure * 0.6 * (1 + artifactBonuses.badgeMultiplier)));
+        const faqiRewards = this.applyExpeditionArtifactRewards(ratio * (1 + artifactBonuses.rewardMultiplier));
 
         this.spiritStone += takeSpirit;
         this.realmExp += takeExp;
@@ -2876,8 +3362,8 @@ export class GrottoExpeditionDemo extends Component {
         const dungeon = this.getDungeonConfig();
         const ratioPct = (ratio * 100).toFixed(0);
         this.resultLabel.string = safe
-            ? `${dungeon.label} 安全撤离（击败Boss）\n深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n带走灵石 ${takeSpirit}，灵药 ${takeHerbs}，天材地宝 ${takeTreasure}\n修为 +${takeExp}，徽记 +${takeBadge}`
-            : `${dungeon.label} 紧急撤离（带走 ${ratioPct}%）\n深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n带走灵石 ${takeSpirit}，灵药 ${takeHerbs}，天材地宝 ${takeTreasure}\n修为 +${takeExp}，徽记 +${takeBadge}`;
+            ? `${dungeon.label} 安全撤离（击败Boss）\n深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n带走灵石 ${takeSpirit}，灵药 ${takeHerbs}，天材地宝 ${takeTreasure}\n修为 +${takeExp}，徽记 +${takeBadge}，法器经验 +${faqiRewards.expGain}\n${faqiRewards.shardText}`
+            : `${dungeon.label} 紧急撤离（带走 ${ratioPct}%）\n深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n带走灵石 ${takeSpirit}，灵药 ${takeHerbs}，天材地宝 ${takeTreasure}\n修为 +${takeExp}，徽记 +${takeBadge}，法器经验 +${faqiRewards.expGain}\n${faqiRewards.shardText}`;
     }
 
     private endExpedition(reachedExit: boolean) {
@@ -2887,11 +3373,13 @@ export class GrottoExpeditionDemo extends Component {
         this.resultLayer.active = true;
         this.spiritStone += this.expeditionSpirit;
         const expGain = this.expeditionHerbs * EXP_PER_HERB + this.expeditionTreasure * EXP_PER_TREASURE + (reachedExit ? 100 : 0);
-        const badgeGain = Math.max(1, Math.floor(this.expeditionTreasure * 0.8) + (reachedExit ? 4 : 0));
+        const artifactBonuses = this.getEquippedArtifactBonuses();
+        const badgeGain = Math.max(1, Math.floor((this.expeditionTreasure * 0.8 + (reachedExit ? 4 : 0)) * (1 + artifactBonuses.badgeMultiplier)));
+        const faqiRewards = this.applyExpeditionArtifactRewards(1 + artifactBonuses.rewardMultiplier);
         this.realmExp += expGain;
         this.dungeonBadge += badgeGain;
         const dungeon = this.getDungeonConfig();
-        this.resultLabel.string = `${dungeon.label}\n深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n获得灵石 ${this.expeditionSpirit}，灵药 ${this.expeditionHerbs}，天材地宝 ${this.expeditionTreasure}\n修为 +${expGain}，徽记 +${badgeGain}\n${reachedExit ? `通关${dungeon.maxDepth}层！` : '已撤出秘境'}`;
+        this.resultLabel.string = `${dungeon.label}\n深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n获得灵石 ${this.expeditionSpirit}，灵药 ${this.expeditionHerbs}，天材地宝 ${this.expeditionTreasure}\n修为 +${expGain}，徽记 +${badgeGain}，法器经验 +${faqiRewards.expGain}\n${faqiRewards.shardText}\n${reachedExit ? `通关${dungeon.maxDepth}层！` : '已撤出秘境'}`;
     }
 
     private endExpeditionDeath() {
@@ -2902,10 +3390,12 @@ export class GrottoExpeditionDemo extends Component {
         this.resultLayer.active = true;
         this.spiritStone += Math.floor(this.expeditionSpirit * 0.7);
         this.realmExp += Math.floor((this.expeditionHerbs * EXP_PER_HERB + this.expeditionTreasure * EXP_PER_TREASURE) * 0.5);
-        const badgeGain = Math.max(1, Math.floor(this.expeditionTreasure * 0.35));
+        const artifactBonuses = this.getEquippedArtifactBonuses();
+        const badgeGain = Math.max(1, Math.floor(this.expeditionTreasure * 0.35 * (1 + artifactBonuses.badgeMultiplier)));
+        const faqiRewards = this.applyExpeditionArtifactRewards(0.5 + artifactBonuses.rewardMultiplier * 0.5);
         this.dungeonBadge += badgeGain;
         const dungeon = this.getDungeonConfig();
-        this.resultLabel.string = `神识受损，撤回避难洞府\n${dungeon.label} 深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n保留部分收获：灵石 ${Math.floor(this.expeditionSpirit * 0.7)}，修为 +${Math.floor((this.expeditionHerbs * EXP_PER_HERB + this.expeditionTreasure * EXP_PER_TREASURE) * 0.5)}，徽记 +${badgeGain}`;
+        this.resultLabel.string = `神识受损，撤回避难洞府\n${dungeon.label} 深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n保留部分收获：灵石 ${Math.floor(this.expeditionSpirit * 0.7)}，修为 +${Math.floor((this.expeditionHerbs * EXP_PER_HERB + this.expeditionTreasure * EXP_PER_TREASURE) * 0.5)}，徽记 +${badgeGain}，法器经验 +${faqiRewards.expGain}\n${faqiRewards.shardText}`;
     }
 
     private enterCombat() {
@@ -3274,6 +3764,7 @@ export class GrottoExpeditionDemo extends Component {
                         const depth = slot.depth;
                         this.expeditionSpirit += Math.max(1, Math.floor((24 + Math.floor(depth / 2)) * combatRewardMul));
                         this.expeditionHerbs += Math.max(1, Math.floor(4 * combatRewardMul));
+                        this.addExpeditionArtifactProgress(depth, Math.max(4, Math.floor(7 * combatRewardMul)), 1);
                     }
                     slot.triggered = true;
                     this.advanceToNode(slot.id);
@@ -3285,6 +3776,7 @@ export class GrottoExpeditionDemo extends Component {
                         this.expeditionSpirit += Math.max(1, Math.floor((60 + depth * 4) * combatRewardMul));
                         this.expeditionHerbs += Math.max(1, Math.floor((10 + Math.floor(depth / 4)) * combatRewardMul));
                         this.expeditionTreasure += Math.max(2, Math.floor(4 * combatRewardMul));
+                        this.addExpeditionArtifactProgress(depth, Math.max(10, Math.floor(16 * combatRewardMul)), 2);
                     }
                     advanced = true;
                 } else if (!slot.triggered) {
@@ -3292,6 +3784,7 @@ export class GrottoExpeditionDemo extends Component {
                     const depth = slot.depth;
                     this.expeditionSpirit += Math.max(1, Math.floor((18 + Math.floor(depth / 3)) * combatRewardMul));
                     this.expeditionHerbs += Math.max(1, Math.floor(3 * combatRewardMul));
+                    this.addExpeditionArtifactProgress(depth, Math.max(3, Math.floor(5 * combatRewardMul)), 0);
                     this.advanceToNode(slot.id);
                     advanced = true;
                 } else {
