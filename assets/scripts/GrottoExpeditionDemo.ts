@@ -92,13 +92,12 @@ const RARITY_COLORS: Record<Rarity, Color> = {
 const RARITY_MULTIPLIER: Record<Rarity, number> = { green: 1, blue: 2, purple: 4, orange: 8 };
 const RARITY_LIST: Rarity[] = ['green', 'blue', 'purple', 'orange'];
 
-/** 根据深度随机一个品质；深度越深，高品质概率越高 */
-function pickRarity(depth: number): Rarity {
+/** 根据深度与秘境偏置随机一个品质；深度越深、秘境越高，高品质概率越高 */
+function pickRarity(depth: number, rarityBias = 0): Rarity {
     const r = Math.random() * 100;
-    // 橙概率: 2% + depth*0.3  紫: 8% + depth*0.5  蓝: 25% + depth*0.3  其余绿
-    const orangeChance = Math.min(20, 2 + depth * 0.3);
-    const purpleChance = Math.min(30, 8 + depth * 0.5);
-    const blueChance = Math.min(40, 25 + depth * 0.3);
+    const orangeChance = Math.max(1, Math.min(28, 2 + depth * 0.3 + rarityBias * 0.4));
+    const purpleChance = Math.max(6, Math.min(34, 8 + depth * 0.5 + rarityBias * 0.55));
+    const blueChance = Math.max(18, Math.min(46, 25 + depth * 0.3 + rarityBias * 0.65));
     if (r < orangeChance) return 'orange';
     if (r < orangeChance + purpleChance) return 'purple';
     if (r < orangeChance + purpleChance + blueChance) return 'blue';
@@ -125,31 +124,60 @@ interface DungeonConfig {
     unlockRealm: number;
     maxDepth: number;
     accent: Color;
+    slotWeights: Record<Exclude<SlotType, 'boss'>, number>;
+    rarityBias: number;
+    herbDropMultiplier: number;
+    stoneDropMultiplier: number;
+    treasureDropMultiplier: number;
+    combatRewardMultiplier: number;
+    enemyHpMultiplier: number;
+    enemyDamageMultiplier: number;
+    enemySpeedMultiplier: number;
+    bossHpMultiplier: number;
+    bossDamageMultiplier: number;
+    interceptHpMultiplier: number;
+    interceptDamageMultiplier: number;
 }
 
 const DUNGEON_CONFIGS: DungeonConfig[] = [
-    { id: 'qi', label: '练气秘境', unlockRealm: 1, maxDepth: 30, accent: new Color(110, 170, 130, 255) },
-    { id: 'zhuji', label: '筑基秘境', unlockRealm: 10, maxDepth: 60, accent: new Color(120, 150, 200, 255) },
-    { id: 'jindan', label: '金丹秘境', unlockRealm: 20, maxDepth: 90, accent: new Color(190, 150, 80, 255) },
-    { id: 'yuanying', label: '元婴秘境', unlockRealm: 30, maxDepth: 100, accent: new Color(190, 110, 160, 255) },
+    {
+        id: 'qi', label: '练气秘境', unlockRealm: 1, maxDepth: 30, accent: new Color(110, 170, 130, 255),
+        slotWeights: { empty: 0, herb: 28, stone: 24, treasure: 8, monster: 8, trap: 4, buff: 18, intercept: 0 },
+        rarityBias: -2,
+        herbDropMultiplier: 1.35, stoneDropMultiplier: 1.2, treasureDropMultiplier: 0.9, combatRewardMultiplier: 1,
+        enemyHpMultiplier: 0.82, enemyDamageMultiplier: 0.8, enemySpeedMultiplier: 0.95,
+        bossHpMultiplier: 0.88, bossDamageMultiplier: 0.85, interceptHpMultiplier: 0.9, interceptDamageMultiplier: 0.88,
+    },
+    {
+        id: 'zhuji', label: '筑基秘境', unlockRealm: 10, maxDepth: 60, accent: new Color(120, 150, 200, 255),
+        slotWeights: { empty: 0, herb: 20, stone: 20, treasure: 14, monster: 12, trap: 6, buff: 16, intercept: 0 },
+        rarityBias: 1,
+        herbDropMultiplier: 1.15, stoneDropMultiplier: 1.2, treasureDropMultiplier: 1.15, combatRewardMultiplier: 1.2,
+        enemyHpMultiplier: 1, enemyDamageMultiplier: 1, enemySpeedMultiplier: 1,
+        bossHpMultiplier: 1.05, bossDamageMultiplier: 1.05, interceptHpMultiplier: 1.05, interceptDamageMultiplier: 1.05,
+    },
+    {
+        id: 'jindan', label: '金丹秘境', unlockRealm: 20, maxDepth: 90, accent: new Color(190, 150, 80, 255),
+        slotWeights: { empty: 0, herb: 14, stone: 16, treasure: 20, monster: 18, trap: 8, buff: 12, intercept: 0 },
+        rarityBias: 6,
+        herbDropMultiplier: 1.05, stoneDropMultiplier: 1.3, treasureDropMultiplier: 1.45, combatRewardMultiplier: 1.45,
+        enemyHpMultiplier: 1.25, enemyDamageMultiplier: 1.18, enemySpeedMultiplier: 1.05,
+        bossHpMultiplier: 1.35, bossDamageMultiplier: 1.22, interceptHpMultiplier: 1.2, interceptDamageMultiplier: 1.18,
+    },
+    {
+        id: 'yuanying', label: '元婴秘境', unlockRealm: 30, maxDepth: 100, accent: new Color(190, 110, 160, 255),
+        slotWeights: { empty: 0, herb: 10, stone: 14, treasure: 22, monster: 24, trap: 10, buff: 10, intercept: 0 },
+        rarityBias: 12,
+        herbDropMultiplier: 1.1, stoneDropMultiplier: 1.4, treasureDropMultiplier: 1.7, combatRewardMultiplier: 1.75,
+        enemyHpMultiplier: 1.5, enemyDamageMultiplier: 1.35, enemySpeedMultiplier: 1.08,
+        bossHpMultiplier: 1.75, bossDamageMultiplier: 1.5, interceptHpMultiplier: 1.4, interceptDamageMultiplier: 1.3,
+    },
 ];
 
 const MAX_PROGRESS_CHESTS = 10;
 
 /** 格子类型：点击？后揭示 */
 type SlotType = 'empty' | 'herb' | 'stone' | 'treasure' | 'monster' | 'trap' | 'buff' | 'intercept' | 'boss';
-
-/** 普通层各格子类型基础权重（不含 boss）；天材地宝/邪修按层数在 pickSlotTypeByWeight 中处理 */
-const SLOT_WEIGHTS: Record<Exclude<SlotType, 'boss'>, number> = {
-    empty: 0,
-    herb: 20,
-    stone: 20,
-    treasure: 14,
-    monster: 10,
-    trap: 0,
-    buff: 20,
-    intercept: 0,
-};
 
 /** 执行各类型格子消耗的行动力 */
 const ACTION_COST: Record<SlotType, number> = {
@@ -172,9 +200,9 @@ const VICTORY_MANA_RESTORE_RATIO = 0.18;
 const VICTORY_ACTION_RESTORE = 8;
 const BOSS_VICTORY_ACTION_RESTORE = 20;
 
-/** 按层数动态权重抽格子类型（不含 boss）；邪修不在本函数内抽，由 ensureNextNodes 每 10 层单独放 1 个 */
-function pickSlotTypeByWeight(depth: number): Exclude<SlotType, 'boss'> {
-    const w: Record<Exclude<SlotType, 'boss'>, number> = { ...SLOT_WEIGHTS };
+/** 按层数与秘境权重抽格子类型（不含 boss）；邪修不在本函数内抽，由 ensureNextNodes 每 10 层单独放 1 个 */
+function pickSlotTypeByWeight(depth: number, slotWeights: Record<Exclude<SlotType, 'boss'>, number>): Exclude<SlotType, 'boss'> {
+    const w: Record<Exclude<SlotType, 'boss'>, number> = { ...slotWeights };
     w.intercept = 0;
     if (depth % 10 !== 1) w.treasure = 0;
     const sum = (Object.values(w) as number[]).reduce((a, b) => a + b, 0);
@@ -260,6 +288,7 @@ export class GrottoExpeditionDemo extends Component {
     private resultLayer!: Node;
 
     private spiritStone = 0;
+    private mysticCrystal = 0;
     private realmLevel = 1;
     private realmExp = 0;
     private realmExpNeed = 30;
@@ -280,11 +309,9 @@ export class GrottoExpeditionDemo extends Component {
     private expeditionTreasure = 0;
     private buffAtkPercent = 0;
     private combatSlotIndex = -1;
+    private combatNodeId = '';
     private combatIsBoss = false;
     private combatIsIntercept = false;
-    /** 本局是否已击败过 Boss，用于触发安全撤离（100% 带走） */
-    private canSafeWithdraw = false;
-
     private playerNode!: Node;
     private playerRig: CharacterRig | null = null;
     private playerHp = 100;
@@ -659,6 +686,35 @@ export class GrottoExpeditionDemo extends Component {
         return `${dungeonId}:${milestone}`;
     }
 
+    private getDungeonTierIndex(id: DungeonId = this.selectedDungeonId): number {
+        return Math.max(1, DUNGEON_CONFIGS.findIndex((item) => item.id === id) + 1);
+    }
+
+    private getProgressChestRewards(config: DungeonConfig, milestone: number) {
+        const tierIndex = this.getDungeonTierIndex(config.id);
+        return {
+            spiritStone: milestone * 12 * tierIndex,
+            exp: milestone * 8 * tierIndex,
+            mysticCrystal: Math.max(1, Math.floor(milestone / 10) * tierIndex),
+        };
+    }
+
+    private getDungeonLootMultiplier(type: 'herb' | 'stone' | 'treasure' | 'combat'): number {
+        const config = this.getDungeonConfig();
+        switch (type) {
+            case 'herb':
+                return config.herbDropMultiplier;
+            case 'stone':
+                return config.stoneDropMultiplier;
+            case 'treasure':
+                return config.treasureDropMultiplier;
+            case 'combat':
+                return config.combatRewardMultiplier;
+            default:
+                return 1;
+        }
+    }
+
     private claimProgressChest(index: number) {
         const config = this.getDungeonConfig();
         const milestones = this.getProgressMilestones(config.id);
@@ -674,13 +730,12 @@ export class GrottoExpeditionDemo extends Component {
             this.hintLabel.string = `需先在 ${config.label} 达到 ${milestone} 层。当前最高 ${best} 层。`;
             return;
         }
-        const tierIndex = DUNGEON_CONFIGS.findIndex((item) => item.id === config.id) + 1;
-        const spiritReward = milestone * 12 * tierIndex;
-        const expReward = milestone * 8 * tierIndex;
+        const rewards = this.getProgressChestRewards(config, milestone);
         this.claimedProgressChests[key] = true;
-        this.spiritStone += spiritReward;
-        this.realmExp += expReward;
-        this.hintLabel.string = `领取 ${config.label}${milestone} 层宝箱：灵石 +${spiritReward}，修为 +${expReward}。`;
+        this.spiritStone += rewards.spiritStone;
+        this.realmExp += rewards.exp;
+        this.mysticCrystal += rewards.mysticCrystal;
+        this.hintLabel.string = `领取 ${config.label}${milestone} 层宝箱：灵石 +${rewards.spiritStone}，修为 +${rewards.exp}，秘晶 +${rewards.mysticCrystal}。`;
         this.refreshHomeStatus();
     }
 
@@ -689,9 +744,20 @@ export class GrottoExpeditionDemo extends Component {
         this.dungeonBestDepth[config.id] = Math.max(this.dungeonBestDepth[config.id], Math.min(depth, config.maxDepth));
     }
 
+    private canWithdrawSafelyAtCurrentNode(): boolean {
+        const current = this.getCurrentNode();
+        return !!current && current.type === 'boss' && !!current.defeated;
+    }
+
+    private getCombatNode(): MapNode | null {
+        if (this.combatNodeId) return this.nodePool.get(this.combatNodeId) ?? null;
+        const choices = this.getCurrentChoiceNodes();
+        return this.combatSlotIndex >= 0 && this.combatSlotIndex < choices.length ? choices[this.combatSlotIndex] : null;
+    }
+
     private refreshHomeStatus() {
         this.actionPointMax = ACTION_POINT_BASE + (this.realmLevel - 1) * 10;
-        this.statusLabel.string = `境界 ${this.realmLevel} 层 | 灵石 ${this.spiritStone} | 修为 ${this.realmExp}/${this.realmExpNeed} | 行动力 ${this.actionPoints}/${this.actionPointMax}`;
+        this.statusLabel.string = `境界 ${this.realmLevel} 层 | 灵石 ${this.spiritStone} | 秘晶 ${this.mysticCrystal} | 修为 ${this.realmExp}/${this.realmExpNeed} | 行动力 ${this.actionPoints}/${this.actionPointMax}`;
         const current = this.getDungeonConfig();
         this.selectedDungeonInfoLabel.string = `当前：${current.label} | 解锁修为 ${current.unlockRealm} | 总层数 ${current.maxDepth}`;
         DUNGEON_CONFIGS.forEach((config) => {
@@ -714,7 +780,13 @@ export class GrottoExpeditionDemo extends Component {
         const best = this.dungeonBestDepth[current.id] || 0;
         const milestones = this.getProgressMilestones(current.id);
         this.progressChestTitleLabel.string = `${current.label} 进度宝箱`;
-        this.progressChestInfoLabel.string = `历史最深 ${best}/${current.maxDepth} 层 | 达到对应层数即可领取`;
+        const nextUnclaimed = milestones.find((milestone) => !this.claimedProgressChests[this.getProgressChestKey(current.id, milestone)]);
+        if (nextUnclaimed) {
+            const rewards = this.getProgressChestRewards(current, nextUnclaimed);
+            this.progressChestInfoLabel.string = `历史最深 ${best}/${current.maxDepth} 层 | ${nextUnclaimed}层奖励：灵石+${rewards.spiritStone} 修为+${rewards.exp} 秘晶+${rewards.mysticCrystal}`;
+        } else {
+            this.progressChestInfoLabel.string = `历史最深 ${best}/${current.maxDepth} 层 | 本秘境进度宝箱已全部领取`;
+        }
         for (let i = 0; i < MAX_PROGRESS_CHESTS; i++) {
             const chestNode = this.progressChestNodes[i];
             const chestLabel = this.progressChestLabels[i];
@@ -777,7 +849,6 @@ export class GrottoExpeditionDemo extends Component {
         this.expeditionHerbs = 0;
         this.expeditionTreasure = 0;
         this.buffAtkPercent = 0;
-        this.canSafeWithdraw = false;
         this.retreatRatioMultiplier = 1;
         this.pendingRevealedIndex = -1;
         /** 测试版数值：每次进秘境补满行动力，避免连续测试被行动力卡死 */
@@ -809,6 +880,7 @@ export class GrottoExpeditionDemo extends Component {
         const node = this.nodePool.get(nodeId);
         if (!node || node.nextIds.length > 0) return;
         const nextDepth = node.depth + 1;
+        const dungeon = this.getDungeonConfig();
         const isBossDepth = nextDepth >= 10 && nextDepth % 10 === 0;
         if (isBossDepth) {
             const bossId = nextNodeId();
@@ -826,7 +898,7 @@ export class GrottoExpeditionDemo extends Component {
         const ids: string[] = [];
         for (let i = 0; i < newCount; i++) {
             const id = nextNodeId();
-            let type: Exclude<SlotType, 'boss'> = i === interceptIndex ? 'intercept' : pickSlotTypeByWeight(nextDepth);
+            let type: Exclude<SlotType, 'boss'> = i === interceptIndex ? 'intercept' : pickSlotTypeByWeight(nextDepth, dungeon.slotWeights);
             if (type === 'buff') type = Math.random() < 0.5 ? 'trap' : 'buff';
             const node: MapNode = {
                 id,
@@ -835,7 +907,7 @@ export class GrottoExpeditionDemo extends Component {
                 revealed: false,
                 nextIds: [],
             };
-            if (slotNeedsRarity(type)) node.rarity = pickRarity(nextDepth);
+            if (slotNeedsRarity(type)) node.rarity = pickRarity(nextDepth, dungeon.rarityBias);
             this.nodePool.set(id, node);
             ids.push(id);
         }
@@ -883,9 +955,13 @@ export class GrottoExpeditionDemo extends Component {
         return icons[type];
     }
 
-    /** 本层各类型比例文案（邪修每10层1个；天材地宝仅Boss下一层；机缘55开好坏） */
+    /** 本层各类型比例文案（按当前秘境权重展示；邪修每10层1个；天材地宝仅Boss下一层；机缘55开好坏） */
     private getSlotRatioText(): string {
-        return '灵植/灵石/妖兽 约20%  机缘 20%(55开好坏)  天材地宝仅Boss下一层  邪修每10层(5,15,25…)1个';
+        const dungeon = this.getDungeonConfig();
+        const w = dungeon.slotWeights;
+        const total = w.herb + w.stone + w.treasure + w.monster + w.trap + w.buff;
+        const pct = (value: number) => Math.round((value / total) * 100);
+        return `灵植${pct(w.herb)}% 灵石${pct(w.stone)}% 妖兽${pct(w.monster)}% 机缘/陷阱${pct(w.buff + w.trap)}% 宝物${pct(w.treasure)}% · 邪修每10层1个`;
     }
 
     /** 分支节点在 map 上的 X 坐标（按个数均摊，控制在设计宽内不超框） */
@@ -909,7 +985,7 @@ export class GrottoExpeditionDemo extends Component {
             this.expeditionManaLabel.string = `法力 ${Math.ceil(this.playerMana)}/${this.playerMaxMana}`;
         this.expeditionResLabel.string = `灵石 ${this.expeditionSpirit} | 灵药 ${this.expeditionHerbs} | 天材地宝 ${this.expeditionTreasure}${this.buffAtkPercent > 0 ? ' | 攻+' + (this.buffAtkPercent * 100) + '%' : ''}`;
         if (this.expeditionApLabel) this.expeditionApLabel.string = `行动力 ${this.actionPoints}/${this.actionPointMax}`;
-        if (this.expeditionRatioLabel) this.expeditionRatioLabel.string = `${dungeon.label} · 每10层Boss · 当前历史最高 ${this.dungeonBestDepth[dungeon.id]}/${dungeon.maxDepth}`;
+        if (this.expeditionRatioLabel) this.expeditionRatioLabel.string = `${dungeon.label} · 下方显示下一层节点 · ${this.getSlotRatioText()} · 历史最高 ${this.dungeonBestDepth[dungeon.id]}/${dungeon.maxDepth}`;
 
         this.slotContainer.removeAllChildren();
         const pathFromY = 60;
@@ -941,7 +1017,7 @@ export class GrottoExpeditionDemo extends Component {
         }
 
         const currentPanel = this.createPanel(this.slotContainer, 100, 44, 0, pathFromY, new Color(72, 82, 92, 250));
-        this.createLabel(currentPanel, '当前', 20, new Vec3(0, 0, 0), new Color(255, 248, 220, 255));
+        this.createLabel(currentPanel, '当前层', 20, new Vec3(0, 0, 0), new Color(255, 248, 220, 255));
 
         choices.forEach((slot, i) => {
             const x = xs[i];
@@ -980,7 +1056,7 @@ export class GrottoExpeditionDemo extends Component {
 
         this.withdrawBtn.active = true;
         if (this.withdrawBtnLabel) {
-            if (this.canSafeWithdraw) {
+            if (this.canWithdrawSafelyAtCurrentNode()) {
                 this.withdrawBtnLabel.string = '安全撤离(100%)';
                 this.withdrawBtnLabel.color = new Color(180, 255, 180, 255);
             } else {
@@ -1073,9 +1149,18 @@ export class GrottoExpeditionDemo extends Component {
         this.choicePanel.active = false;
         this.pendingRevealedIndex = -1;
 
-            this.combatSlotIndex = index;
-            this.combatIsBoss = slot.type === 'boss';
-        if (slot.type === 'monster' || slot.type === 'boss') {
+        this.combatSlotIndex = index;
+        this.combatNodeId = slot.id;
+        this.combatIsBoss = slot.type === 'boss';
+        if (slot.type === 'monster') {
+            this.enterCombat();
+            return;
+        }
+        if (slot.type === 'boss') {
+            this.pathStack.push(this.currentNodeId);
+            this.currentNodeId = slot.id;
+            this.ensureNextNodes(slot.id);
+            this.refreshLayerUI();
             this.enterCombat();
             return;
         }
@@ -1127,6 +1212,7 @@ export class GrottoExpeditionDemo extends Component {
         slot.triggered = true;
         this.advanceToNode(slot.id);
         this.combatSlotIndex = -1;
+        this.combatNodeId = '';
     }
 
     private onInterceptFight() {
@@ -1142,6 +1228,7 @@ export class GrottoExpeditionDemo extends Component {
         this.withdrawBtn.active = true;
         this.setOtherButtonsGreyed(false);
         this.combatIsIntercept = true;
+        this.combatNodeId = slot.id;
         this.enterCombat();
     }
 
@@ -1601,10 +1688,12 @@ export class GrottoExpeditionDemo extends Component {
                 slot.triggered = true;
                 this.advanceToNode(slot.id);
                 this.combatSlotIndex = -1;
+                this.combatNodeId = '';
                 return;
             }
         }
         this.combatSlotIndex = -1;
+        this.combatNodeId = '';
         this.refreshLayerUI();
     }
 
@@ -1612,19 +1701,25 @@ export class GrottoExpeditionDemo extends Component {
         if (slot.triggered) return;
         slot.triggered = true;
         const depth = slot.depth;
-        const mul = slot.rarity ? RARITY_MULTIPLIER[slot.rarity] : 1;
+        const rarityMul = slot.rarity ? RARITY_MULTIPLIER[slot.rarity] : 1;
         switch (slot.type) {
-            case 'herb':
-                this.expeditionHerbs += Math.floor((4 + Math.floor(depth / 4)) * mul);
+            case 'herb': {
+                const mul = rarityMul * this.getDungeonLootMultiplier('herb');
+                this.expeditionHerbs += Math.max(1, Math.floor((4 + Math.floor(depth / 4)) * mul));
                 break;
-            case 'stone':
-                this.expeditionSpirit += Math.floor((10 + Math.floor(depth / 2)) * mul);
+            }
+            case 'stone': {
+                const mul = rarityMul * this.getDungeonLootMultiplier('stone');
+                this.expeditionSpirit += Math.max(1, Math.floor((10 + Math.floor(depth / 2)) * mul));
                 break;
-            case 'treasure':
-                this.expeditionSpirit += Math.floor((30 + depth * 3) * mul);
-                this.expeditionHerbs += Math.floor((6 + Math.floor(depth / 4)) * mul);
+            }
+            case 'treasure': {
+                const mul = rarityMul * this.getDungeonLootMultiplier('treasure');
+                this.expeditionSpirit += Math.max(1, Math.floor((30 + depth * 3) * mul));
+                this.expeditionHerbs += Math.max(1, Math.floor((6 + Math.floor(depth / 4)) * mul));
                 this.expeditionTreasure += Math.max(2, Math.floor(2 * mul));
                 break;
+            }
             case 'empty':
                 break;
             case 'trap':
@@ -1672,7 +1767,7 @@ export class GrottoExpeditionDemo extends Component {
 
     private withdrawExpedition() {
         if (this.interceptPanelVisible) return;
-        this.endExpeditionWithdraw(this.canSafeWithdraw);
+        this.endExpeditionWithdraw(this.canWithdrawSafelyAtCurrentNode());
     }
 
     /** 撤离：安全撤离 100%；否则按 50% + 每层 0.5% 带走资源 */
@@ -1698,7 +1793,6 @@ export class GrottoExpeditionDemo extends Component {
         this.resultLabel.string = safe
             ? `${dungeon.label} 安全撤离（击败Boss）\n深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n带走灵石 ${takeSpirit}，灵药 ${takeHerbs}，天材地宝 ${takeTreasure}\n修为 +${takeExp}`
             : `${dungeon.label} 紧急撤离（带走 ${ratioPct}%）\n深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n带走灵石 ${takeSpirit}，灵药 ${takeHerbs}，天材地宝 ${takeTreasure}\n修为 +${takeExp}`;
-        this.canSafeWithdraw = false;
     }
 
     private endExpedition(reachedExit: boolean) {
@@ -1775,9 +1869,9 @@ export class GrottoExpeditionDemo extends Component {
         this.enemies = [];
         const isIntercept = this.combatIsIntercept;
         const isBoss = this.combatIsBoss;
+        const dungeon = this.getDungeonConfig();
         const count = 1;
-        const choices = this.getCurrentChoiceNodes();
-        const slot = this.combatSlotIndex >= 0 && this.combatSlotIndex < choices.length ? choices[this.combatSlotIndex] : null;
+        const slot = this.getCombatNode();
         const layer = slot ? slot.depth : this.getCurrentDepth();
         for (let i = 0; i < count; i++) {
             const en = new Node(isIntercept ? '邪修' : isBoss ? 'Boss' : `Enemy_${i}`);
@@ -1788,8 +1882,11 @@ export class GrottoExpeditionDemo extends Component {
             ut.setContentSize(90, 100);
             ut.setAnchorPoint(0.5, 0.5);
             const rig = this.createCharacterRig(en, isIntercept ? new Color(80, 50, 60, 255) : new Color(100, 60, 60, 255), isIntercept ? new Color(180, 80, 100, 255) : new Color(220, 120, 100, 255));
-            const baseHp = isIntercept ? 45 + layer * 3 : isBoss ? 130 + layer * 5 : 28 + this.realmLevel * 7 + Math.floor(layer / 4) * 4;
-            const baseDmg = isIntercept ? 7 + Math.floor(layer / 5) : isBoss ? 9 + Math.floor(layer / 8) * 2 : 4 + this.realmLevel;
+            const hpBase = isIntercept ? 45 + layer * 3 : isBoss ? 130 + layer * 5 : 28 + this.realmLevel * 7 + Math.floor(layer / 4) * 4;
+            const dmgBase = isIntercept ? 7 + Math.floor(layer / 5) : isBoss ? 9 + Math.floor(layer / 8) * 2 : 4 + this.realmLevel;
+            const baseHp = Math.max(1, Math.floor(hpBase * (isIntercept ? dungeon.interceptHpMultiplier : isBoss ? dungeon.bossHpMultiplier : dungeon.enemyHpMultiplier)));
+            const baseDmg = Math.max(1, Math.floor(dmgBase * (isIntercept ? dungeon.interceptDamageMultiplier : isBoss ? dungeon.bossDamageMultiplier : dungeon.enemyDamageMultiplier)));
+            const enemySpeed = Math.max(36, Math.floor((isBoss ? 45 : 58) * dungeon.enemySpeedMultiplier));
             const hpBarNode = new Node('HpBar');
             hpBarNode.layer = Layers.Enum.UI_2D;
             this.combatLayer.addChild(hpBarNode);
@@ -1803,7 +1900,7 @@ export class GrottoExpeditionDemo extends Component {
                 maxHp: baseHp,
                 damage: baseDmg,
                 radius: isBoss ? 26 : 18,
-                speed: isBoss ? 45 : 58,
+                speed: enemySpeed,
                 hitTimer: 0,
                 hpBarNode,
                 hpBarGfx,
@@ -2027,32 +2124,34 @@ export class GrottoExpeditionDemo extends Component {
         this.enemies = [];
 
         let advanced = false;
-        if (victory && this.combatSlotIndex >= 0) {
-            const choices = this.getCurrentChoiceNodes();
-            const slot = choices[this.combatSlotIndex];
+        const combatRewardMul = this.getDungeonLootMultiplier('combat');
+        if (victory) {
+            const slot = this.getCombatNode();
             if (slot) {
                 slot.defeated = true;
                 if (this.combatIsIntercept) {
                     if (!slot.triggered) {
                         const depth = slot.depth;
-                        this.expeditionSpirit += 24 + Math.floor(depth / 2);
-                        this.expeditionHerbs += 4;
+                        this.expeditionSpirit += Math.max(1, Math.floor((24 + Math.floor(depth / 2)) * combatRewardMul));
+                        this.expeditionHerbs += Math.max(1, Math.floor(4 * combatRewardMul));
                     }
                     slot.triggered = true;
                     this.advanceToNode(slot.id);
                     advanced = true;
+                } else if (this.combatIsBoss) {
+                    if (!slot.triggered) {
+                        const depth = slot.depth;
+                        slot.triggered = true;
+                        this.expeditionSpirit += Math.max(1, Math.floor((60 + depth * 4) * combatRewardMul));
+                        this.expeditionHerbs += Math.max(1, Math.floor((10 + Math.floor(depth / 4)) * combatRewardMul));
+                        this.expeditionTreasure += Math.max(2, Math.floor(4 * combatRewardMul));
+                    }
+                    advanced = true;
                 } else if (!slot.triggered) {
                     slot.triggered = true;
                     const depth = slot.depth;
-                    if (this.combatIsBoss) {
-                        this.canSafeWithdraw = true;
-                        this.expeditionSpirit += 60 + depth * 4;
-                        this.expeditionHerbs += 10 + Math.floor(depth / 4);
-                        this.expeditionTreasure += 4;
-                    } else {
-                        this.expeditionSpirit += 18 + Math.floor(depth / 3);
-                        this.expeditionHerbs += 3;
-                    }
+                    this.expeditionSpirit += Math.max(1, Math.floor((18 + Math.floor(depth / 3)) * combatRewardMul));
+                    this.expeditionHerbs += Math.max(1, Math.floor(3 * combatRewardMul));
                     this.advanceToNode(slot.id);
                     advanced = true;
                 } else {
@@ -2067,9 +2166,15 @@ export class GrottoExpeditionDemo extends Component {
             this.playerMana = Math.min(this.playerMaxMana, this.playerMana + Math.ceil(this.playerMaxMana * VICTORY_MANA_RESTORE_RATIO));
             this.actionPoints = Math.min(this.actionPointMax, this.actionPoints + actionRestore);
         }
+        const bossClearedFinalFloor = victory && this.combatIsBoss && this.getCurrentDepth() >= this.getDungeonConfig().maxDepth;
         this.combatSlotIndex = -1;
+        this.combatNodeId = '';
         this.combatIsBoss = false;
         this.combatIsIntercept = false;
+        if (bossClearedFinalFloor) {
+            this.endExpedition(true);
+            return;
+        }
         if (victory && this.state === 'expedition_path') this.refreshLayerUI();
     }
 
@@ -2084,6 +2189,7 @@ export class GrottoExpeditionDemo extends Component {
         }
         this.enemies = [];
         this.combatSlotIndex = -1;
+        this.combatNodeId = '';
         this.combatIsBoss = false;
         this.combatIsIntercept = false;
         if (wasIntercept && slotIndex >= 0) {
