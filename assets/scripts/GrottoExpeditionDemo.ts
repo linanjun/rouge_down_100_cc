@@ -57,7 +57,7 @@ type TaskId =
     | 'mainline_first_artifact'
     | 'mainline_unlock_zhuji';
 
-type TaskMetric = 'counter' | 'bestDepthQi' | 'artifactUnlockCount' | 'artifactStarThree' | 'zhujiUnlocked';
+type TaskMetric = 'counter' | 'bestDepthQi' | 'artifactUnlockCount' | 'artifactAdvancedUnlockCount' | 'artifactStarThree' | 'zhujiUnlocked';
 type TaskResetGroup = 'daily' | 'weekly' | 'permanent';
 type BuildingId = 'gather' | 'alchemy' | 'forge' | 'ward';
 type MeritTaskId = 'merit_expedition' | 'merit_alchemy' | 'merit_prepare';
@@ -489,14 +489,14 @@ const TASK_ENTRIES: Record<TaskTab, TaskEntry[]> = {
             title: '主线一: 初入百层洞渊',
             target: 1,
             progressLabel: '目标',
-            rewardText: '奖励: 低级灵石 x5 / 修为 +80',
-            rewards: [{ effect: 'spiritStone', value: 500 }, { effect: 'exp', value: 80 }],
+            rewardText: '奖励: 低级灵石 x7 / 修为 +90 / 徽记 +4',
+            rewards: [{ effect: 'spiritStone', value: 700 }, { effect: 'exp', value: 90 }, { effect: 'badge', value: 4 }],
         },
         {
             id: 'mainline_first_artifact',
-            metric: 'artifactUnlockCount',
+            metric: 'artifactAdvancedUnlockCount',
             reset: 'permanent',
-            title: '主线二: 凝练本命法器',
+            title: '主线二: 凝练异品法器',
             target: 1,
             progressLabel: '目标',
             rewardText: '奖励: 法器经验 +80 / 徽记 +12',
@@ -592,14 +592,14 @@ const STONE_MATERIAL_BY_RARITY: Record<Rarity, MaterialId> = {
 const ALCHEMY_RECIPES: AlchemyRecipeDef[] = [
     { id: 'ningqi', glyph: '气', name: '凝气丹', title: '周天聚气', summary: '以温和草木药性固本培元，适合前期持续积累修为。', materialCosts: { ninglucao: 8, yusuizhi: 2 }, goldCost: 900, badgeCost: 0, rewardText: '修为 +28', effect: 'exp', effectValue: 28 },
     { id: 'yangyuan', glyph: '元', name: '养元丹', title: '温养法力', summary: '调和经脉与丹田，需以灵芝和寒性矿晶稳定药性。', materialCosts: { ninglucao: 4, yusuizhi: 4, xuanshuangjing: 2 }, goldCost: 1200, badgeCost: 0, rewardText: '法力上限 +6', effect: 'mana', effectValue: 6 },
-    { id: 'cuiti', glyph: '体', name: '淬体丹', title: '淬骨炼血', summary: '以烈性药材和矿脉精华淬炼筋骨皮膜。', materialCosts: { ziyanshen: 3, qingwenshi: 5, xuanshuangjing: 2 }, goldCost: 1500, badgeCost: 4, rewardText: '气血上限 +10', effect: 'hp', effectValue: 10 },
-    { id: 'shenxing', glyph: '行', name: '神行丹', title: '轻身换息', summary: '借紫参与玉石共鸣，加快周天行气与身法切换。', materialCosts: { yusuizhi: 3, ziyanshen: 2, zipoyu: 2 }, goldCost: 1000, badgeCost: 10, rewardText: '行动力上限 +3', effect: 'ap', effectValue: 3 },
+    { id: 'cuiti', glyph: '体', name: '淬体丹', title: '淬骨炼血', summary: '以烈性药材和矿脉精华淬炼筋骨皮膜。', materialCosts: { ziyanshen: 3, qingwenshi: 5, xuanshuangjing: 2 }, goldCost: 1200, badgeCost: 2, rewardText: '气血上限 +10', effect: 'hp', effectValue: 10 },
+    { id: 'shenxing', glyph: '行', name: '神行丹', title: '轻身换息', summary: '借紫参与玉石共鸣，加快周天行气与身法切换。', materialCosts: { yusuizhi: 3, ziyanshen: 2, zipoyu: 2 }, goldCost: 900, badgeCost: 6, rewardText: '行动力上限 +3', effect: 'ap', effectValue: 3 },
 ];
 
 const FORGE_RECIPES: ForgeRecipeDef[] = [
-    { id: 'xuanjian', glyph: '锋', name: '玄金剑胚', title: '锋锐淬火', summary: '以高阶灵矿熔炼剑胚，强化主战攻伐。', materialCosts: { xuanshuangjing: 4, zipoyu: 2, yaojinsui: 1 }, goldCost: 2200, badgeCost: 10, rewardText: '术攻 +3', effect: 'atk', effectValue: 3 },
-    { id: 'baojia', glyph: '甲', name: '宝甲器胚', title: '护元成甲', summary: '以矿精辅药淬壳，适合打造护体法器外胚。', materialCosts: { qingwenshi: 6, xuanshuangjing: 2, jinwuteng: 1 }, goldCost: 2400, badgeCost: 12, rewardText: '气血上限 +14', effect: 'hp', effectValue: 14 },
-    { id: 'linglu', glyph: '炉', name: '灵炉芯', title: '归元炉心', summary: '引曜金与灵藤共炼炉芯，提升器火与法器成长。', materialCosts: { ziyanshen: 2, jinwuteng: 1, yaojinsui: 1 }, goldCost: 2600, badgeCost: 16, rewardText: '法器经验 +45', effect: 'artifactExp', effectValue: 45 },
+    { id: 'xuanjian', glyph: '锋', name: '玄金剑胚', title: '锋锐淬火', summary: '以高阶灵矿熔炼剑胚，强化主战攻伐。', materialCosts: { xuanshuangjing: 4, zipoyu: 2, yaojinsui: 1 }, goldCost: 1800, badgeCost: 6, rewardText: '术攻 +3', effect: 'atk', effectValue: 3 },
+    { id: 'baojia', glyph: '甲', name: '宝甲器胚', title: '护元成甲', summary: '以矿精辅药淬壳，适合打造护体法器外胚。', materialCosts: { qingwenshi: 6, xuanshuangjing: 2, jinwuteng: 1 }, goldCost: 2000, badgeCost: 8, rewardText: '气血上限 +14', effect: 'hp', effectValue: 14 },
+    { id: 'linglu', glyph: '炉', name: '灵炉芯', title: '归元炉心', summary: '引曜金与灵藤共炼炉芯，提升器火与法器成长。', materialCosts: { ziyanshen: 2, jinwuteng: 1, yaojinsui: 1 }, goldCost: 2200, badgeCost: 10, rewardText: '法器经验 +45', effect: 'artifactExp', effectValue: 45 },
 ];
 
 const KUNGFU_DEFS: KungfuDef[] = [
@@ -897,9 +897,9 @@ const DONGTIAN_BUILDINGS: BuildingDef[] = [
         glyph: '聚',
         title: '汇灵归府',
         summary: '稳固洞府灵脉，提升自然吐纳和渡劫准备时的灵机汇聚。',
-        stoneBaseCost: 1200,
-        badgeBaseCost: 4,
-        materialCost: { ninglucao: 6, qingwenshi: 4 },
+        stoneBaseCost: 900,
+        badgeBaseCost: 2,
+        materialCost: { ninglucao: 4, qingwenshi: 3 },
     },
     {
         id: 'alchemy',
@@ -907,9 +907,9 @@ const DONGTIAN_BUILDINGS: BuildingDef[] = [
         glyph: '丹',
         title: '炉火恒明',
         summary: '温养丹火，提升成丹稳定性与出丹数，兼顾渡劫药力调和。',
-        stoneBaseCost: 1600,
-        badgeBaseCost: 6,
-        materialCost: { yusuizhi: 4, xuanshuangjing: 3 },
+        stoneBaseCost: 1300,
+        badgeBaseCost: 4,
+        materialCost: { yusuizhi: 3, xuanshuangjing: 2 },
     },
     {
         id: 'forge',
@@ -917,9 +917,9 @@ const DONGTIAN_BUILDINGS: BuildingDef[] = [
         glyph: '器',
         title: '百炼归真',
         summary: '稳固器火与锻台，提升炼器成功率和品质，也能强化护劫法器。',
-        stoneBaseCost: 1800,
-        badgeBaseCost: 8,
-        materialCost: { ziyanshen: 3, zipoyu: 3 },
+        stoneBaseCost: 1500,
+        badgeBaseCost: 6,
+        materialCost: { ziyanshen: 2, zipoyu: 2 },
     },
     {
         id: 'ward',
@@ -927,19 +927,19 @@ const DONGTIAN_BUILDINGS: BuildingDef[] = [
         glyph: '劫',
         title: '镇府护劫',
         summary: '构筑护山法阵，提升渡劫准备效率并在突破时提供护劫余裕。',
-        stoneBaseCost: 2200,
-        badgeBaseCost: 10,
+        stoneBaseCost: 1800,
+        badgeBaseCost: 8,
         materialCost: { jinwuteng: 1, yaojinsui: 1 },
     },
 ];
 
 const ARTIFACT_DEFS: ArtifactDef[] = [
     { id: 'qingshuang', slot: 'sword', glyph: '霜', name: '青霜剑', title: '剑气穿心', summary: '主战飞剑，强化单体斩杀与普攻杀伤', synthCost: 0, starter: true },
-    { id: 'lihuo', slot: 'sword', glyph: '火', name: '离火剑', title: '离火灼脉', summary: '主战飞剑，强化术法爆发与秘境收益', synthCost: 14, starter: false },
+    { id: 'lihuo', slot: 'sword', glyph: '火', name: '离火剑', title: '离火灼脉', summary: '主战飞剑，强化术法爆发与秘境收益', synthCost: 8, starter: false },
     { id: 'xuanjia', slot: 'talisman', glyph: '甲', name: '玄甲符', title: '护体镇魄', summary: '护符法器，提升气血并稳固秘境续航', synthCost: 0, starter: true },
-    { id: 'huiyuan', slot: 'talisman', glyph: '元', name: '回元符', title: '回元养气', summary: '护符法器，提升法力与行动回复能力', synthCost: 14, starter: false },
+    { id: 'huiyuan', slot: 'talisman', glyph: '元', name: '回元符', title: '回元养气', summary: '护符法器，提升法力与行动回复能力', synthCost: 8, starter: false },
     { id: 'xunbao', slot: 'lamp', glyph: '宝', name: '寻宝灯', title: '照见机缘', summary: '灵灯法器，强化秘境带出与法器掉落', synthCost: 0, starter: true },
-    { id: 'guixi', slot: 'lamp', glyph: '归', name: '归息灯', title: '归元守藏', summary: '灵灯法器，强化撤离收益与徽记产出', synthCost: 16, starter: false },
+    { id: 'guixi', slot: 'lamp', glyph: '归', name: '归息灯', title: '归元守藏', summary: '灵灯法器，强化撤离收益与徽记产出', synthCost: 10, starter: false },
 ];
 
 function createDefaultArtifactStates(): Record<ArtifactId, ArtifactState> {
@@ -965,21 +965,21 @@ function createArtifactShardRecord(): Record<ArtifactId, number> {
 }
 
 const GOLD_DAILY_SHOP_ITEMS: ShopItemDef[] = [
-    { id: 'gold_daily_hp', name: '炼体膏', currency: 'gold', cost: 900, rewardText: '气血上限 +8', description: '每日补体', limit: 1, refresh: 'daily', effect: 'hp', effectValue: 8 },
-    { id: 'gold_daily_mana', name: '养气丹', currency: 'gold', cost: 1100, rewardText: '法力上限 +6', description: '吐纳凝元', limit: 1, refresh: 'daily', effect: 'mana', effectValue: 6 },
-    { id: 'gold_daily_exp', name: '聚灵香', currency: 'gold', cost: 1400, rewardText: '修为 +18', description: '静室修行', limit: 1, refresh: 'daily', effect: 'exp', effectValue: 18 },
-    { id: 'gold_daily_atk', name: '攻伐符', currency: 'gold', cost: 1700, rewardText: '术攻 +1', description: '临战养锋', limit: 1, refresh: 'daily', effect: 'atk', effectValue: 1 },
-    { id: 'gold_daily_ap', name: '行气帖', currency: 'gold', cost: 2200, rewardText: '行动力上限 +2', description: '周天顺行', limit: 1, refresh: 'daily', effect: 'ap', effectValue: 2 },
-    { id: 'gold_daily_crystal', name: '小秘晶匣', currency: 'gold', cost: 2800, rewardText: '钻石 +1', description: '偶得秘匣', limit: 1, refresh: 'daily', effect: 'crystal', effectValue: 1 },
+    { id: 'gold_daily_hp', name: '炼体膏', currency: 'gold', cost: 700, rewardText: '气血上限 +8', description: '每日补体', limit: 1, refresh: 'daily', effect: 'hp', effectValue: 8 },
+    { id: 'gold_daily_mana', name: '养气丹', currency: 'gold', cost: 850, rewardText: '法力上限 +6', description: '吐纳凝元', limit: 1, refresh: 'daily', effect: 'mana', effectValue: 6 },
+    { id: 'gold_daily_exp', name: '聚灵香', currency: 'gold', cost: 1050, rewardText: '修为 +18', description: '静室修行', limit: 1, refresh: 'daily', effect: 'exp', effectValue: 18 },
+    { id: 'gold_daily_atk', name: '攻伐符', currency: 'gold', cost: 1250, rewardText: '术攻 +1', description: '临战养锋', limit: 1, refresh: 'daily', effect: 'atk', effectValue: 1 },
+    { id: 'gold_daily_ap', name: '行气帖', currency: 'gold', cost: 1600, rewardText: '行动力上限 +2', description: '周天顺行', limit: 1, refresh: 'daily', effect: 'ap', effectValue: 2 },
+    { id: 'gold_daily_crystal', name: '小秘晶匣', currency: 'gold', cost: 2100, rewardText: '钻石 +1', description: '偶得秘匣', limit: 1, refresh: 'daily', effect: 'crystal', effectValue: 1 },
 ];
 
 const GOLD_WEEKLY_SHOP_ITEMS: ShopItemDef[] = [
-    { id: 'gold_weekly_hp', name: '玄龟膏', currency: 'gold', cost: 5600, rewardText: '气血上限 +20', description: '周常重养', limit: 1, refresh: 'weekly', effect: 'hp', effectValue: 20 },
-    { id: 'gold_weekly_mana', name: '凝海露', currency: 'gold', cost: 6200, rewardText: '法力上限 +18', description: '周常聚元', limit: 1, refresh: 'weekly', effect: 'mana', effectValue: 18 },
-    { id: 'gold_weekly_exp', name: '悟道香案', currency: 'gold', cost: 7600, rewardText: '修为 +72', description: '周常参悟', limit: 1, refresh: 'weekly', effect: 'exp', effectValue: 72 },
-    { id: 'gold_weekly_atk', name: '破军符卷', currency: 'gold', cost: 8800, rewardText: '术攻 +3', description: '周常攻伐', limit: 1, refresh: 'weekly', effect: 'atk', effectValue: 3 },
-    { id: 'gold_weekly_ap', name: '周天总纲', currency: 'gold', cost: 9800, rewardText: '行动力上限 +6', description: '周常行气', limit: 1, refresh: 'weekly', effect: 'ap', effectValue: 6 },
-    { id: 'gold_weekly_crystal', name: '秘晶礼盒', currency: 'gold', cost: 12800, rewardText: '钻石 +4', description: '周常折换', limit: 1, refresh: 'weekly', effect: 'crystal', effectValue: 4 },
+    { id: 'gold_weekly_hp', name: '玄龟膏', currency: 'gold', cost: 4200, rewardText: '气血上限 +20', description: '周常重养', limit: 1, refresh: 'weekly', effect: 'hp', effectValue: 20 },
+    { id: 'gold_weekly_mana', name: '凝海露', currency: 'gold', cost: 4600, rewardText: '法力上限 +18', description: '周常聚元', limit: 1, refresh: 'weekly', effect: 'mana', effectValue: 18 },
+    { id: 'gold_weekly_exp', name: '悟道香案', currency: 'gold', cost: 5600, rewardText: '修为 +72', description: '周常参悟', limit: 1, refresh: 'weekly', effect: 'exp', effectValue: 72 },
+    { id: 'gold_weekly_atk', name: '破军符卷', currency: 'gold', cost: 6500, rewardText: '术攻 +3', description: '周常攻伐', limit: 1, refresh: 'weekly', effect: 'atk', effectValue: 3 },
+    { id: 'gold_weekly_ap', name: '周天总纲', currency: 'gold', cost: 7200, rewardText: '行动力上限 +6', description: '周常行气', limit: 1, refresh: 'weekly', effect: 'ap', effectValue: 6 },
+    { id: 'gold_weekly_crystal', name: '秘晶礼盒', currency: 'gold', cost: 9400, rewardText: '钻石 +4', description: '周常折换', limit: 1, refresh: 'weekly', effect: 'crystal', effectValue: 4 },
 ];
 
 const MIJING_SHOP_ITEMS: ShopItemDef[] = [
@@ -1484,6 +1484,7 @@ export class GrottoExpeditionDemo extends Component {
             this.dongtianBuildingInfoLabels[def.id] = info;
             this.dongtianBuildingCostLabels[def.id] = this.createLabel(card, '', 14, new Vec3(18, -34, 0), new Color(222, 208, 164, 255), 194);
             const upgradeBtn = this.createPanel(card, 92, 32, 90, -48, new Color(82, 96, 112, 255));
+            upgradeBtn.addComponent(Button).transition = Button.Transition.NONE;
             const btnLabel = this.createLabel(upgradeBtn, '升级', 16, new Vec3(0, 0, 0), new Color(238, 244, 250, 255), 80);
             upgradeBtn.on(Node.EventType.TOUCH_END, () => this.tryUpgradeBuilding(def.id), this);
             this.dongtianBuildingButtons[def.id] = upgradeBtn;
@@ -1537,6 +1538,7 @@ export class GrottoExpeditionDemo extends Component {
             const stock = this.createLabel(card, '', 13, new Vec3(-18, -48, 0), new Color(196, 204, 214, 255), 104);
             stock.horizontalAlign = HorizontalTextAlignment.LEFT;
             const buyBtn = this.createPanel(card, 60, 28, 56, -48, new Color(76, 88, 100, 255));
+            buyBtn.addComponent(Button).transition = Button.Transition.NONE;
             this.createLabel(buyBtn, '兑换', 14, new Vec3(0, 0, 0), new Color(240, 246, 252, 255));
             buyBtn.on(Node.EventType.TOUCH_END, () => this.buyMeritShopItem(item.id), this);
             this.meritShopItemWidgets.set(item.id, { button: buyBtn, stockLabel: stock });
@@ -1705,6 +1707,7 @@ export class GrottoExpeditionDemo extends Component {
             const infoLabel = this.createLabel(row, '', 18, new Vec3(42, 0, 0), new Color(176, 192, 210, 255), 400);
             const rewardLabel = this.createLabel(row, '', 17, new Vec3(42, -42, 0), new Color(222, 208, 164, 255), 400);
             const claimBtn = this.createPanel(row, 110, 42, 212, 0, new Color(74, 92, 112, 255));
+            claimBtn.addComponent(Button).transition = Button.Transition.NONE;
             const claimLabel = this.createLabel(claimBtn, '未达成', 18, new Vec3(0, 0, 0), new Color(226, 234, 242, 255), 92);
             claimBtn.on(Node.EventType.TOUCH_END, () => this.claimTaskByRow(i), this);
             this.taskRowNodes.push(row);
@@ -1748,9 +1751,11 @@ export class GrottoExpeditionDemo extends Component {
         this.kungfuPageEffectLabel = this.createLabel(detail, '', 17, new Vec3(78, -38, 0), new Color(220, 212, 174, 255), 406);
         const actionStrip = this.createPanel(detail, 364, 52, 98, -104, new Color(46, 54, 68, 255));
         this.kungfuPageRunButton = this.createPanel(actionStrip, 136, 36, -78, 0, new Color(96, 78, 54, 255));
+        this.kungfuPageRunButton.addComponent(Button).transition = Button.Transition.NONE;
         this.kungfuPageRunButtonLabel = this.createLabel(this.kungfuPageRunButton, '', 17, new Vec3(0, 0, 0), new Color(248, 238, 220, 255), 116);
         this.kungfuPageRunButton.on(Node.EventType.TOUCH_END, () => this.equipSelectedKungfu(), this);
         this.kungfuPageUpgradeButton = this.createPanel(actionStrip, 136, 36, 78, 0, new Color(62, 88, 74, 255));
+        this.kungfuPageUpgradeButton.addComponent(Button).transition = Button.Transition.NONE;
         this.kungfuPageUpgradeButtonLabel = this.createLabel(this.kungfuPageUpgradeButton, '', 17, new Vec3(0, 0, 0), new Color(228, 244, 230, 255), 116);
         this.kungfuPageUpgradeButton.on(Node.EventType.TOUCH_END, () => this.tryUpgradeSelectedKungfu(), this);
         this.kungfuPageHintLabel = this.createLabel(detail, '', 15, new Vec3(0, -146, 0), new Color(170, 188, 206, 255), 520);
@@ -1809,9 +1814,11 @@ export class GrottoExpeditionDemo extends Component {
         this.spiritPetPageEffectLabel = this.createLabel(topPanel, '', 17, new Vec3(96, -26, 0), new Color(210, 224, 196, 255), 336);
         const actionStrip = this.createPanel(topPanel, 328, 52, 106, -100, new Color(46, 54, 68, 255));
         this.spiritPetPageDeployButton = this.createPanel(actionStrip, 136, 36, -78, 0, new Color(64, 90, 74, 255));
+        this.spiritPetPageDeployButton.addComponent(Button).transition = Button.Transition.NONE;
         this.spiritPetPageDeployButtonLabel = this.createLabel(this.spiritPetPageDeployButton, '', 17, new Vec3(0, 0, 0), new Color(228, 244, 230, 255), 116);
         this.spiritPetPageDeployButton.on(Node.EventType.TOUCH_END, () => this.equipSelectedSpiritPet(), this);
         this.spiritPetPageUpgradeButton = this.createPanel(actionStrip, 136, 36, 78, 0, new Color(76, 82, 96, 255));
+        this.spiritPetPageUpgradeButton.addComponent(Button).transition = Button.Transition.NONE;
         this.spiritPetPageUpgradeButtonLabel = this.createLabel(this.spiritPetPageUpgradeButton, '', 17, new Vec3(0, 0, 0), new Color(236, 242, 248, 255), 116);
         this.spiritPetPageUpgradeButton.on(Node.EventType.TOUCH_END, () => this.tryUpgradeSelectedSpiritPet(), this);
         this.spiritPetPageHintLabel = this.createLabel(topPanel, '', 15, new Vec3(0, -146, 0), new Color(170, 188, 206, 255), 520);
@@ -1898,7 +1905,7 @@ export class GrottoExpeditionDemo extends Component {
         const crystalPanel = this.buildShopSection(content, '钻石商店', '常驻出售高价值成长包、外观与便利道具', -554, 320, new Color(44, 48, 62, 245), new Color(176, 206, 242, 255), '晶');
         this.buildShopGrid(crystalPanel, DIAMOND_SHOP_ITEMS, new Color(180, 210, 242, 255), new Color(52, 58, 74, 255));
 
-        this.shopHintLabel = this.createLabel(content, '', 18, new Vec3(0, -790, 0), new Color(160, 184, 204, 255), 620);
+        this.shopHintLabel = this.createLabel(content, '前期可先买每日补给，再去秘境刷徽记与材料。', 18, new Vec3(0, -790, 0), new Color(160, 184, 204, 255), 620);
 
         this.switchGoldShopTab('daily');
         this.refreshShopStatus();
@@ -1975,6 +1982,7 @@ export class GrottoExpeditionDemo extends Component {
             const stock = this.createLabel(card, '', 12, new Vec3(-26, -36, 0), new Color(196, 204, 214, 255), 104);
             stock.horizontalAlign = HorizontalTextAlignment.LEFT;
             const buyBtn = this.createPanel(card, 60, 28, 56, -34, new Color(76, 88, 100, 255));
+            buyBtn.addComponent(Button).transition = Button.Transition.NONE;
             this.createLabel(buyBtn, '购买', 14, new Vec3(0, 0, 0), new Color(240, 246, 252, 255));
             buyBtn.on(Node.EventType.TOUCH_END, () => this.buyShopItem(items[i].id), this);
             this.shopItemWidgets.set(items[i].id, { button: buyBtn, stockLabel: stock });
@@ -2159,12 +2167,12 @@ export class GrottoExpeditionDemo extends Component {
         if (!item) return;
         const bought = this.shopPurchaseCounts[id] || 0;
         if (bought >= item.limit) {
-            if (this.shopHintLabel) this.shopHintLabel.string = `${item.name} 已售罄，等待${item.refresh === 'daily' ? '每日' : '每周'}刷新。`;
+            if (this.shopHintLabel) this.shopHintLabel.string = `${item.name} 已售罄，${this.getRefreshHintText(item.refresh)}。`;
             this.refreshShopStatus();
             return;
         }
         if (this.getShopCurrencyAmount(item.currency) < item.cost) {
-            if (this.shopHintLabel) this.shopHintLabel.string = `${item.name} 需要 ${this.getShopCurrencyLabel(item.currency)} ${item.cost}。`;
+            if (this.shopHintLabel) this.shopHintLabel.string = `${item.name} 需要 ${this.getShopCurrencyLabel(item.currency)} ${item.cost}。${this.getShopCurrencyAcquireHint(item.currency)}`;
             this.refreshShopStatus();
             return;
         }
@@ -2172,8 +2180,25 @@ export class GrottoExpeditionDemo extends Component {
         this.applyShopItemReward(item);
         this.shopPurchaseCounts[id] = bought + 1;
         this.addTaskProgress('daily_shop_purchase', 1);
-        if (this.shopHintLabel) this.shopHintLabel.string = `购入 ${item.name}，获得 ${item.rewardText}。`;
+        if (this.shopHintLabel) this.shopHintLabel.string = `购入 ${item.name}，获得 ${item.rewardText}。可继续补给后前往秘境推进。`;
         this.refreshHomeStatus();
+    }
+
+    private getRefreshHintText(refresh: ShopRefreshType) {
+        return refresh === 'daily' ? '明日刷新' : refresh === 'weekly' ? '下周刷新' : '常驻供应';
+    }
+
+    private getShopCurrencyAcquireHint(currency: ShopCurrency) {
+        switch (currency) {
+            case 'gold':
+                return '可先去秘境带回灵石，或在任务奖励里补资源。';
+            case 'diamond':
+                return '可先推进层数宝箱和任务奖励积累钻石。';
+            case 'mijing':
+                return '可先推进秘境、击败 Boss 与领取层数宝箱积累徽记。';
+            default:
+                return '';
+        }
     }
 
     private refreshShopStatus() {
@@ -2190,6 +2215,8 @@ export class GrottoExpeditionDemo extends Component {
             const soldOut = bought >= item.limit;
             widget.stockLabel.string = soldOut ? '已售罄' : `余量 ${item.limit - bought}/${item.limit} · ${item.description}`;
             widget.stockLabel.color = soldOut ? new Color(188, 144, 144, 255) : new Color(196, 204, 214, 255);
+            const button = widget.button.getComponent(Button);
+            if (button) button.interactable = !soldOut;
             this.repaintPanel(widget.button, soldOut ? new Color(82, 68, 68, 255) : new Color(76, 88, 100, 255), soldOut ? new Color(156, 120, 120, 180) : new Color(166, 192, 216, 180));
             const labels = widget.button.getComponentsInChildren(Label);
             labels.forEach((label) => {
@@ -2216,6 +2243,7 @@ export class GrottoExpeditionDemo extends Component {
         const actionStrip = this.createPanel(detail, 412, 56, 118, -118, new Color(46, 54, 68, 255));
 
         this.faqiPrimaryBtn = this.createPanel(actionStrip, 118, 38, -132, 0, new Color(66, 76, 92, 255));
+        this.faqiPrimaryBtn.addComponent(Button).transition = Button.Transition.NONE;
         this.faqiPrimaryBtnLabel = this.createLabel(this.faqiPrimaryBtn, '', 18, new Vec3(0, 0, 0), new Color(238, 244, 250, 255));
         this.faqiPrimaryBtn.on(Node.EventType.TOUCH_END, () => this.onArtifactPrimaryAction(), this);
         this.faqiUpgradeBtn = this.createPanel(actionStrip, 118, 38, 0, 0, new Color(72, 74, 84, 255));
@@ -2553,9 +2581,14 @@ export class GrottoExpeditionDemo extends Component {
         if (this.faqiGlyphLabel) this.faqiGlyphLabel.string = selectedDef.glyph;
         if (this.faqiPrimaryBtn && this.faqiPrimaryBtnLabel) {
             const equipped = this.artifactEquipped[selectedDef.slot] === selectedDef.id;
-            const primaryText = !selectedState.unlocked ? '合成' : equipped ? '已装备' : '装备';
+            const canSynthesize = !selectedState.unlocked && selectedState.shards >= selectedDef.synthCost;
+            const primaryText = !selectedState.unlocked ? (canSynthesize ? '合成' : '碎片不足') : equipped ? '已装备' : '装备';
+            const primaryInteractive = !selectedState.unlocked ? canSynthesize : !equipped;
             this.faqiPrimaryBtnLabel.string = primaryText;
-            this.repaintPanel(this.faqiPrimaryBtn, equipped ? new Color(78, 90, 72, 255) : new Color(66, 76, 92, 255), equipped ? new Color(186, 220, 162, 200) : new Color(152, 184, 216, 180));
+            const button = this.faqiPrimaryBtn.getComponent(Button);
+            if (button) button.interactable = primaryInteractive;
+            this.repaintPanel(this.faqiPrimaryBtn, primaryInteractive ? new Color(66, 76, 92, 255) : new Color(72, 76, 82, 255), primaryInteractive ? new Color(152, 184, 216, 180) : new Color(128, 138, 148, 160));
+            this.faqiPrimaryBtnLabel.color = primaryInteractive ? new Color(238, 244, 250, 255) : new Color(188, 196, 204, 255);
         }
         if (this.faqiUpgradeBtn && this.faqiUpgradeBtnLabel) {
             this.faqiUpgradeBtnLabel.string = `升级(${selectedState.unlocked ? this.getArtifactUpgradeCost(selectedState) : '-'})`;
@@ -2616,13 +2649,14 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private applyExpeditionArtifactRewards(ratio: number) {
-        const expGain = Math.max(0, Math.floor(this.expeditionArtifactExp * ratio));
+        const boostedRatio = ratio < 1 ? ratio * 1.2 : ratio * 1.35;
+        const expGain = Math.max(0, Math.floor(this.expeditionArtifactExp * boostedRatio + this.getCurrentDepth() * 2));
         this.artifactExpPool += expGain;
         const summaries: string[] = [];
         const ids: ArtifactId[] = ['qingshuang', 'lihuo', 'xuanjia', 'huiyuan', 'xunbao', 'guixi'];
         for (let i = 0; i < ids.length; i++) {
             const id = ids[i];
-            const gain = Math.max(0, Math.floor(this.expeditionArtifactShards[id] * ratio));
+            const gain = Math.max(0, Math.floor(this.expeditionArtifactShards[id] * boostedRatio));
             if (gain <= 0) continue;
             this.artifactStates[id].shards += gain;
             summaries.push(`${this.getArtifactDef(id).name}碎片+${gain}`);
@@ -2860,7 +2894,7 @@ export class GrottoExpeditionDemo extends Component {
         this.createLabel(goBtn, '进入秘境', 36, new Vec3(0, 0, 0), new Color(180, 255, 220, 255));
         goBtn.on(Node.EventType.TOUCH_END, () => this.tryStartExpedition(), this);
 
-        this.hintLabel = this.createLabel(this.homeMijingView, '选择秘境后进入挑战；每 10 层一位 Boss，首个 10/20/30 层宝箱可在洞府领取', 20, new Vec3(0, -424, 0), new Color(120, 140, 160, 255), 660);
+        this.hintLabel = this.createLabel(this.homeMijingView, '前期建议先刷练气秘境，缺灵石去商城补给，缺战力先回角色、工坊与法器页整备。', 20, new Vec3(0, -424, 0), new Color(120, 140, 160, 255), 660);
     }
 
     private switchHomeTab(tab: 'dongtian' | 'mijing' | 'shop' | 'faqi' | 'role') {
@@ -3055,10 +3089,6 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private selectForgeRecipe(id: ForgeRecipeId) {
-        if (this.alchemyTab === 'forge' && this.forgeSelectedRecipe === id) {
-            this.tryForge();
-            return;
-        }
         this.forgeSelectedRecipe = id;
         this.alchemyTab = 'forge';
         this.refreshAlchemyPanel();
@@ -3067,17 +3097,9 @@ export class GrottoExpeditionDemo extends Component {
     private tryCraftAlchemy() {
         const recipe = this.getAlchemyRecipe(this.alchemySelectedRecipe);
         const kungfu = this.getEquippedKungfuDef();
-        const missingMaterial = this.getFirstMissingMaterial(recipe.materialCosts);
-        if (missingMaterial) {
-            if (this.alchemyHintLabel) this.alchemyHintLabel.string = `${recipe.name} 需要 ${missingMaterial.def.name} ${missingMaterial.need}，当前仅有 ${missingMaterial.have}。`;
-            return;
-        }
-        if (this.getSpiritStoneTotalValue(this.spiritStoneInventory) < recipe.goldCost) {
-            if (this.alchemyHintLabel) this.alchemyHintLabel.string = `${recipe.name} 需要灵石 ${recipe.goldCost}。`;
-            return;
-        }
-        if (this.dungeonBadge < recipe.badgeCost) {
-            if (this.alchemyHintLabel) this.alchemyHintLabel.string = `${recipe.name} 需要徽记 ${recipe.badgeCost}。`;
+        const failures = this.getWorkshopRequirementFailures(recipe.materialCosts, recipe.goldCost, recipe.badgeCost);
+        if (failures.length > 0) {
+            if (this.alchemyHintLabel) this.alchemyHintLabel.string = `${recipe.name} 缺少：${failures.join('  |  ')}。`;
             return;
         }
         this.consumeMaterials(recipe.materialCosts);
@@ -3102,17 +3124,9 @@ export class GrottoExpeditionDemo extends Component {
     private tryForge() {
         const recipe = this.getForgeRecipe(this.forgeSelectedRecipe);
         const kungfu = this.getEquippedKungfuDef();
-        const missingMaterial = this.getFirstMissingMaterial(recipe.materialCosts);
-        if (missingMaterial) {
-            this.hintLabel.string = `${recipe.name} 缺少 ${missingMaterial.def.name}，需要 ${missingMaterial.need}，当前 ${missingMaterial.have}。`;
-            return;
-        }
-        if (this.getSpiritStoneTotalValue(this.spiritStoneInventory) < recipe.goldCost) {
-            this.hintLabel.string = `${recipe.name} 需要灵石 ${recipe.goldCost}。`;
-            return;
-        }
-        if (this.dungeonBadge < recipe.badgeCost) {
-            this.hintLabel.string = `${recipe.name} 需要徽记 ${recipe.badgeCost}。`;
+        const failures = this.getWorkshopRequirementFailures(recipe.materialCosts, recipe.goldCost, recipe.badgeCost);
+        if (failures.length > 0) {
+            this.hintLabel.string = `${recipe.name} 缺少：${failures.join('  |  ')}。`;
             return;
         }
         this.consumeMaterials(recipe.materialCosts);
@@ -3186,7 +3200,7 @@ export class GrottoExpeditionDemo extends Component {
         }
         if (this.alchemyHintLabel && this.homeAlchemyPanel.active) {
             this.alchemyHintLabel.string = this.alchemyTab === 'forge'
-                ? `炼器师 Lv.${this.forgeMasteryLevel} ${this.forgeMasteryExp}/${this.getForgeMasteryNeed()}  |  已成 ${this.forgeInventory[forgeRecipe.id]} 件  |  再点选中器胚可直接锻造`
+                ? `炼器师 Lv.${this.forgeMasteryLevel} ${this.forgeMasteryExp}/${this.getForgeMasteryNeed()}  |  已成 ${this.forgeInventory[forgeRecipe.id]} 件  |  选中器胚后点击上方按钮开炉炼器`
                 : `丹师 Lv.${this.alchemyMasteryLevel} ${this.alchemyMasteryExp}/${this.getAlchemyMasteryNeed()}  |  库存 ${this.alchemyInventory[recipe.id]} 枚  |  炼成后可手动服用或留作渡劫准备`;
         }
         for (let i = 0; i < ALCHEMY_RECIPES.length; i++) {
@@ -3215,6 +3229,16 @@ export class GrottoExpeditionDemo extends Component {
             if (!label) continue;
             label.string = `x ${this.materialInventory[def.id]}`;
         }
+    }
+
+    private getWorkshopRequirementFailures(materialCosts: Partial<Record<MaterialId, number>>, goldCost: number, badgeCost: number): string[] {
+        const failures: string[] = [];
+        const missingMaterial = this.getFirstMissingMaterial(materialCosts);
+        if (missingMaterial) failures.push(`${missingMaterial.def.name} ${missingMaterial.have}/${missingMaterial.need}`);
+        const spiritStoneTotal = this.getSpiritStoneTotalValue(this.spiritStoneInventory);
+        if (spiritStoneTotal < goldCost) failures.push(`灵石 ${spiritStoneTotal}/${goldCost}`);
+        if (this.dungeonBadge < badgeCost) failures.push(`徽记 ${this.dungeonBadge}/${badgeCost}`);
+        return failures;
     }
 
     private toggleTaskPanel(force?: boolean) {
@@ -3275,16 +3299,25 @@ export class GrottoExpeditionDemo extends Component {
         const selected = this.getKungfuDef(this.selectedKungfuId);
         const selectedLevel = this.getKungfuLevel(selected.id);
         const equipped = this.equippedKungfuId === selected.id;
+        const upgradeCost = this.getKungfuUpgradeCost(selected.id);
+        const canUpgrade = this.getSpiritStoneTotalValue(this.spiritStoneInventory) >= upgradeCost;
         if (this.kungfuPageNameLabel) this.kungfuPageNameLabel.string = `${selected.name}${equipped ? ' · 运转中' : ''}`;
         if (this.kungfuPageInfoLabel) this.kungfuPageInfoLabel.string = `${selected.title}  |  Lv.${selectedLevel}  |  吐纳 ${Math.round((20 + selected.cultivationQiPerSecond) * this.getKungfuBonusScale(selected.id))}灵气/秒\n${selected.summary}`;
         if (this.kungfuPageEffectLabel) this.kungfuPageEffectLabel.string = `丹成 +${Math.round(selected.alchemySuccessBonus * this.getKungfuBonusScale(selected.id) * 100)}% / 出丹 +${Math.floor(selected.alchemyYieldMinBonus * this.getKungfuBonusScale(selected.id))}-${Math.floor(selected.alchemyYieldMaxBonus * this.getKungfuBonusScale(selected.id))}\n器成 +${Math.round(selected.forgeSuccessBonus * this.getKungfuBonusScale(selected.id) * 100)}% / 品质 +${Math.round(selected.forgeQualityBonus * this.getKungfuBonusScale(selected.id) * 100)}%`;
         if (this.kungfuPageHintLabel) this.kungfuPageHintLabel.string = equipped ? '当前主修正在运转，吐纳、炼丹、炼器加成都已生效。' : '点选下方功法后，可直接切换为当前运转功法。';
         if (this.kungfuPageRunButton && this.kungfuPageRunButtonLabel) {
             this.kungfuPageRunButtonLabel.string = equipped ? '运转中' : '切换运转';
+            const button = this.kungfuPageRunButton.getComponent(Button);
+            if (button) button.interactable = !equipped;
             this.repaintPanel(this.kungfuPageRunButton, equipped ? new Color(82, 94, 72, 255) : new Color(96, 78, 54, 255), equipped ? new Color(186, 220, 162, 200) : new Color(226, 196, 138, 200));
+            this.kungfuPageRunButtonLabel.color = equipped ? new Color(200, 214, 188, 255) : new Color(248, 238, 220, 255);
         }
         if (this.kungfuPageUpgradeButton && this.kungfuPageUpgradeButtonLabel) {
-            this.kungfuPageUpgradeButtonLabel.string = `升阶(${this.getKungfuUpgradeCost(selected.id)})`;
+            const button = this.kungfuPageUpgradeButton.getComponent(Button);
+            if (button) button.interactable = canUpgrade;
+            this.kungfuPageUpgradeButtonLabel.string = canUpgrade ? `升阶(${upgradeCost})` : `灵石不足(${upgradeCost})`;
+            this.repaintPanel(this.kungfuPageUpgradeButton, canUpgrade ? new Color(62, 88, 74, 255) : new Color(72, 76, 82, 255), canUpgrade ? new Color(160, 208, 180, 180) : new Color(128, 136, 146, 150));
+            this.kungfuPageUpgradeButtonLabel.color = canUpgrade ? new Color(228, 244, 230, 255) : new Color(188, 196, 204, 255);
         }
         for (let i = 0; i < KUNGFU_DEFS.length; i++) {
             const def = KUNGFU_DEFS[i];
@@ -3313,12 +3346,21 @@ export class GrottoExpeditionDemo extends Component {
         if (this.spiritPetPageEffectLabel) this.spiritPetPageEffectLabel.string = this.getSpiritPetEffectSummary(selected.id);
         if (this.spiritPetPageHintLabel) this.spiritPetPageHintLabel.string = unlocked ? `当前养成消耗：灵石折值 ${this.getSpiritPetUpgradeCost(selected.id)}。点击下方列表可切换养成目标。` : '尚未收服，需在击杀 Boss 时极低概率获得。';
         if (this.spiritPetPageDeployButton && this.spiritPetPageDeployButtonLabel) {
-            this.spiritPetPageDeployButtonLabel.string = deployed ? '已出战' : '设置出战';
-            this.repaintPanel(this.spiritPetPageDeployButton, deployed ? new Color(78, 102, 84, 255) : new Color(64, 90, 74, 255), deployed ? new Color(182, 226, 198, 200) : new Color(144, 200, 170, 180));
+            const canDeploy = unlocked && !deployed;
+            const button = this.spiritPetPageDeployButton.getComponent(Button);
+            if (button) button.interactable = canDeploy;
+            this.spiritPetPageDeployButtonLabel.string = !unlocked ? '未收服' : deployed ? '已出战' : '设置出战';
+            this.repaintPanel(this.spiritPetPageDeployButton, canDeploy ? new Color(64, 90, 74, 255) : new Color(72, 76, 82, 255), canDeploy ? new Color(144, 200, 170, 180) : new Color(128, 136, 146, 150));
+            this.spiritPetPageDeployButtonLabel.color = canDeploy ? new Color(228, 244, 230, 255) : new Color(188, 196, 204, 255);
         }
         if (this.spiritPetPageUpgradeButton && this.spiritPetPageUpgradeButtonLabel) {
-            this.spiritPetPageUpgradeButtonLabel.string = unlocked ? `养成(${this.getSpiritPetUpgradeCost(selected.id)})` : '待收服';
-            this.repaintPanel(this.spiritPetPageUpgradeButton, unlocked ? new Color(76, 82, 96, 255) : new Color(68, 68, 74, 255), unlocked ? new Color(182, 198, 222, 180) : new Color(122, 126, 134, 140));
+            const upgradeCost = this.getSpiritPetUpgradeCost(selected.id);
+            const canUpgrade = unlocked && this.getSpiritStoneTotalValue(this.spiritStoneInventory) >= upgradeCost;
+            const button = this.spiritPetPageUpgradeButton.getComponent(Button);
+            if (button) button.interactable = canUpgrade;
+            this.spiritPetPageUpgradeButtonLabel.string = !unlocked ? '待收服' : canUpgrade ? `养成(${upgradeCost})` : `灵石不足(${upgradeCost})`;
+            this.repaintPanel(this.spiritPetPageUpgradeButton, canUpgrade ? new Color(76, 82, 96, 255) : new Color(68, 68, 74, 255), canUpgrade ? new Color(182, 198, 222, 180) : new Color(122, 126, 134, 140));
+            this.spiritPetPageUpgradeButtonLabel.color = canUpgrade ? new Color(236, 242, 248, 255) : new Color(188, 196, 204, 255);
         }
         for (let i = 0; i < SPIRIT_PET_DEFS.length; i++) {
             const def = SPIRIT_PET_DEFS[i];
@@ -3382,6 +3424,8 @@ export class GrottoExpeditionDemo extends Component {
                 return this.dungeonBestDepth.qi || 0;
             case 'artifactUnlockCount':
                 return ARTIFACT_DEFS.filter((def) => this.artifactStates[def.id].unlocked).length;
+            case 'artifactAdvancedUnlockCount':
+                return ARTIFACT_DEFS.filter((def) => !def.starter && this.artifactStates[def.id].unlocked).length;
             case 'artifactStarThree':
                 return ARTIFACT_DEFS.some((def) => this.artifactStates[def.id].star >= 3) ? 1 : 0;
             case 'zhujiUnlocked':
@@ -3429,14 +3473,29 @@ export class GrottoExpeditionDemo extends Component {
             return;
         }
         if (!this.isTaskCompleted(task)) {
-            this.hintLabel.string = `${task.title} 尚未达成。`;
+            this.hintLabel.string = `${task.title} 尚未达成。${this.getTaskTabNextStepHint(this.taskTab)}`;
             this.refreshTaskPanel();
             return;
         }
         this.taskClaimed[task.id] = true;
         this.applyTaskRewards(task.rewards);
-        this.hintLabel.string = `领取任务奖励：${task.rewardText.replace('奖励: ', '')}。`;
+        this.hintLabel.string = `领取任务奖励：${task.rewardText.replace('奖励: ', '')}。可继续推进下一条修行目标。`;
         this.refreshHomeStatus();
+    }
+
+    private getTaskTabNextStepHint(tab: TaskTab) {
+        switch (tab) {
+            case 'daily':
+                return '去秘境、商城或法器页继续补每日进度。';
+            case 'weekly':
+                return '去工坊炼丹炼器，或挑战 Boss 层继续推进。';
+            case 'achievement':
+                return '继续累积层数、法器与成长里程碑。';
+            case 'mainline':
+                return '继续推进秘境和角色养成来解锁下一步。';
+            default:
+                return '';
+        }
     }
 
     private refreshTaskPanel() {
@@ -3466,9 +3525,12 @@ export class GrottoExpeditionDemo extends Component {
             const completed = this.isTaskCompleted(entry);
             const claimBtn = this.taskRowClaimButtons[i];
             const claimLabel = this.taskRowClaimLabels[i];
+            this.repaintPanel(row, claimed ? new Color(52, 56, 62, 245) : completed ? new Color(56, 50, 42, 245) : new Color(42, 48, 60, 245), claimed ? new Color(120, 126, 132, 140) : completed ? new Color(176, 146, 92, 170) : new Color(84, 98, 116, 140));
             if (claimBtn && claimLabel) {
                 const bg = claimed ? new Color(70, 78, 82, 255) : completed ? new Color(120, 96, 58, 255) : new Color(74, 92, 112, 255);
                 const border = claimed ? new Color(142, 150, 156, 180) : completed ? new Color(232, 194, 118, 220) : new Color(140, 164, 186, 180);
+                const button = claimBtn.getComponent(Button);
+                if (button) button.interactable = !claimed && completed;
                 this.repaintPanel(claimBtn, bg, border);
                 claimLabel.string = claimed ? '已领取' : completed ? '领取' : '未达成';
                 claimLabel.color = claimed ? new Color(180, 188, 194, 255) : completed ? new Color(252, 238, 206, 255) : new Color(214, 224, 236, 255);
@@ -4182,27 +4244,28 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private tryUpgradeBuilding(id: BuildingId) {
+        const def = this.getBuildingDef(id);
         const materialCosts = this.getBuildingUpgradeMaterialCosts(id);
         const missingMaterial = this.getFirstMissingMaterial(materialCosts);
         if (missingMaterial) {
-            this.hintLabel.string = `${this.getBuildingDef(id).name} 升级需 ${missingMaterial.def.name} ${missingMaterial.need}，当前仅有 ${missingMaterial.have}。`;
+            this.hintLabel.string = `${def.name} 升级还缺 ${missingMaterial.def.name} ${missingMaterial.have}/${missingMaterial.need}。可先去秘境采集，或到工坊先处理现有材料。`;
             return;
         }
         const stoneCost = this.getBuildingUpgradeStoneCost(id);
-        if (!this.consumeSpiritStoneValue(stoneCost)) {
-            this.hintLabel.string = `${this.getBuildingDef(id).name} 升级需灵石折值 ${stoneCost}。`;
+        if (this.getSpiritStoneTotalValue(this.spiritStoneInventory) < stoneCost) {
+            this.hintLabel.string = `${def.name} 升级需灵石折值 ${stoneCost}。先去秘境带回灵石或领取任务奖励。`;
             return;
         }
         const badgeCost = this.getBuildingUpgradeBadgeCost(id);
         if (this.dungeonBadge < badgeCost) {
-            this.addSpiritStoneValue(stoneCost, 'home');
-            this.hintLabel.string = `${this.getBuildingDef(id).name} 升级需徽记 ${badgeCost}。`;
+            this.hintLabel.string = `${def.name} 升级需徽记 ${badgeCost}。可先去秘境打 Boss 或领取层数宝箱。`;
             return;
         }
         this.consumeMaterials(materialCosts);
+        this.consumeSpiritStoneValue(stoneCost);
         this.dungeonBadge -= badgeCost;
         this.dongtianBuildingLevels[id] += 1;
-        this.hintLabel.string = `${this.getBuildingDef(id).name} 升至 Lv.${this.getBuildingLevel(id)}。`;
+        this.hintLabel.string = `${def.name} 升至 Lv.${this.getBuildingLevel(id)}。`;
         this.refreshHomeStatus();
     }
 
@@ -4212,8 +4275,8 @@ export class GrottoExpeditionDemo extends Component {
 
     private tryConsumeAlchemyPill() {
         if (this.alchemyTab === 'forge') {
-            this.hintLabel.string = '当前选中为炼器页，需切回炼丹后服用丹药。';
-            return;
+            this.alchemyTab = 'furnace';
+            this.refreshAlchemyPanel();
         }
         const recipe = this.getAlchemyRecipe(this.alchemySelectedRecipe);
         if (this.alchemyInventory[recipe.id] <= 0) {
@@ -4227,11 +4290,11 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private getTribulationPrepNeed(): number {
-        return 36 + this.realmLevel * 14;
+        return 24 + this.realmLevel * 10;
     }
 
     private getTribulationPrepareStoneCost(): number {
-        return 700 + this.realmLevel * 180;
+        return 360 + this.realmLevel * 110;
     }
 
     private getTribulationSuccessRate(): number {
@@ -4299,13 +4362,13 @@ export class GrottoExpeditionDemo extends Component {
             return;
         }
         if (this.getMeritTaskCurrentValue(task) < task.target) {
-            this.hintLabel.string = `${task.title} 尚未完成。`;
+            this.hintLabel.string = `${task.title} 尚未完成。去秘境、工坊或角色页继续推进对应养成。`;
             this.refreshDongtianPanel();
             return;
         }
         this.meritTaskClaimed[task.id] = true;
         this.meritPoint += task.rewardMerit;
-        this.hintLabel.string = `完成洞天差事，功勋 +${task.rewardMerit}。`;
+        this.hintLabel.string = `完成洞天差事，功勋 +${task.rewardMerit}。可去下方功勋商店兑换补给。`;
         this.refreshHomeStatus();
     }
 
@@ -4327,19 +4390,19 @@ export class GrottoExpeditionDemo extends Component {
         if (!item) return;
         const bought = this.meritShopPurchases[id] || 0;
         if (bought >= item.limit) {
-            this.hintLabel.string = `${item.name} 已兑尽，等待刷新。`;
+            this.hintLabel.string = `${item.name} 已兑尽，${this.getRefreshHintText(item.refresh)}。`;
             this.refreshDongtianPanel();
             return;
         }
         if (this.meritPoint < item.cost) {
-            this.hintLabel.string = `${item.name} 需要功勋 ${item.cost}。`;
+            this.hintLabel.string = `${item.name} 需要功勋 ${item.cost}。先完成上方功勋任务再来兑换。`;
             this.refreshDongtianPanel();
             return;
         }
         this.meritPoint -= item.cost;
         this.meritShopPurchases[id] = bought + 1;
         this.applyMeritShopReward(item);
-        this.hintLabel.string = `兑换 ${item.name}，获得 ${item.rewardText}。`;
+        this.hintLabel.string = `兑换 ${item.name}，获得 ${item.rewardText}。可继续整备后返回角色或秘境页。`;
         this.refreshHomeStatus();
     }
 
@@ -4350,6 +4413,10 @@ export class GrottoExpeditionDemo extends Component {
             if (this.alchemyInventory[id] > 0) return this.getAlchemyRecipe(id);
         }
         return null;
+    }
+
+    private getNewlyUnlockedDungeons(previousRealmLevel: number, nextRealmLevel: number): DungeonConfig[] {
+        return DUNGEON_CONFIGS.filter((config) => previousRealmLevel < config.unlockRealm && nextRealmLevel >= config.unlockRealm);
     }
 
     private getTribulationRecipePrepValue(id: AlchemyRecipeId): number {
@@ -4414,12 +4481,19 @@ export class GrottoExpeditionDemo extends Component {
             const cost = this.dongtianBuildingCostLabels[def.id];
             const btn = this.dongtianBuildingButtons[def.id];
             const btnLabel = this.dongtianBuildingButtonLabels[def.id];
+            const materialCosts = this.getBuildingUpgradeMaterialCosts(def.id);
+            const canAfford = !this.getFirstMissingMaterial(materialCosts)
+                && this.getSpiritStoneTotalValue(this.spiritStoneInventory) >= this.getBuildingUpgradeStoneCost(def.id)
+                && this.dungeonBadge >= this.getBuildingUpgradeBadgeCost(def.id);
             if (title) title.string = `${def.name}  Lv.${level}`;
             if (info) info.string = `${def.title}\n${def.summary}`;
-            if (cost) cost.string = `下级: 灵石 ${this.getBuildingUpgradeStoneCost(def.id)} | 徽记 ${this.getBuildingUpgradeBadgeCost(def.id)} | ${this.formatMaterialCosts(this.getBuildingUpgradeMaterialCosts(def.id))}`;
+            if (cost) cost.string = `下级: 灵石 ${this.getBuildingUpgradeStoneCost(def.id)} | 徽记 ${this.getBuildingUpgradeBadgeCost(def.id)} | ${this.formatMaterialCosts(materialCosts)}`;
             if (btn && btnLabel) {
-                this.repaintPanel(btn, new Color(82, 96, 112, 255), new Color(164, 192, 216, 180));
-                btnLabel.string = '升级';
+                const button = btn.getComponent(Button);
+                if (button) button.interactable = canAfford;
+                this.repaintPanel(btn, canAfford ? new Color(82, 96, 112, 255) : new Color(72, 76, 82, 255), canAfford ? new Color(164, 192, 216, 180) : new Color(128, 136, 146, 150));
+                btnLabel.string = canAfford ? '升级' : '待备';
+                btnLabel.color = canAfford ? new Color(238, 244, 250, 255) : new Color(188, 196, 204, 255);
             }
         }
         if (this.dongtianTribulationLabel) {
@@ -4452,6 +4526,8 @@ export class GrottoExpeditionDemo extends Component {
             const soldOut = bought >= item.limit;
             widget.stockLabel.string = soldOut ? '已兑尽' : `余量 ${item.limit - bought}/${item.limit}`;
             widget.stockLabel.color = soldOut ? new Color(188, 144, 144, 255) : new Color(196, 204, 214, 255);
+            const button = widget.button.getComponent(Button);
+            if (button) button.interactable = !soldOut;
             this.repaintPanel(widget.button, soldOut ? new Color(82, 68, 68, 255) : new Color(76, 88, 100, 255), soldOut ? new Color(156, 120, 120, 180) : new Color(166, 192, 216, 180));
             const labels = widget.button.getComponentsInChildren(Label);
             labels.forEach((label) => {
@@ -4807,6 +4883,11 @@ export class GrottoExpeditionDemo extends Component {
             this.hintLabel.string = `${config.label} 需修为 ${config.unlockRealm} 层解锁。`;
             return;
         }
+        const equippedKungfu = this.getEquippedKungfuDef();
+        const petText = this.equippedSpiritPetId && this.spiritPetUnlocked[this.equippedSpiritPetId]
+            ? this.getSpiritPetDef(this.equippedSpiritPetId).name
+            : '未出战';
+        this.hintLabel.string = `进入 ${config.label}。当前运转功法 ${equippedKungfu.name}，灵宠 ${petText}。`;
         this.startExpedition();
     }
 
@@ -4821,8 +4902,8 @@ export class GrottoExpeditionDemo extends Component {
     private getProgressChestRewards(config: DungeonConfig, milestone: number) {
         const tierIndex = this.getDungeonTierIndex(config.id);
         return {
-            spiritStone: milestone * 12 * tierIndex,
-            exp: milestone * 8 * tierIndex,
+            spiritStone: milestone * 16 * tierIndex,
+            exp: milestone * 11 * tierIndex,
             mysticCrystal: Math.max(1, Math.floor(milestone / 10) * tierIndex),
         };
     }
@@ -4924,7 +5005,10 @@ export class GrottoExpeditionDemo extends Component {
         if (this.spiritPetNameLabel) this.spiritPetNameLabel.string = `${selectedPet.name} Lv.${this.getSpiritPetLevel(selectedPet.id)}${this.equippedSpiritPetId === selectedPet.id ? ' · 出战中' : this.spiritPetUnlocked[selectedPet.id] ? '' : ' · 未收服'}`;
         if (this.spiritPetInfoLabel) this.spiritPetInfoLabel.string = `${selectedPet.title}\n${selectedPet.summary}`;
         if (this.spiritPetEffectLabel) this.spiritPetEffectLabel.string = this.getSpiritPetEffectSummary(selectedPet.id);
-        this.selectedDungeonInfoLabel.string = `当前：${current.label} | 解锁修为 ${current.unlockRealm} | 总层数 ${current.maxDepth}`;
+        const expeditionPetText = this.equippedSpiritPetId && this.spiritPetUnlocked[this.equippedSpiritPetId]
+            ? this.getSpiritPetDef(this.equippedSpiritPetId).name
+            : '未出战';
+        this.selectedDungeonInfoLabel.string = `当前：${current.label} | 功法 ${kungfu.name} | 灵宠 ${expeditionPetText} | 总层数 ${current.maxDepth}`;
         DUNGEON_CONFIGS.forEach((config) => {
             const button = this.dungeonButtonNodes[config.id];
             const label = this.dungeonButtonLabels[config.id];
@@ -4996,9 +5080,12 @@ export class GrottoExpeditionDemo extends Component {
         this.realmExp -= this.realmExpNeed;
         this.tribulationPrep = Math.max(0, this.tribulationPrep - Math.max(0, needPrep - shield));
         if (Math.random() < successRate) {
+            const previousRealmLevel = this.realmLevel;
             this.realmLevel += 1;
             this.realmExpNeed = 30 + this.realmLevel * 15;
-            this.hintLabel.string = `雷劫已渡，成功率 ${(successRate * 100).toFixed(0)}%，承受雷劫伤害 ${thunderDamage}。护山大阵抵消余裕 ${shield}，境界突破成功。`;
+            const unlockedDungeons = this.getNewlyUnlockedDungeons(previousRealmLevel, this.realmLevel);
+            const unlockText = unlockedDungeons.length > 0 ? ` 已解锁${unlockedDungeons.map((config) => config.label).join('、')}。` : '';
+            this.hintLabel.string = `雷劫已渡，成功率 ${(successRate * 100).toFixed(0)}%，承受雷劫伤害 ${thunderDamage}。护山大阵抵消余裕 ${shield}，境界突破成功。${unlockText}`;
             this.refreshHomeStatus();
             this.playerHp = this.playerMaxHp;
             this.playerMana = this.playerMaxMana;
@@ -6145,7 +6232,8 @@ export class GrottoExpeditionDemo extends Component {
         const expBase = this.expeditionHerbs * EXP_PER_HERB + this.expeditionTreasure * EXP_PER_TREASURE;
         const takeExp = Math.floor(expBase * ratio);
         const artifactBonuses = this.getEquippedArtifactBonuses();
-        const takeBadge = Math.max(1, Math.floor(takeTreasure * 0.6 * (1 + artifactBonuses.badgeMultiplier)));
+        const depthBonus = Math.max(0, this.getCurrentDepth() - 1);
+        const takeBadge = Math.max(1, Math.floor((takeTreasure * 0.6 + depthBonus * (safe ? 0.8 : 0.45)) * (1 + artifactBonuses.badgeMultiplier)));
         const faqiRewards = this.applyExpeditionArtifactRewards(ratio * (1 + artifactBonuses.rewardMultiplier));
 
         this.realmExp += takeExp;
@@ -6170,7 +6258,8 @@ export class GrottoExpeditionDemo extends Component {
         const gainedMaterials = this.applyMaterialRatioToInventory(1);
         const expGain = this.expeditionHerbs * EXP_PER_HERB + this.expeditionTreasure * EXP_PER_TREASURE + (reachedExit ? 100 : 0);
         const artifactBonuses = this.getEquippedArtifactBonuses();
-        const badgeGain = Math.max(1, Math.floor((this.expeditionTreasure * 0.8 + (reachedExit ? 4 : 0)) * (1 + artifactBonuses.badgeMultiplier)));
+        const depthBonus = Math.max(0, this.getCurrentDepth() - 1);
+        const badgeGain = Math.max(1, Math.floor((this.expeditionTreasure * 0.8 + depthBonus * 0.9 + (reachedExit ? 6 : 0)) * (1 + artifactBonuses.badgeMultiplier)));
         const faqiRewards = this.applyExpeditionArtifactRewards(1 + artifactBonuses.rewardMultiplier);
         this.realmExp += expGain;
         this.dungeonBadge += badgeGain;
@@ -6189,7 +6278,8 @@ export class GrottoExpeditionDemo extends Component {
         const gainedMaterials = this.applyMaterialRatioToInventory(0.5);
         this.realmExp += Math.floor((this.expeditionHerbs * EXP_PER_HERB + this.expeditionTreasure * EXP_PER_TREASURE) * 0.5);
         const artifactBonuses = this.getEquippedArtifactBonuses();
-        const badgeGain = Math.max(1, Math.floor(this.expeditionTreasure * 0.35 * (1 + artifactBonuses.badgeMultiplier)));
+        const depthBonus = Math.max(0, this.getCurrentDepth() - 1);
+        const badgeGain = Math.max(1, Math.floor((this.expeditionTreasure * 0.35 + depthBonus * 0.25) * (1 + artifactBonuses.badgeMultiplier)));
         const faqiRewards = this.applyExpeditionArtifactRewards(0.5 + artifactBonuses.rewardMultiplier * 0.5);
         this.dungeonBadge += badgeGain;
         const dungeon = this.getDungeonConfig();
