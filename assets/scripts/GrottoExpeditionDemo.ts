@@ -14,13 +14,18 @@ import {
     Layers,
     Mask,
     Node,
+    Rect,
     ResolutionPolicy,
     ScrollView,
+    Sprite,
+    SpriteFrame,
+    Texture2D,
     UITransform,
     Vec3,
     director,
     find,
     game,
+    resources,
     tween,
     view,
 } from 'cc';
@@ -134,6 +139,7 @@ interface KungfuListItemWidget {
 
 interface SpiritPetListItemWidget {
     node: Node;
+    iconNode: Node | null;
     titleLabel: Label;
     infoLabel: Label;
     stateLabel: Label;
@@ -321,6 +327,42 @@ const DESIGN_WIDTH = 720;
 const DESIGN_HEIGHT = 1280;
 const HALF_WIDTH = DESIGN_WIDTH * 0.5;
 const HALF_HEIGHT = DESIGN_HEIGHT * 0.5;
+const HOME_LAYOUT = {
+    topBarWidth: 700,
+    topBarHeight: 92,
+    topBarY: 552,
+    contentWidth: 676,
+    contentHeight: 920,
+    contentY: -8,
+    headerWidth: 676,
+    headerHeight: 118,
+    headerY: 378,
+    navBarWidth: 700,
+    navBarHeight: 82,
+    navBarY: -570,
+    navButtonWidth: 112,
+    navButtonHeight: 56,
+    quickButtonSize: 96,
+    quickButtonY: -454,
+    quickButtonStartX: -280,
+    quickButtonGap: 112,
+    modalWidth: 656,
+    modalHeight: 786,
+    modalY: -2,
+    modalTitleY: 338,
+    modalSubtitleY: 302,
+    modalCloseX: 272,
+    modalCloseY: 338,
+    contentTabY: 286,
+    subPageHeight: 676,
+    subPageY: -58,
+    primarySectionHeight: 256,
+    primarySectionY: 154,
+    secondarySectionHeight: 220,
+    secondarySectionY: -104,
+    actionRowY: -312,
+    hintY: -404,
+};
 
 type GameState = 'home' | 'expedition_path' | 'combat' | 'lottery' | 'result';
 
@@ -824,6 +866,7 @@ interface ShopItemDef {
 }
 
 interface ShopItemWidget {
+    card: Node;
     button: Node;
     stockLabel: Label;
 }
@@ -864,6 +907,7 @@ interface ArtifactBonuses {
 
 interface ArtifactCardWidget {
     node: Node;
+    iconNode: Node | null;
     titleLabel: Label;
     infoLabel: Label;
     stateLabel: Label;
@@ -1070,11 +1114,15 @@ export class GrottoExpeditionDemo extends Component {
     private lastCombatPlayerHp = 100;
     private combatDamageFloatCooldown = 0;
     private homeRoleRig: CharacterRig | null = null;
+    private homeRoleRigRoot: Node | null = null;
     private homeRoleAuraOuter: Node | null = null;
     private homeRoleAuraInner: Node | null = null;
     private homeRolePedestal: Node | null = null;
     private homeRoleRibbonLeft: Node | null = null;
     private homeRoleRibbonRight: Node | null = null;
+    private homeRolePortraitSpriteNode: Node | null = null;
+    private bgNode: Node | null = null;
+    private bgSprite: Sprite | null = null;
     private homeRoleSparkles: Node[] = [];
 
     private statusLabel!: Label;
@@ -1087,6 +1135,10 @@ export class GrottoExpeditionDemo extends Component {
     private roleBreakLabel!: Label;
     private roleDungeonLabel!: Label;
     private roleDungeonProgressLabel!: Label;
+    private roleRealmButton: Node | null = null;
+    private roleRealmButtonLabel: Label | null = null;
+    private rolePrepareButton: Node | null = null;
+    private rolePrepareButtonLabel: Label | null = null;
     private kungfuNameLabel: Label | null = null;
     private kungfuInfoLabel: Label | null = null;
     private kungfuEffectLabel: Label | null = null;
@@ -1141,6 +1193,9 @@ export class GrottoExpeditionDemo extends Component {
     private alchemyCostLabel: Label | null = null;
     private alchemyOutputLabel: Label | null = null;
     private alchemyHintLabel: Label | null = null;
+    private alchemyDisplayIconNode: Node | null = null;
+    private alchemyDisplayGlyphLabel: Label | null = null;
+    private alchemyDisplayCaptionLabel: Label | null = null;
     private alchemyCraftBtn: Node | null = null;
     private alchemyCraftBtnLabel: Label | null = null;
     private alchemyUseBtn: Node | null = null;
@@ -1158,6 +1213,7 @@ export class GrottoExpeditionDemo extends Component {
     private dongtianBuildingTitleLabels: Record<BuildingId, Label | null> = { gather: null, alchemy: null, forge: null, ward: null };
     private dongtianBuildingInfoLabels: Record<BuildingId, Label | null> = { gather: null, alchemy: null, forge: null, ward: null };
     private dongtianBuildingCostLabels: Record<BuildingId, Label | null> = { gather: null, alchemy: null, forge: null, ward: null };
+    private dongtianBuildingIconNodes: Record<BuildingId, Node | null> = { gather: null, alchemy: null, forge: null, ward: null };
     private dongtianBuildingButtons: Record<BuildingId, Node | null> = { gather: null, alchemy: null, forge: null, ward: null };
     private dongtianBuildingButtonLabels: Record<BuildingId, Label | null> = { gather: null, alchemy: null, forge: null, ward: null };
     private meritTaskRowTitleLabels: Label[] = [];
@@ -1176,6 +1232,8 @@ export class GrottoExpeditionDemo extends Component {
     private taskClaimed: Record<TaskId, boolean> = createTaskClaimRecord();
     private taskTabButtons: Record<TaskTab, Node | null> = { daily: null, weekly: null, achievement: null, mainline: null };
     private taskRowNodes: Node[] = [];
+    private taskRowBadgeLabels: Label[] = [];
+    private taskRowBadgeIconNodes: Node[] = [];
     private taskRowTitleLabels: Label[] = [];
     private taskRowInfoLabels: Label[] = [];
     private taskRowRewardLabels: Label[] = [];
@@ -1184,6 +1242,7 @@ export class GrottoExpeditionDemo extends Component {
     private kungfuPageNameLabel: Label | null = null;
     private kungfuPageInfoLabel: Label | null = null;
     private kungfuPageEffectLabel: Label | null = null;
+    private kungfuPageSealIcon: Node | null = null;
     private kungfuPageHintLabel: Label | null = null;
     private kungfuPageRunButton: Node | null = null;
     private kungfuPageRunButtonLabel: Label | null = null;
@@ -1216,6 +1275,7 @@ export class GrottoExpeditionDemo extends Component {
     private artifactCardWidgets = new Map<ArtifactId, ArtifactCardWidget>();
     private faqiExpLabel!: Label;
     private faqiGlyphLabel!: Label;
+    private faqiDetailIconNode: Node | null = null;
     private faqiDetailTitleLabel!: Label;
     private faqiDetailInfoLabel!: Label;
     private faqiDetailEffectLabel!: Label;
@@ -1240,6 +1300,8 @@ export class GrottoExpeditionDemo extends Component {
     private shopDailyKey = '';
     private shopWeeklyKey = '';
     private shopItemWidgets = new Map<string, ShopItemWidget>();
+    private xianxiaTextureCache = new Map<string, SpriteFrame | null>();
+    private xianxiaTexturePending = new Map<string, Array<(sf: SpriteFrame | null) => void>>();
     private shopGoldTabButtons: Record<'daily' | 'weekly', Node | null> = {
         daily: null,
         weekly: null,
@@ -1305,6 +1367,7 @@ export class GrottoExpeditionDemo extends Component {
         this.buildCombatUI();
         this.buildLotteryUI();
         this.buildResultUI();
+        this.loadXianxiaAssetOverrides();
     }
 
     private drawBg() {
@@ -1312,27 +1375,215 @@ export class GrottoExpeditionDemo extends Component {
         bg.layer = Layers.Enum.UI_2D;
         this.node.addChild(bg);
         bg.addComponent(UITransform).setContentSize(DESIGN_WIDTH, DESIGN_HEIGHT);
-        const g = bg.addComponent(Graphics);
+        this.bgNode = bg;
+
+        const fallbackNode = new Node('BgFallback');
+        fallbackNode.layer = Layers.Enum.UI_2D;
+        bg.addChild(fallbackNode);
+        fallbackNode.addComponent(UITransform).setContentSize(DESIGN_WIDTH, DESIGN_HEIGHT);
+        const g = fallbackNode.addComponent(Graphics);
         g.fillColor = new Color(22, 22, 28, 255);
         g.rect(-HALF_WIDTH, -HALF_HEIGHT, DESIGN_WIDTH, DESIGN_HEIGHT);
         g.fill();
         g.fillColor = new Color(35, 38, 45, 255);
         g.rect(-HALF_WIDTH + 20, -HALF_HEIGHT + 20, DESIGN_WIDTH - 40, DESIGN_HEIGHT - 40);
         g.fill();
+
+        const spriteNode = new Node('BgSprite');
+        spriteNode.layer = Layers.Enum.UI_2D;
+        bg.addChild(spriteNode);
+        spriteNode.addComponent(UITransform).setContentSize(DESIGN_WIDTH, DESIGN_HEIGHT);
+        const sprite = spriteNode.addComponent(Sprite);
+        sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+        spriteNode.active = false;
+        this.bgSprite = sprite;
+
+        this.loadXianxiaTexture('grotto-bg', (sf) => {
+            if (sf && sprite.isValid) {
+                sprite.spriteFrame = sf;
+                spriteNode.active = true;
+                fallbackNode.active = false;
+            }
+        });
+    }
+
+    /** 加载 xianxia 目录下的图片为 SpriteFrame；先试 texture 子资源再试主资源 */
+    private loadXianxiaTexture(name: string, callback: (sf: SpriteFrame | null) => void) {
+        if (this.xianxiaTextureCache.has(name)) {
+            callback(this.xianxiaTextureCache.get(name) ?? null);
+            return;
+        }
+        const pending = this.xianxiaTexturePending.get(name);
+        if (pending) {
+            pending.push(callback);
+            return;
+        }
+        this.xianxiaTexturePending.set(name, [callback]);
+        const base = `art/generated/xianxia/${name}`;
+        const finalize = (sf: SpriteFrame | null) => {
+            this.xianxiaTextureCache.set(name, sf);
+            const queue = this.xianxiaTexturePending.get(name) || [];
+            this.xianxiaTexturePending.delete(name);
+            queue.forEach((cb) => cb(sf));
+        };
+        const onTexture = (err: Error | null, texture: Texture2D | null) => {
+            if (err || !texture) {
+                finalize(null);
+                return;
+            }
+            const sf = new SpriteFrame();
+            sf.texture = texture;
+            sf.rect = new Rect(0, 0, texture.width, texture.height);
+            finalize(sf);
+        };
+        resources.load(`${base}/texture`, Texture2D, (err, tex) => {
+            if (!err && tex) {
+                onTexture(null, tex as Texture2D);
+                return;
+            }
+            resources.load(base, Texture2D, (err2, tex2) => onTexture(err2, tex2 as Texture2D));
+        });
+    }
+
+    /** 加载并应用法器、洞天建筑、灵宠等 xianxia 图标资源 */
+    private loadXianxiaAssetOverrides() {
+        ARTIFACT_DEFS.forEach((def) => {
+            this.loadXianxiaTexture(`icon-artifact-${def.id}`, (sf) => {
+                const w = this.artifactCardWidgets.get(def.id);
+                if (sf && w?.iconNode?.isValid) {
+                    const s = w.iconNode.getComponent(Sprite);
+                    if (s) s.spriteFrame = sf;
+                    this.applyAssetDisplayScale(w.iconNode, `icon-artifact-${def.id}`);
+                }
+            });
+        });
+        this.loadXianxiaTexture('icon-nav-faqi', (sf) => {
+            const faqiIcon = this.homeNavIcons.faqi;
+            if (sf && faqiIcon?.isValid) {
+                const child = faqiIcon.getChildByName('FaqiSprite');
+                if (child?.isValid) {
+                    const s = child.getComponent(Sprite);
+                    if (s) s.spriteFrame = sf;
+                    this.applyAssetDisplayScale(child, 'icon-nav-faqi');
+                }
+            }
+        });
+        this.loadXianxiaTexture('building-alchemy', (sf) => {
+            const n = this.dongtianBuildingIconNodes.alchemy;
+            if (sf && n?.isValid) {
+                const s = n.getComponent(Sprite);
+                if (s) s.spriteFrame = sf;
+                this.applyAssetDisplayScale(n, 'building-alchemy');
+            }
+        });
+        this.loadXianxiaTexture('building-forge', (sf) => {
+            const n = this.dongtianBuildingIconNodes.forge;
+            if (sf && n?.isValid) {
+                const s = n.getComponent(Sprite);
+                if (s) s.spriteFrame = sf;
+                this.applyAssetDisplayScale(n, 'building-forge');
+            }
+        });
+        this.loadXianxiaTexture('icon-building-gather', (sf) => {
+            const n = this.dongtianBuildingIconNodes.gather;
+            if (sf && n?.isValid) {
+                const s = n.getComponent(Sprite);
+                if (s) s.spriteFrame = sf;
+                this.applyAssetDisplayScale(n, 'icon-building-gather');
+            }
+        });
+        this.loadXianxiaTexture('icon-building-ward', (sf) => {
+            const n = this.dongtianBuildingIconNodes.ward;
+            if (sf && n?.isValid) {
+                const s = n.getComponent(Sprite);
+                if (s) s.spriteFrame = sf;
+                this.applyAssetDisplayScale(n, 'icon-building-ward');
+            }
+        });
+        this.loadXianxiaTexture('icon-quick-spiritpet', (sf) => {
+            const btn = this.homeSpiritPetQuickButton;
+            if (sf && btn?.isValid) {
+                const icon = btn.getChildByName('SpiritPetIcon');
+                const spriteNode = icon?.getChildByName('SpiritPetQuickSprite');
+                if (spriteNode?.isValid) {
+                    const s = spriteNode.getComponent(Sprite);
+                    if (s) s.spriteFrame = sf;
+                    this.applyAssetDisplayScale(spriteNode, 'icon-quick-spiritpet');
+                }
+            }
+        });
+        SPIRIT_PET_DEFS.forEach((def) => {
+            this.loadXianxiaTexture(`icon-spirit-${def.id}`, (sf) => {
+                const w = this.spiritPetListWidgets.get(def.id);
+                if (sf && w?.iconNode?.isValid) {
+                    const s = w.iconNode.getComponent(Sprite);
+                    if (s) s.spriteFrame = sf;
+                    this.applyAssetDisplayScale(w.iconNode, `icon-spirit-${def.id}`);
+                }
+            });
+        });
+    }
+
+    /** 切换底层背景图（洞府 / 秘境）；秘境更深层失败时回退到 dungeon-qi-bg */
+    private setBgTexture(name: string, fallbackName?: string) {
+        if (!this.bgSprite || !this.bgSprite.isValid) return;
+        const apply = (sf: SpriteFrame | null) => {
+            if (sf && this.bgSprite && this.bgSprite.isValid) {
+                this.bgSprite.spriteFrame = sf;
+                this.bgSprite.node.active = true;
+                if (this.bgNode && this.bgNode.isValid) {
+                    const fallback = this.bgNode.getChildByName('BgFallback');
+                    if (fallback) fallback.active = false;
+                }
+            }
+        };
+        this.loadXianxiaTexture(name, (sf) => {
+            if (sf) apply(sf);
+            else if (fallbackName) this.loadXianxiaTexture(fallbackName, apply);
+        });
     }
 
     private buildHomeUI() {
-        const topBar = this.createPanel(this.homeLayer, 700, 74, 0, 560, new Color(28, 34, 42, 248));
-        const avatar = this.createPanel(topBar, 52, 52, -300, 0, new Color(62, 72, 90, 255));
-        this.createLabel(avatar, '道', 24, new Vec3(0, 0, 0), new Color(216, 226, 238, 255));
-        this.homeGoldLabel = this.createLabel(topBar, '灵石 0', 22, new Vec3(-170, 0, 0), new Color(255, 220, 120, 255), 140);
-        this.homeDiamondLabel = this.createLabel(topBar, '钻石 0', 22, new Vec3(-20, 0, 0), new Color(160, 210, 255, 255), 140);
+        const topBar = this.createPanel(this.homeLayer, HOME_LAYOUT.topBarWidth, HOME_LAYOUT.topBarHeight, 0, HOME_LAYOUT.topBarY, new Color(28, 34, 42, 248));
+        const avatar = this.createPanel(topBar, 62, 62, -294, 0, new Color(62, 72, 90, 255));
+        const avatarLabel = this.createLabel(avatar, '道', 28, new Vec3(0, 0, 0), new Color(216, 226, 238, 255));
+        const avatarIconNode = new Node('AvatarIcon');
+        avatarIconNode.layer = Layers.Enum.UI_2D;
+        avatar.addChild(avatarIconNode);
+        avatarIconNode.addComponent(UITransform).setContentSize(48, 48);
+        const avatarSprite = avatarIconNode.addComponent(Sprite);
+        avatarSprite.sizeMode = Sprite.SizeMode.CUSTOM;
+        avatarIconNode.active = false;
+        this.loadXianxiaTexture('icon-badge', (sf) => {
+            if (sf && avatarSprite && avatarIconNode.isValid) {
+                avatarSprite.spriteFrame = sf;
+                this.applyAssetDisplayScale(avatarIconNode, 'icon-badge');
+                avatarIconNode.active = true;
+                if (avatarLabel && avatarLabel.node && avatarLabel.node.isValid) avatarLabel.node.active = false;
+            }
+        });
+        const goldIconNode = new Node('GoldIcon');
+        goldIconNode.layer = Layers.Enum.UI_2D;
+        topBar.addChild(goldIconNode);
+        goldIconNode.setPosition(-228, 0, 0);
+        goldIconNode.addComponent(UITransform).setContentSize(40, 40);
+        goldIconNode.addComponent(Sprite).sizeMode = Sprite.SizeMode.CUSTOM;
+        this.loadXianxiaTexture('icon-spirit-stone', (sf) => { const s = goldIconNode.getComponent(Sprite); if (sf && s && goldIconNode.isValid) { s.spriteFrame = sf; this.applyAssetDisplayScale(goldIconNode, 'icon-spirit-stone'); } });
+        this.homeGoldLabel = this.createLabel(topBar, '0', 24, new Vec3(-172, 0, 0), new Color(255, 220, 120, 255), 116);
+        const diamondIconNode = new Node('DiamondIcon');
+        diamondIconNode.layer = Layers.Enum.UI_2D;
+        topBar.addChild(diamondIconNode);
+        diamondIconNode.setPosition(-64, 0, 0);
+        diamondIconNode.addComponent(UITransform).setContentSize(40, 40);
+        diamondIconNode.addComponent(Sprite).sizeMode = Sprite.SizeMode.CUSTOM;
+        this.loadXianxiaTexture('icon-mystic-crystal', (sf) => { const s = diamondIconNode.getComponent(Sprite); if (sf && s && diamondIconNode.isValid) { s.spriteFrame = sf; this.applyAssetDisplayScale(diamondIconNode, 'icon-mystic-crystal'); } });
+        this.homeDiamondLabel = this.createLabel(topBar, '0', 24, new Vec3(-6, 0, 0), new Color(160, 210, 255, 255), 116);
 
         this.homeContentRoot = new Node('HomeContentRoot');
         this.homeContentRoot.layer = Layers.Enum.UI_2D;
         this.homeLayer.addChild(this.homeContentRoot);
-        this.homeContentRoot.setPosition(0, -12, 0);
-        this.homeContentRoot.addComponent(UITransform).setContentSize(DESIGN_WIDTH, 980);
+        this.homeContentRoot.setPosition(0, HOME_LAYOUT.contentY, 0);
+        this.homeContentRoot.addComponent(UITransform).setContentSize(HOME_LAYOUT.contentWidth, HOME_LAYOUT.contentHeight);
 
         this.homeDongtianView = this.createHomeView('DongtianView');
         this.homeShopView = this.createHomeView('ShopView');
@@ -1349,7 +1600,7 @@ export class GrottoExpeditionDemo extends Component {
         this.buildHomeKungfuPanel();
         this.buildHomeSpiritPetPanel();
 
-        const navBar = this.createPanel(this.homeLayer, 700, 82, 0, -570, new Color(32, 38, 48, 250));
+        const navBar = this.createPanel(this.homeLayer, HOME_LAYOUT.navBarWidth, HOME_LAYOUT.navBarHeight, 0, HOME_LAYOUT.navBarY, new Color(32, 38, 48, 250));
         const tabs: Array<{ key: 'shop' | 'faqi' | 'role' | 'mijing' | 'dongtian'; label: string }> = [
             { key: 'shop', label: '商城' },
             { key: 'faqi', label: '法器' },
@@ -1359,25 +1610,34 @@ export class GrottoExpeditionDemo extends Component {
         ];
         tabs.forEach((tab, index) => {
             const x = -280 + index * 140;
-            const btn = this.createPanel(navBar, 112, 56, x, 0, new Color(45, 52, 62, 255));
+            const btn = this.createPanel(navBar, HOME_LAYOUT.navButtonWidth, HOME_LAYOUT.navButtonHeight, x, 0, new Color(45, 52, 62, 255));
             const iconNode = new Node(`${tab.key}Icon`);
             iconNode.layer = Layers.Enum.UI_2D;
             btn.addChild(iconNode);
-            iconNode.setPosition(0, 11, 0);
-            iconNode.addComponent(UITransform).setContentSize(34, 30);
+            iconNode.setPosition(0, 8, 0);
+            iconNode.addComponent(UITransform).setContentSize(28, 24);
+            if (tab.key === 'faqi') {
+                const faqiSprite = new Node('FaqiSprite');
+                faqiSprite.layer = Layers.Enum.UI_2D;
+                iconNode.addChild(faqiSprite);
+                faqiSprite.setPosition(0, 0, 0);
+                faqiSprite.addComponent(UITransform).setContentSize(28, 24);
+                faqiSprite.addComponent(Sprite).sizeMode = Sprite.SizeMode.CUSTOM;
+            }
             this.drawHomeNavIcon(iconNode, tab.key, false);
             this.createLabel(btn, tab.label, 16, new Vec3(0, -14, 0), new Color(180, 195, 210, 255));
             btn.on(Node.EventType.TOUCH_END, () => {
                 if (tab.key === 'role') this.roleQuickFocus = 'general';
                 this.closeRoleFeaturePanels();
                 this.toggleAlchemyPanel(false);
+                this.toggleTaskPanel(false);
                 this.switchHomeTab(tab.key);
             }, this);
             this.homeNavButtons[tab.key] = btn;
             this.homeNavIcons[tab.key] = iconNode;
         });
 
-        const taskBtn = this.createPanel(this.homeLayer, 96, 96, -280, -454, new Color(46, 56, 72, 248));
+        const taskBtn = this.createPanel(this.homeLayer, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonStartX, HOME_LAYOUT.quickButtonY, new Color(46, 56, 72, 248));
         const taskIcon = new Node('TaskIcon');
         taskIcon.layer = Layers.Enum.UI_2D;
         taskBtn.addChild(taskIcon);
@@ -1388,7 +1648,7 @@ export class GrottoExpeditionDemo extends Component {
         taskBtn.on(Node.EventType.TOUCH_END, () => this.toggleTaskPanel(), this);
         this.homeTaskButton = taskBtn;
 
-        const alchemyBtn = this.createPanel(this.homeLayer, 96, 96, -168, -454, new Color(66, 52, 42, 248));
+        const alchemyBtn = this.createPanel(this.homeLayer, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonStartX + HOME_LAYOUT.quickButtonGap, HOME_LAYOUT.quickButtonY, new Color(66, 52, 42, 248));
         const alchemyIcon = new Node('AlchemyIcon');
         alchemyIcon.layer = Layers.Enum.UI_2D;
         alchemyBtn.addChild(alchemyIcon);
@@ -1399,7 +1659,7 @@ export class GrottoExpeditionDemo extends Component {
         alchemyBtn.on(Node.EventType.TOUCH_END, () => this.openWorkshopPanel('furnace'), this);
         this.homeAlchemyQuickButton = alchemyBtn;
 
-        const forgeBtn = this.createPanel(this.homeLayer, 96, 96, -56, -454, new Color(52, 58, 72, 248));
+        const forgeBtn = this.createPanel(this.homeLayer, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonStartX + HOME_LAYOUT.quickButtonGap * 2, HOME_LAYOUT.quickButtonY, new Color(52, 58, 72, 248));
         const forgeIcon = new Node('ForgeIcon');
         forgeIcon.layer = Layers.Enum.UI_2D;
         forgeBtn.addChild(forgeIcon);
@@ -1410,7 +1670,7 @@ export class GrottoExpeditionDemo extends Component {
         forgeBtn.on(Node.EventType.TOUCH_END, () => this.openWorkshopPanel('forge'), this);
         this.homeForgeQuickButton = forgeBtn;
 
-        const kungfuBtn = this.createPanel(this.homeLayer, 96, 96, 56, -454, new Color(72, 58, 42, 248));
+        const kungfuBtn = this.createPanel(this.homeLayer, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonStartX + HOME_LAYOUT.quickButtonGap * 3, HOME_LAYOUT.quickButtonY, new Color(72, 58, 42, 248));
         const kungfuIcon = new Node('KungfuIcon');
         kungfuIcon.layer = Layers.Enum.UI_2D;
         kungfuBtn.addChild(kungfuIcon);
@@ -1421,12 +1681,18 @@ export class GrottoExpeditionDemo extends Component {
         kungfuBtn.on(Node.EventType.TOUCH_END, () => this.openRoleFeature('kungfu'), this);
         this.homeKungfuQuickButton = kungfuBtn;
 
-        const spiritPetBtn = this.createPanel(this.homeLayer, 96, 96, 168, -454, new Color(48, 70, 66, 248));
+        const spiritPetBtn = this.createPanel(this.homeLayer, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonStartX + HOME_LAYOUT.quickButtonGap * 4, HOME_LAYOUT.quickButtonY, new Color(48, 70, 66, 248));
         const spiritPetIcon = new Node('SpiritPetIcon');
         spiritPetIcon.layer = Layers.Enum.UI_2D;
         spiritPetBtn.addChild(spiritPetIcon);
         spiritPetIcon.setPosition(0, 12, 0);
         spiritPetIcon.addComponent(UITransform).setContentSize(40, 40);
+        const spiritPetQuickSprite = new Node('SpiritPetQuickSprite');
+        spiritPetQuickSprite.layer = Layers.Enum.UI_2D;
+        spiritPetIcon.addChild(spiritPetQuickSprite);
+        spiritPetQuickSprite.setPosition(0, 0, 0);
+        spiritPetQuickSprite.addComponent(UITransform).setContentSize(40, 40);
+        spiritPetQuickSprite.addComponent(Sprite).sizeMode = Sprite.SizeMode.CUSTOM;
         this.drawSpiritPetQuickIcon(spiritPetIcon, false);
         this.createLabel(spiritPetBtn, '灵宠', 18, new Vec3(0, -24, 0), new Color(214, 240, 228, 255), 80);
         spiritPetBtn.on(Node.EventType.TOUCH_END, () => this.openRoleFeature('pet'), this);
@@ -1441,17 +1707,100 @@ export class GrottoExpeditionDemo extends Component {
         const viewNode = new Node(name);
         viewNode.layer = Layers.Enum.UI_2D;
         this.homeContentRoot.addChild(viewNode);
-        viewNode.addComponent(UITransform).setContentSize(DESIGN_WIDTH, 980);
+        viewNode.addComponent(UITransform).setContentSize(HOME_LAYOUT.contentWidth, HOME_LAYOUT.contentHeight);
         viewNode.active = false;
         return viewNode;
     }
 
+    private createStandardHomeHeader(parent: Node, title: string, subtitle: string, fill = new Color(38, 46, 58, 245), titleColor = new Color(244, 238, 220, 255), subtitleColor = new Color(174, 192, 210, 255)) {
+        const header = this.createPanel(parent, HOME_LAYOUT.headerWidth, HOME_LAYOUT.headerHeight, 0, HOME_LAYOUT.headerY, fill);
+        const glyphAccent = this.tintColor(titleColor, -24, 255);
+        const seal = this.createPanel(header, 58, 58, -276, 0, this.tintColor(fill, 18, 255));
+        this.createLabel(seal, title.slice(0, 1), 26, new Vec3(0, 0, 0), glyphAccent, 36);
+        const titleLabel = this.createLabel(header, title, 32, new Vec3(-134, 16, 0), titleColor, 264);
+        titleLabel.horizontalAlign = HorizontalTextAlignment.LEFT;
+        const subtitleLabel = this.createLabel(header, subtitle, 16, new Vec3(44, -12, 0), subtitleColor, 446);
+        subtitleLabel.horizontalAlign = HorizontalTextAlignment.LEFT;
+
+        const ornament = new Node('HeaderOrnament');
+        ornament.layer = Layers.Enum.UI_2D;
+        header.addChild(ornament);
+        ornament.setPosition(226, 0, 0);
+        ornament.addComponent(UITransform).setContentSize(120, 24);
+        const ornamentG = ornament.addComponent(Graphics);
+        ornamentG.strokeColor = new Color(titleColor.r, titleColor.g, titleColor.b, 124);
+        ornamentG.lineWidth = 1.5;
+        ornamentG.moveTo(-52, 0);
+        ornamentG.lineTo(52, 0);
+        ornamentG.moveTo(-34, -8);
+        ornamentG.lineTo(34, -8);
+        ornamentG.stroke();
+        return header;
+    }
+
+    private createSectionHeader(parent: Node, title: string, subtitle: string, accent: Color, glyph: string, titleWidth = 180, subtitleWidth = 420) {
+        const transform = parent.getComponent(UITransform);
+        const panelWidth = transform?.contentSize.width ?? 640;
+        const panelHeight = transform?.contentSize.height ?? 200;
+        const seal = this.createPanel(parent, 52, 52, -panelWidth / 2 + 54, panelHeight / 2 - 44, new Color(accent.r, accent.g, accent.b, 46));
+        this.createLabel(seal, glyph, 24, new Vec3(0, 0, 0), new Color(246, 240, 228, 255), 32);
+
+        const titleLabel = this.createLabel(parent, title, 28, new Vec3(-panelWidth / 2 + 156, panelHeight / 2 - 30, 0), new Color(244, 238, 220, 255), titleWidth);
+        titleLabel.horizontalAlign = HorizontalTextAlignment.LEFT;
+        const subtitleLabel = this.createLabel(parent, subtitle, 16, new Vec3(-panelWidth / 2 + 252, panelHeight / 2 - 60, 0), new Color(174, 192, 210, 255), subtitleWidth);
+        subtitleLabel.horizontalAlign = HorizontalTextAlignment.LEFT;
+
+        const band = new Node('SectionBand');
+        band.layer = Layers.Enum.UI_2D;
+        parent.addChild(band);
+        band.setPosition(0, panelHeight / 2 - 16, 0);
+        band.addComponent(UITransform).setContentSize(panelWidth - 40, 6);
+        const bandG = band.addComponent(Graphics);
+        bandG.fillColor = new Color(accent.r, accent.g, accent.b, 58);
+        bandG.roundRect(-(panelWidth - 40) / 2, -3, panelWidth - 40, 6, 3);
+        bandG.fill();
+    }
+
+    private createOverlayMask(name: string, onClose: () => void, alpha = 144) {
+        const mask = new Node(name);
+        mask.layer = Layers.Enum.UI_2D;
+        this.homeLayer.addChild(mask);
+        mask.addComponent(UITransform).setContentSize(DESIGN_WIDTH, DESIGN_HEIGHT);
+        mask.setPosition(0, 0, 0);
+        const maskG = mask.addComponent(Graphics);
+        maskG.fillColor = new Color(8, 12, 18, alpha);
+        maskG.rect(-HALF_WIDTH, -HALF_HEIGHT, DESIGN_WIDTH, DESIGN_HEIGHT);
+        maskG.fill();
+        mask.on(Node.EventType.TOUCH_END, onClose, this);
+        mask.active = false;
+        return mask;
+    }
+
+    private createStandardModalPanel(name: string, title: string, subtitle: string, onClose: () => void, fill = new Color(34, 40, 52, 252)) {
+        const panel = this.createPanel(this.homeLayer, HOME_LAYOUT.modalWidth, HOME_LAYOUT.modalHeight, 0, HOME_LAYOUT.modalY, fill);
+        this.addTitleBarArt(panel, 316, HOME_LAYOUT.modalTitleY - 2, 244);
+        this.createLabel(panel, title, 34, new Vec3(0, HOME_LAYOUT.modalTitleY, 0), new Color(244, 236, 214, 255), 280);
+        this.createLabel(panel, subtitle, 18, new Vec3(0, HOME_LAYOUT.modalSubtitleY, 0), new Color(166, 184, 202, 255), 560);
+        const closeBtn = this.createPanel(panel, 62, 36, HOME_LAYOUT.modalCloseX, HOME_LAYOUT.modalCloseY, new Color(62, 70, 82, 255));
+        this.createLabel(closeBtn, '收起', 16, new Vec3(0, 0, 0), new Color(228, 236, 244, 255), 50);
+        closeBtn.on(Node.EventType.TOUCH_END, onClose, this);
+        panel.active = false;
+        return panel;
+    }
+
+    private setOverlayVisible(mask: Node | null, panel: Node | null, active: boolean) {
+        if (!mask || !panel) return;
+        mask.active = active;
+        panel.active = active;
+        if (!active) return;
+        mask.setSiblingIndex(this.homeLayer.children.length - 1);
+        panel.setSiblingIndex(this.homeLayer.children.length - 1);
+    }
+
     private buildHomeDongtianView() {
-        const header = this.createPanel(this.homeDongtianView, 676, 128, 0, 378, new Color(36, 44, 56, 245));
-        this.createLabel(header, '青岚洞天', 34, new Vec3(-220, 28, 0), new Color(244, 238, 220, 255), 180);
-        this.createLabel(header, '玩家洞府已可挂载入洞天，借洞天灵机经营府内诸阵，并承接功勋差事。', 17, new Vec3(28, 26, 0), new Color(176, 194, 212, 255), 470);
-        this.dongtianMountLabel = this.createLabel(header, '', 18, new Vec3(0, -12, 0), new Color(214, 224, 236, 255), 612);
-        this.dongtianMeritLabel = this.createLabel(header, '', 17, new Vec3(0, -46, 0), new Color(222, 208, 164, 255), 612);
+        const header = this.createStandardHomeHeader(this.homeDongtianView, '青岚洞天', '借洞天灵机经营府内诸阵，并承接功勋差事与护劫筹备。', new Color(36, 44, 56, 245));
+        this.dongtianMountLabel = this.createLabel(header, '', 18, new Vec3(0, -34, 0), new Color(214, 224, 236, 255), 612);
+        this.dongtianMeritLabel = this.createLabel(header, '', 17, new Vec3(0, -64, 0), new Color(222, 208, 164, 255), 612);
 
         const tabDefs: Array<{ key: DongtianTab; label: string; x: number }> = [
             { key: 'cave', label: '洞府灵域', x: -92 },
@@ -1459,7 +1808,7 @@ export class GrottoExpeditionDemo extends Component {
         ];
         for (let i = 0; i < tabDefs.length; i++) {
             const tab = tabDefs[i];
-            const tabBtn = this.createPanel(this.homeDongtianView, 156, 42, tab.x, 300, new Color(54, 62, 74, 255));
+            const tabBtn = this.createPanel(this.homeDongtianView, 156, 42, tab.x, HOME_LAYOUT.contentTabY, new Color(54, 62, 74, 255));
             this.createLabel(tabBtn, tab.label, 18, new Vec3(0, 0, 0), new Color(216, 226, 238, 255), 120);
             tabBtn.on(Node.EventType.TOUCH_END, () => this.switchDongtianTab(tab.key), this);
             this.dongtianTabButtons[tab.key] = tabBtn;
@@ -1468,16 +1817,42 @@ export class GrottoExpeditionDemo extends Component {
         this.dongtianCavePage = new Node('DongtianCavePage');
         this.dongtianCavePage.layer = Layers.Enum.UI_2D;
         this.homeDongtianView.addChild(this.dongtianCavePage);
-        this.dongtianCavePage.addComponent(UITransform).setContentSize(676, 700);
-        this.dongtianCavePage.setPosition(0, -28, 0);
+        this.dongtianCavePage.addComponent(UITransform).setContentSize(676, HOME_LAYOUT.subPageHeight);
+        this.dongtianCavePage.setPosition(0, HOME_LAYOUT.subPageY, 0);
 
         const buildingXs = [-166, 166, -166, 166];
-        const buildingYs = [188, 188, 26, 26];
+        const buildingYs = [166, 166, 12, 12];
         for (let i = 0; i < DONGTIAN_BUILDINGS.length; i++) {
             const def = DONGTIAN_BUILDINGS[i];
             const card = this.createPanel(this.dongtianCavePage, 286, 142, buildingXs[i], buildingYs[i], new Color(40, 48, 60, 245));
             const seal = this.createPanel(card, 52, 52, -96, 34, new Color(72, 84, 98, 255));
-            this.createLabel(seal, def.glyph, 28, new Vec3(0, 0, 0), new Color(242, 236, 220, 255), 34);
+            const glyphLabel = this.createLabel(seal, def.glyph, 28, new Vec3(0, 0, 0), new Color(242, 236, 220, 255), 34);
+            if (def.id === 'alchemy' || def.id === 'forge' || def.id === 'gather' || def.id === 'ward') {
+                const iconNode = new Node('BuildingIcon');
+                iconNode.layer = Layers.Enum.UI_2D;
+                seal.addChild(iconNode);
+                iconNode.setPosition(0, 0, 0);
+                iconNode.addComponent(UITransform).setContentSize(46, 46);
+                iconNode.addComponent(Sprite).sizeMode = Sprite.SizeMode.CUSTOM;
+                iconNode.active = false;
+                this.dongtianBuildingIconNodes[def.id] = iconNode;
+                const assetName = def.id === 'alchemy'
+                    ? 'building-alchemy'
+                    : def.id === 'forge'
+                        ? 'building-forge'
+                        : def.id === 'gather'
+                            ? 'icon-building-gather'
+                            : 'icon-building-ward';
+                this.loadXianxiaTexture(assetName, (sf) => {
+                    if (sf && iconNode.isValid) {
+                        const s = iconNode.getComponent(Sprite);
+                        if (s) s.spriteFrame = sf;
+                        this.applyAssetDisplayScale(iconNode, assetName);
+                        iconNode.active = true;
+                        if (glyphLabel.node.isValid) glyphLabel.node.active = false;
+                    }
+                });
+            }
             this.dongtianBuildingTitleLabels[def.id] = this.createLabel(card, '', 21, new Vec3(26, 38, 0), new Color(244, 238, 220, 255), 182);
             const info = this.createLabel(card, '', 15, new Vec3(26, 6, 0), new Color(182, 198, 216, 255), 192);
             info.lineHeight = 18;
@@ -1491,25 +1866,23 @@ export class GrottoExpeditionDemo extends Component {
             this.dongtianBuildingButtonLabels[def.id] = btnLabel;
         }
 
-        const tribulationPanel = this.createPanel(this.dongtianCavePage, 676, 190, 0, -196, new Color(38, 46, 58, 245));
-        this.createLabel(tribulationPanel, '护劫概览', 30, new Vec3(-232, 54, 0), new Color(244, 238, 220, 255), 140);
-        this.createLabel(tribulationPanel, '洞府灵脉与护山大阵会提供渡劫加成。实际筹备入口已收口到角色界面的“渡劫准备”按钮。', 16, new Vec3(24, 56, 0), new Color(174, 192, 210, 255), 454);
-        this.dongtianSummaryLabel = this.createLabel(tribulationPanel, '', 17, new Vec3(0, 20, 0), new Color(214, 224, 236, 255), 612);
-        this.dongtianSpiritLabel = this.createLabel(tribulationPanel, '', 16, new Vec3(0, -12, 0), new Color(222, 208, 164, 255), 612);
-        this.dongtianTribulationLabel = this.createLabel(tribulationPanel, '', 16, new Vec3(0, -44, 0), new Color(196, 220, 200, 255), 612);
-        this.createLabel(tribulationPanel, '前往角色界面进行渡劫准备', 18, new Vec3(0, -78, 0), new Color(228, 236, 208, 255), 260);
+        const tribulationPanel = this.createPanel(this.dongtianCavePage, 676, 212, 0, -206, new Color(38, 46, 58, 245));
+        this.createSectionHeader(tribulationPanel, '护劫概览', '洞府灵脉与护山大阵会提供渡劫加成，实际筹备入口已收口到角色界面。', new Color(176, 214, 200, 255), '劫');
+        this.dongtianSummaryLabel = this.createLabel(tribulationPanel, '', 17, new Vec3(0, 30, 0), new Color(214, 224, 236, 255), 612);
+        this.dongtianSpiritLabel = this.createLabel(tribulationPanel, '', 16, new Vec3(0, -2, 0), new Color(222, 208, 164, 255), 612);
+        this.dongtianTribulationLabel = this.createLabel(tribulationPanel, '', 16, new Vec3(0, -34, 0), new Color(196, 220, 200, 255), 612);
+        this.createLabel(tribulationPanel, '前往角色界面进行渡劫准备', 18, new Vec3(0, -70, 0), new Color(228, 236, 208, 255), 260);
 
         this.dongtianMeritPage = new Node('DongtianMeritPage');
         this.dongtianMeritPage.layer = Layers.Enum.UI_2D;
         this.homeDongtianView.addChild(this.dongtianMeritPage);
-        this.dongtianMeritPage.addComponent(UITransform).setContentSize(676, 700);
-        this.dongtianMeritPage.setPosition(0, -28, 0);
+        this.dongtianMeritPage.addComponent(UITransform).setContentSize(676, HOME_LAYOUT.subPageHeight);
+        this.dongtianMeritPage.setPosition(0, HOME_LAYOUT.subPageY, 0);
 
-        const meritTaskPanel = this.createPanel(this.dongtianMeritPage, 676, 272, 0, 146, new Color(38, 46, 58, 245));
-        this.createLabel(meritTaskPanel, '功勋任务', 28, new Vec3(-238, 94, 0), new Color(244, 238, 220, 255), 140);
-        this.createLabel(meritTaskPanel, '承接洞天差事换取功勋，可用于换取护劫资源与洞天专供。', 16, new Vec3(30, 92, 0), new Color(174, 192, 210, 255), 450);
+        const meritTaskPanel = this.createPanel(this.dongtianMeritPage, 676, 284, 0, 130, new Color(38, 46, 58, 245));
+        this.createSectionHeader(meritTaskPanel, '功勋任务', '承接洞天差事换取功勋，可用于换取护劫资源与洞天专供。', new Color(222, 208, 164, 255), '勋');
         for (let i = 0; i < MERIT_TASKS.length; i++) {
-            const row = this.createPanel(meritTaskPanel, 628, 60, 0, 34 - i * 72, new Color(44, 52, 64, 245));
+            const row = this.createPanel(meritTaskPanel, 628, 60, 0, 40 - i * 72, new Color(44, 52, 64, 245));
             const title = this.createLabel(row, '', 18, new Vec3(-148, 12, 0), new Color(242, 238, 226, 255), 270);
             title.horizontalAlign = HorizontalTextAlignment.LEFT;
             const info = this.createLabel(row, '', 15, new Vec3(-148, -12, 0), new Color(176, 192, 210, 255), 270);
@@ -1525,13 +1898,13 @@ export class GrottoExpeditionDemo extends Component {
             this.meritTaskRowClaimLabels.push(claimLabel);
         }
 
-        const meritShopPanel = this.createPanel(this.dongtianMeritPage, 676, 272, 0, -166, new Color(38, 46, 58, 245));
-        this.createLabel(meritShopPanel, '功勋商店', 28, new Vec3(-238, 96, 0), new Color(244, 238, 220, 255), 140);
-        this.createLabel(meritShopPanel, '洞天巡守、护劫符令与灵石供给皆可由功勋换取。', 16, new Vec3(28, 94, 0), new Color(174, 192, 210, 255), 450);
+        const meritShopPanel = this.createPanel(this.dongtianMeritPage, 676, 272, 0, -176, new Color(38, 46, 58, 245));
+        this.createSectionHeader(meritShopPanel, '功勋商店', '洞天巡守、护劫符令与灵石供给皆可由功勋换取。', new Color(196, 220, 200, 255), '赏');
         const xs = [-204, 0, 204];
         for (let i = 0; i < MERIT_SHOP_ITEMS.length; i++) {
             const item = MERIT_SHOP_ITEMS[i];
             const card = this.createPanel(meritShopPanel, 190, 156, xs[i], -20, new Color(44, 52, 64, 245));
+            this.createStatusBadgeNode(card, 68, 54, 30);
             this.createLabel(card, item.name, 20, new Vec3(0, 42, 0), new Color(242, 238, 226, 255), 150);
             this.createLabel(card, `功勋 ${item.cost}`, 16, new Vec3(0, 12, 0), new Color(226, 206, 160, 255), 150);
             this.createLabel(card, item.rewardText, 15, new Vec3(0, -18, 0), new Color(176, 192, 210, 255), 156);
@@ -1548,23 +1921,8 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private buildHomeAlchemyPanel() {
-        this.homeAlchemyMask = new Node('AlchemyMask');
-        this.homeAlchemyMask.layer = Layers.Enum.UI_2D;
-        this.homeLayer.addChild(this.homeAlchemyMask);
-        this.homeAlchemyMask.addComponent(UITransform).setContentSize(DESIGN_WIDTH, DESIGN_HEIGHT);
-        this.homeAlchemyMask.setPosition(0, 0, 0);
-        const maskG = this.homeAlchemyMask.addComponent(Graphics);
-        maskG.fillColor = new Color(8, 12, 18, 150);
-        maskG.rect(-HALF_WIDTH, -HALF_HEIGHT, DESIGN_WIDTH, DESIGN_HEIGHT);
-        maskG.fill();
-        this.homeAlchemyMask.on(Node.EventType.TOUCH_END, () => this.toggleAlchemyPanel(false), this);
-
-        this.homeAlchemyPanel = this.createPanel(this.homeLayer, 660, 786, 0, -8, new Color(34, 40, 52, 252));
-        this.createLabel(this.homeAlchemyPanel, '丹器工坊', 34, new Vec3(0, 338, 0), new Color(246, 230, 200, 255), 280);
-        this.createLabel(this.homeAlchemyPanel, '以命名灵植与灵矿炼丹、炼器，补足局外成长与法器养成', 18, new Vec3(0, 302, 0), new Color(174, 190, 206, 255), 560);
-        const closeBtn = this.createPanel(this.homeAlchemyPanel, 62, 36, 276, 338, new Color(62, 70, 82, 255));
-        this.createLabel(closeBtn, '收起', 16, new Vec3(0, 0, 0), new Color(228, 236, 244, 255), 50);
-        closeBtn.on(Node.EventType.TOUCH_END, () => this.toggleAlchemyPanel(false), this);
+        this.homeAlchemyMask = this.createOverlayMask('AlchemyMask', () => this.toggleAlchemyPanel(false), 150);
+        this.homeAlchemyPanel = this.createStandardModalPanel('AlchemyPanel', '丹器工坊', '以命名灵植与灵矿炼丹、炼器，补足局外成长与法器养成', () => this.toggleAlchemyPanel(false));
 
         const tabDefs: Array<{ key: AlchemyTab; label: string; x: number }> = [
             { key: 'furnace', label: '炼丹', x: -210 },
@@ -1574,7 +1932,7 @@ export class GrottoExpeditionDemo extends Component {
         ];
         for (let i = 0; i < tabDefs.length; i++) {
             const tab = tabDefs[i];
-            const tabBtn = this.createPanel(this.homeAlchemyPanel, 110, 42, tab.x, 244, new Color(52, 60, 72, 255));
+            const tabBtn = this.createPanel(this.homeAlchemyPanel, 110, 42, tab.x, 250, new Color(52, 60, 72, 255));
             this.createLabel(tabBtn, tab.label, 18, new Vec3(0, 0, 0), new Color(212, 222, 234, 255), 100);
             tabBtn.on(Node.EventType.TOUCH_END, () => this.switchAlchemyTab(tab.key), this);
             this.alchemyTabButtons[tab.key] = tabBtn;
@@ -1587,8 +1945,10 @@ export class GrottoExpeditionDemo extends Component {
         this.alchemyFurnacePage.setPosition(0, -54, 0);
         const furnaceCore = this.createPanel(this.alchemyFurnacePage, 604, 320, 0, 72, new Color(44, 48, 60, 245));
         const cauldron = this.createPanel(furnaceCore, 148, 148, -194, 14, new Color(70, 56, 44, 255));
-        this.createLabel(cauldron, '炉', 52, new Vec3(0, 16, 0), new Color(246, 232, 206, 255), 80);
-        this.createLabel(cauldron, '丹火常燃', 18, new Vec3(0, -46, 0), new Color(196, 186, 170, 255), 100);
+        const cauldronInner = this.createPanel(cauldron, 116, 116, 0, 8, new Color(92, 76, 56, 255));
+        this.alchemyDisplayIconNode = this.createAssetSpriteNode(cauldronInner, 'AlchemyDisplayIcon', 106, 106, new Vec3(0, 0, 0));
+        this.alchemyDisplayGlyphLabel = this.createLabel(cauldron, '炉', 52, new Vec3(0, 22, 0), new Color(246, 232, 206, 255), 80);
+        this.alchemyDisplayCaptionLabel = this.createLabel(cauldron, '当前丹方', 18, new Vec3(0, -46, 0), new Color(196, 186, 170, 255), 100);
         this.alchemyTitleLabel = this.createLabel(furnaceCore, '', 30, new Vec3(56, 76, 0), new Color(244, 238, 220, 255), 360);
         this.alchemyInfoLabel = this.createLabel(furnaceCore, '', 18, new Vec3(82, 28, 0), new Color(182, 198, 216, 255), 420);
         this.alchemyCostLabel = this.createLabel(furnaceCore, '', 18, new Vec3(82, -26, 0), new Color(226, 206, 160, 255), 420);
@@ -1614,7 +1974,23 @@ export class GrottoExpeditionDemo extends Component {
             const recipe = ALCHEMY_RECIPES[i];
             const card = this.createPanel(this.alchemyFormulaPage, 252, 152, formulaXs[i], formulaYs[i], new Color(42, 48, 60, 245));
             const seal = this.createPanel(card, 58, 58, -82, 26, new Color(74, 60, 46, 255));
-            this.createLabel(seal, recipe.glyph, 30, new Vec3(0, 0, 0), new Color(246, 230, 198, 255), 36);
+            const glyphLabel = this.createLabel(seal, recipe.glyph, 30, new Vec3(0, 0, 0), new Color(246, 230, 198, 255), 36);
+            const iconNode = new Node('AlchemyRecipeIcon');
+            iconNode.layer = Layers.Enum.UI_2D;
+            seal.addChild(iconNode);
+            iconNode.setPosition(0, 0, 0);
+            iconNode.addComponent(UITransform).setContentSize(42, 42);
+            iconNode.addComponent(Sprite).sizeMode = Sprite.SizeMode.CUSTOM;
+            iconNode.active = false;
+            this.loadXianxiaTexture(`icon-pill-${recipe.id}`, (sf) => {
+                if (sf && iconNode.isValid) {
+                    const s = iconNode.getComponent(Sprite);
+                    if (s) s.spriteFrame = sf;
+                    this.applyAssetDisplayScale(iconNode, `icon-pill-${recipe.id}`);
+                    iconNode.active = true;
+                    if (glyphLabel.node.isValid) glyphLabel.node.active = false;
+                }
+            });
             const titleLabel = this.createLabel(card, recipe.name, 24, new Vec3(24, 38, 0), new Color(244, 238, 220, 255), 160);
             const infoLabel = this.createLabel(card, '', 16, new Vec3(26, 2, 0), new Color(182, 198, 216, 255), 174);
             const stateLabel = this.createLabel(card, '', 15, new Vec3(26, -38, 0), new Color(206, 194, 162, 255), 174);
@@ -1634,7 +2010,23 @@ export class GrottoExpeditionDemo extends Component {
             const card = this.createPanel(this.alchemyStorehousePage, 252, 86, materialXs[i], materialYs[i], new Color(42, 48, 60, 245));
             const accent = RARITY_COLORS[material.rarity];
             const seal = this.createPanel(card, 48, 48, -84, 0, new Color(accent.r, accent.g, accent.b, 56));
-            this.createLabel(seal, material.shortName.slice(0, 1), 24, new Vec3(0, 0, 0), new Color(246, 230, 198, 255), 26);
+            const glyphLabel = this.createLabel(seal, material.shortName.slice(0, 1), 24, new Vec3(0, 0, 0), new Color(246, 230, 198, 255), 26);
+            const iconNode = new Node('MaterialIcon');
+            iconNode.layer = Layers.Enum.UI_2D;
+            seal.addChild(iconNode);
+            iconNode.setPosition(0, 0, 0);
+            iconNode.addComponent(UITransform).setContentSize(34, 34);
+            iconNode.addComponent(Sprite).sizeMode = Sprite.SizeMode.CUSTOM;
+            iconNode.active = false;
+            this.loadXianxiaTexture(`icon-material-${material.id}`, (sf) => {
+                if (sf && iconNode.isValid) {
+                    const s = iconNode.getComponent(Sprite);
+                    if (s) s.spriteFrame = sf;
+                    this.applyAssetDisplayScale(iconNode, `icon-material-${material.id}`);
+                    iconNode.active = true;
+                    if (glyphLabel.node.isValid) glyphLabel.node.active = false;
+                }
+            });
             const name = this.createLabel(card, material.name, 20, new Vec3(18, 16, 0), new Color(244, 238, 220, 255), 150);
             name.horizontalAlign = HorizontalTextAlignment.LEFT;
             const kind = this.createLabel(card, `${RARITY_NAMES[material.rarity]}${material.kind === 'herb' ? '灵植' : '灵矿'}`, 15, new Vec3(18, -12, 0), new Color(accent.r, accent.g, accent.b, 255), 150);
@@ -1653,7 +2045,23 @@ export class GrottoExpeditionDemo extends Component {
             const recipe = FORGE_RECIPES[i];
             const card = this.createPanel(this.alchemyForgePage, 264, 154, forgeXs[i], forgeYs[i], new Color(42, 48, 60, 245));
             const seal = this.createPanel(card, 58, 58, -86, 26, new Color(82, 66, 48, 255));
-            this.createLabel(seal, recipe.glyph, 30, new Vec3(0, 0, 0), new Color(246, 230, 198, 255), 36);
+            const glyphLabel = this.createLabel(seal, recipe.glyph, 30, new Vec3(0, 0, 0), new Color(246, 230, 198, 255), 36);
+            const iconNode = new Node('ForgeRecipeIcon');
+            iconNode.layer = Layers.Enum.UI_2D;
+            seal.addChild(iconNode);
+            iconNode.setPosition(0, 0, 0);
+            iconNode.addComponent(UITransform).setContentSize(42, 42);
+            iconNode.addComponent(Sprite).sizeMode = Sprite.SizeMode.CUSTOM;
+            iconNode.active = false;
+            this.loadXianxiaTexture(`icon-forge-${recipe.id}`, (sf) => {
+                if (sf && iconNode.isValid) {
+                    const s = iconNode.getComponent(Sprite);
+                    if (s) s.spriteFrame = sf;
+                    this.applyAssetDisplayScale(iconNode, `icon-forge-${recipe.id}`);
+                    iconNode.active = true;
+                    if (glyphLabel.node.isValid) glyphLabel.node.active = false;
+                }
+            });
             const titleLabel = this.createLabel(card, recipe.name, 23, new Vec3(20, 38, 0), new Color(244, 238, 220, 255), 170);
             const infoLabel = this.createLabel(card, '', 16, new Vec3(20, 2, 0), new Color(182, 198, 216, 255), 182);
             const stateLabel = this.createLabel(card, '', 15, new Vec3(20, -38, 0), new Color(206, 194, 162, 255), 182);
@@ -1661,29 +2069,12 @@ export class GrottoExpeditionDemo extends Component {
             this.forgeRecipeWidgets.set(recipe.id, { node: card, titleLabel, infoLabel, stateLabel });
         }
 
-        this.homeAlchemyMask.active = false;
-        this.homeAlchemyPanel.active = false;
         this.refreshAlchemyPanel();
     }
 
     private buildHomeTaskPanel() {
-        this.homeTaskMask = new Node('TaskMask');
-        this.homeTaskMask.layer = Layers.Enum.UI_2D;
-        this.homeLayer.addChild(this.homeTaskMask);
-        this.homeTaskMask.addComponent(UITransform).setContentSize(DESIGN_WIDTH, DESIGN_HEIGHT);
-        this.homeTaskMask.setPosition(0, 0, 0);
-        const maskG = this.homeTaskMask.addComponent(Graphics);
-        maskG.fillColor = new Color(8, 12, 18, 140);
-        maskG.rect(-HALF_WIDTH, -HALF_HEIGHT, DESIGN_WIDTH, DESIGN_HEIGHT);
-        maskG.fill();
-        this.homeTaskMask.on(Node.EventType.TOUCH_END, () => this.toggleTaskPanel(false), this);
-
-        this.homeTaskPanel = this.createPanel(this.homeLayer, 652, 768, 0, -2, new Color(34, 40, 52, 252));
-        this.createLabel(this.homeTaskPanel, '修行任务簿', 34, new Vec3(0, 334, 0), new Color(244, 236, 214, 255), 260);
-        this.createLabel(this.homeTaskPanel, '按日常、周常、成就与主线统筹修行节奏', 18, new Vec3(0, 298, 0), new Color(166, 184, 202, 255), 520);
-        const closeBtn = this.createPanel(this.homeTaskPanel, 62, 36, 270, 334, new Color(62, 70, 82, 255));
-        this.createLabel(closeBtn, '收起', 16, new Vec3(0, 0, 0), new Color(228, 236, 244, 255), 50);
-        closeBtn.on(Node.EventType.TOUCH_END, () => this.toggleTaskPanel(false), this);
+        this.homeTaskMask = this.createOverlayMask('TaskMask', () => this.toggleTaskPanel(false), 140);
+        this.homeTaskPanel = this.createStandardModalPanel('TaskPanel', '修行任务簿', '按日常、周常、成就与主线统筹修行节奏', () => this.toggleTaskPanel(false));
 
         const tabDefs: Array<{ key: TaskTab; label: string; x: number }> = [
             { key: 'daily', label: '每日任务', x: -210 },
@@ -1693,24 +2084,38 @@ export class GrottoExpeditionDemo extends Component {
         ];
         for (let i = 0; i < tabDefs.length; i++) {
             const tab = tabDefs[i];
-            const tabBtn = this.createPanel(this.homeTaskPanel, 126, 42, tab.x, 246, new Color(52, 60, 72, 255));
+            const tabBtn = this.createPanel(this.homeTaskPanel, 126, 42, tab.x, 250, new Color(52, 60, 72, 255));
             this.createLabel(tabBtn, tab.label, 18, new Vec3(0, 0, 0), new Color(210, 220, 232, 255), 110);
             tabBtn.on(Node.EventType.TOUCH_END, () => this.switchTaskTab(tab.key), this);
             this.taskTabButtons[tab.key] = tabBtn;
         }
 
         for (let i = 0; i < 3; i++) {
-            const row = this.createPanel(this.homeTaskPanel, 592, 146, 0, 96 - i * 184, new Color(42, 48, 60, 245));
-            const badge = this.createPanel(row, 72, 72, -228, 0, new Color(60, 72, 88, 255));
-            this.createLabel(badge, `${i + 1}`, 28, new Vec3(0, 0, 0), new Color(242, 236, 220, 255), 48);
-            const titleLabel = this.createLabel(row, '', 24, new Vec3(42, 38, 0), new Color(242, 238, 226, 255), 380);
-            const infoLabel = this.createLabel(row, '', 18, new Vec3(42, 0, 0), new Color(176, 192, 210, 255), 400);
-            const rewardLabel = this.createLabel(row, '', 17, new Vec3(42, -42, 0), new Color(222, 208, 164, 255), 400);
-            const claimBtn = this.createPanel(row, 110, 42, 212, 0, new Color(74, 92, 112, 255));
+            const row = this.createPanel(this.homeTaskPanel, 592, 156, 0, 102 - i * 176, new Color(42, 48, 60, 245));
+            this.createStatusBadgeNode(row, 248, 52, 32);
+            const badge = this.createPanel(row, 88, 88, -220, 4, new Color(60, 72, 88, 255));
+            const badgeLabel = this.createLabel(badge, `${i + 1}`, 28, new Vec3(0, 0, 0), new Color(242, 236, 220, 255), 48);
+            const badgeIconNode = new Node('TaskBadgeIcon');
+            badgeIconNode.layer = Layers.Enum.UI_2D;
+            badge.addChild(badgeIconNode);
+            badgeIconNode.setPosition(0, 0, 0);
+            badgeIconNode.addComponent(UITransform).setContentSize(56, 56);
+            badgeIconNode.addComponent(Sprite).sizeMode = Sprite.SizeMode.CUSTOM;
+            badgeIconNode.active = false;
+            const titleLabel = this.createLabel(row, '', 24, new Vec3(48, 46, 0), new Color(242, 238, 226, 255), 324);
+            titleLabel.horizontalAlign = HorizontalTextAlignment.LEFT;
+            const infoLabel = this.createLabel(row, '', 18, new Vec3(48, 10, 0), new Color(176, 192, 210, 255), 336);
+            infoLabel.horizontalAlign = HorizontalTextAlignment.LEFT;
+            const rewardLabel = this.createLabel(row, '', 17, new Vec3(48, -30, 0), new Color(222, 208, 164, 255), 336);
+            rewardLabel.horizontalAlign = HorizontalTextAlignment.LEFT;
+            const claimBtn = this.createPanel(row, 118, 44, 212, -26, new Color(74, 92, 112, 255));
             claimBtn.addComponent(Button).transition = Button.Transition.NONE;
-            const claimLabel = this.createLabel(claimBtn, '未达成', 18, new Vec3(0, 0, 0), new Color(226, 234, 242, 255), 92);
+            this.createLabel(row, '任务操作', 14, new Vec3(212, 28, 0), new Color(156, 174, 194, 255), 108);
+            const claimLabel = this.createLabel(claimBtn, '未达成', 18, new Vec3(0, 0, 0), new Color(226, 234, 242, 255), 100);
             claimBtn.on(Node.EventType.TOUCH_END, () => this.claimTaskByRow(i), this);
             this.taskRowNodes.push(row);
+            this.taskRowBadgeLabels.push(badgeLabel);
+            this.taskRowBadgeIconNodes.push(badgeIconNode);
             this.taskRowTitleLabels.push(titleLabel);
             this.taskRowInfoLabels.push(infoLabel);
             this.taskRowRewardLabels.push(rewardLabel);
@@ -1718,60 +2123,78 @@ export class GrottoExpeditionDemo extends Component {
             this.taskRowClaimLabels.push(claimLabel);
         }
 
-        this.homeTaskMask.active = false;
-        this.homeTaskPanel.active = false;
         this.refreshTaskPanel();
     }
 
     private buildHomeKungfuPanel() {
-        this.homeKungfuMask = new Node('KungfuMask');
-        this.homeKungfuMask.layer = Layers.Enum.UI_2D;
-        this.homeLayer.addChild(this.homeKungfuMask);
-        this.homeKungfuMask.addComponent(UITransform).setContentSize(DESIGN_WIDTH, DESIGN_HEIGHT);
-        this.homeKungfuMask.setPosition(0, 0, 0);
-        const maskG = this.homeKungfuMask.addComponent(Graphics);
-        maskG.fillColor = new Color(8, 12, 18, 140);
-        maskG.rect(-HALF_WIDTH, -HALF_HEIGHT, DESIGN_WIDTH, DESIGN_HEIGHT);
-        maskG.fill();
-        this.homeKungfuMask.on(Node.EventType.TOUCH_END, () => this.toggleKungfuPanel(false), this);
+        this.homeKungfuMask = this.createOverlayMask('KungfuMask', () => this.toggleKungfuPanel(false), 140);
+        this.homeKungfuPanel = this.createStandardModalPanel('KungfuPanel', '功法阁', '由低到高观览诸法，切换当前运转功法并决定主修方向', () => this.toggleKungfuPanel(false));
 
-        this.homeKungfuPanel = this.createPanel(this.homeLayer, 652, 768, 0, -2, new Color(34, 40, 52, 252));
-        this.createLabel(this.homeKungfuPanel, '功法阁', 34, new Vec3(0, 328, 0), new Color(244, 236, 214, 255), 260);
-        this.createLabel(this.homeKungfuPanel, '由低到高观览诸法，切换当前运转功法并决定主修方向', 18, new Vec3(0, 292, 0), new Color(166, 184, 202, 255), 540);
-        const closeBtn = this.createPanel(this.homeKungfuPanel, 62, 36, 270, 328, new Color(62, 70, 82, 255));
-        this.createLabel(closeBtn, '收起', 16, new Vec3(0, 0, 0), new Color(228, 236, 244, 255), 50);
-        closeBtn.on(Node.EventType.TOUCH_END, () => this.toggleKungfuPanel(false), this);
-
-        const detail = this.createPanel(this.homeKungfuPanel, 596, 246, 0, 156, new Color(42, 48, 60, 245));
-        const seal = this.createPanel(detail, 112, 112, -214, 18, new Color(86, 70, 50, 255));
-        this.createLabel(seal, '诀', 46, new Vec3(0, 8, 0), new Color(246, 232, 206, 255), 52);
-        this.createLabel(seal, '主修法门', 16, new Vec3(0, -34, 0), new Color(198, 188, 170, 255), 88);
-        this.kungfuPageNameLabel = this.createLabel(detail, '', 30, new Vec3(66, 74, 0), new Color(244, 238, 220, 255), 390);
-        this.kungfuPageInfoLabel = this.createLabel(detail, '', 18, new Vec3(78, 24, 0), new Color(186, 202, 220, 255), 406);
-        this.kungfuPageEffectLabel = this.createLabel(detail, '', 17, new Vec3(78, -38, 0), new Color(220, 212, 174, 255), 406);
-        const actionStrip = this.createPanel(detail, 364, 52, 98, -104, new Color(46, 54, 68, 255));
-        this.kungfuPageRunButton = this.createPanel(actionStrip, 136, 36, -78, 0, new Color(96, 78, 54, 255));
+        const detail = this.createPanel(this.homeKungfuPanel, 596, 252, 0, 152, new Color(42, 48, 60, 245));
+        const seal = this.createPanel(detail, 124, 124, -208, 20, new Color(86, 70, 50, 255));
+        const sealInner = this.createPanel(seal, 92, 92, 0, 10, new Color(108, 86, 60, 255));
+        const sealGlyph = this.createLabel(seal, '诀', 40, new Vec3(0, 16, 0), new Color(246, 232, 206, 255), 52);
+        this.createLabel(seal, '主修法门', 16, new Vec3(0, -42, 0), new Color(198, 188, 170, 255), 88);
+        const sealIconNode = new Node('KungfuSealIcon');
+        sealIconNode.layer = Layers.Enum.UI_2D;
+        sealInner.addChild(sealIconNode);
+        sealIconNode.setPosition(0, 0, 0);
+        sealIconNode.addComponent(UITransform).setContentSize(72, 72);
+        sealIconNode.addComponent(Sprite).sizeMode = Sprite.SizeMode.CUSTOM;
+        sealIconNode.active = false;
+        this.kungfuPageSealIcon = sealIconNode;
+        this.loadXianxiaTexture(`icon-kungfu-${this.selectedKungfuId}`, (sf) => {
+            if (sf && sealIconNode.isValid) {
+                const s = sealIconNode.getComponent(Sprite);
+                if (s) s.spriteFrame = sf;
+                sealIconNode.setScale(1.02, 1.02, 1);
+                sealIconNode.active = true;
+                if (sealGlyph.node.isValid) sealGlyph.node.active = false;
+            }
+        });
+        this.kungfuPageNameLabel = this.createLabel(detail, '', 30, new Vec3(76, 78, 0), new Color(244, 238, 220, 255), 372);
+        this.kungfuPageInfoLabel = this.createLabel(detail, '', 18, new Vec3(88, 26, 0), new Color(186, 202, 220, 255), 388);
+        this.kungfuPageEffectLabel = this.createLabel(detail, '', 17, new Vec3(88, -34, 0), new Color(220, 212, 174, 255), 388);
+        const actionStrip = this.createPanel(detail, 394, 54, 102, -106, new Color(46, 54, 68, 255));
+        this.kungfuPageRunButton = this.createPanel(actionStrip, 144, 38, -82, 0, new Color(96, 78, 54, 255));
         this.kungfuPageRunButton.addComponent(Button).transition = Button.Transition.NONE;
-        this.kungfuPageRunButtonLabel = this.createLabel(this.kungfuPageRunButton, '', 17, new Vec3(0, 0, 0), new Color(248, 238, 220, 255), 116);
+        this.kungfuPageRunButtonLabel = this.createLabel(this.kungfuPageRunButton, '', 17, new Vec3(0, 0, 0), new Color(248, 238, 220, 255), 124);
         this.kungfuPageRunButton.on(Node.EventType.TOUCH_END, () => this.equipSelectedKungfu(), this);
-        this.kungfuPageUpgradeButton = this.createPanel(actionStrip, 136, 36, 78, 0, new Color(62, 88, 74, 255));
+        this.kungfuPageUpgradeButton = this.createPanel(actionStrip, 164, 38, 86, 0, new Color(62, 88, 74, 255));
         this.kungfuPageUpgradeButton.addComponent(Button).transition = Button.Transition.NONE;
-        this.kungfuPageUpgradeButtonLabel = this.createLabel(this.kungfuPageUpgradeButton, '', 17, new Vec3(0, 0, 0), new Color(228, 244, 230, 255), 116);
+        this.kungfuPageUpgradeButtonLabel = this.createLabel(this.kungfuPageUpgradeButton, '', 17, new Vec3(0, 0, 0), new Color(228, 244, 230, 255), 148);
         this.kungfuPageUpgradeButton.on(Node.EventType.TOUCH_END, () => this.tryUpgradeSelectedKungfu(), this);
-        this.kungfuPageHintLabel = this.createLabel(detail, '', 15, new Vec3(0, -146, 0), new Color(170, 188, 206, 255), 520);
+        this.kungfuPageHintLabel = this.createLabel(detail, '', 15, new Vec3(0, -148, 0), new Color(170, 188, 206, 255), 520);
 
         const listPanel = this.createPanel(this.homeKungfuPanel, 596, 354, 0, -172, new Color(40, 46, 58, 245));
-        this.createLabel(listPanel, '功法谱录', 28, new Vec3(-214, 142, 0), new Color(244, 238, 220, 255), 160);
-        this.createLabel(listPanel, '由低到高陈列全部功法，点选即可切换当前参悟目标', 16, new Vec3(34, 142, 0), new Color(150, 166, 186, 255), 380);
+        this.createSectionHeader(listPanel, '功法谱录', '由低到高陈列全部功法，点选即可切换当前参悟目标。', new Color(226, 206, 160, 255), '谱', 160, 360);
         for (let i = 0; i < KUNGFU_DEFS.length; i++) {
             const def = KUNGFU_DEFS[i];
-            const card = this.createPanel(listPanel, 548, 72, 0, 62 - i * 82, new Color(42, 48, 58, 245));
-            this.createLabel(card, def.glyph, 28, new Vec3(-232, 0, 0), new Color(226, 206, 160, 255), 32);
+            const card = this.createPanel(listPanel, 548, 76, 0, 60 - i * 82, new Color(42, 48, 58, 245));
+            this.createStatusBadgeNode(card, 232, 0, 30);
+            const glyphLabel = this.createLabel(card, def.glyph, 28, new Vec3(-232, 0, 0), new Color(226, 206, 160, 255), 32);
+            const iconNode = new Node('KungfuIcon');
+            iconNode.layer = Layers.Enum.UI_2D;
+            card.addChild(iconNode);
+            iconNode.setPosition(-232, 0, 0);
+            iconNode.addComponent(UITransform).setContentSize(44, 44);
+            iconNode.addComponent(Sprite).sizeMode = Sprite.SizeMode.CUSTOM;
+            iconNode.active = false;
+            this.loadXianxiaTexture(`icon-kungfu-${def.id}`, (sf) => {
+                if (sf && iconNode.isValid) {
+                    const s = iconNode.getComponent(Sprite);
+                    if (s) s.spriteFrame = sf;
+                    iconNode.setScale(1.02, 1.02, 1);
+                    iconNode.active = true;
+                    if (glyphLabel.node.isValid) glyphLabel.node.active = false;
+                }
+            });
             const titleLabel = this.createLabel(card, def.name, 22, new Vec3(-108, 16, 0), new Color(242, 238, 224, 255), 190);
             titleLabel.horizontalAlign = HorizontalTextAlignment.LEFT;
-            const infoLabel = this.createLabel(card, '', 15, new Vec3(-12, -12, 0), new Color(186, 202, 220, 255), 318);
+            const infoLabel = this.createLabel(card, '', 15, new Vec3(-22, -12, 0), new Color(186, 202, 220, 255), 296);
             infoLabel.horizontalAlign = HorizontalTextAlignment.LEFT;
-            const stateLabel = this.createLabel(card, '', 15, new Vec3(182, 0, 0), new Color(220, 212, 174, 255), 120);
+            const stateLabel = this.createLabel(card, '', 15, new Vec3(170, 0, 0), new Color(220, 212, 174, 255), 92);
+            stateLabel.horizontalAlign = HorizontalTextAlignment.RIGHT;
             card.on(Node.EventType.TOUCH_END, () => {
                 this.selectedKungfuId = def.id;
                 this.refreshHomeStatus();
@@ -1779,28 +2202,11 @@ export class GrottoExpeditionDemo extends Component {
             this.kungfuListWidgets.set(def.id, { node: card, titleLabel, infoLabel, stateLabel });
         }
 
-        this.homeKungfuMask.active = false;
-        this.homeKungfuPanel.active = false;
     }
 
     private buildHomeSpiritPetPanel() {
-        this.homeSpiritPetMask = new Node('SpiritPetMask');
-        this.homeSpiritPetMask.layer = Layers.Enum.UI_2D;
-        this.homeLayer.addChild(this.homeSpiritPetMask);
-        this.homeSpiritPetMask.addComponent(UITransform).setContentSize(DESIGN_WIDTH, DESIGN_HEIGHT);
-        this.homeSpiritPetMask.setPosition(0, 0, 0);
-        const maskG = this.homeSpiritPetMask.addComponent(Graphics);
-        maskG.fillColor = new Color(8, 12, 18, 140);
-        maskG.rect(-HALF_WIDTH, -HALF_HEIGHT, DESIGN_WIDTH, DESIGN_HEIGHT);
-        maskG.fill();
-        this.homeSpiritPetMask.on(Node.EventType.TOUCH_END, () => this.toggleSpiritPetPanel(false), this);
-
-        this.homeSpiritPetPanel = this.createPanel(this.homeLayer, 652, 768, 0, -2, new Color(34, 40, 52, 252));
-        this.createLabel(this.homeSpiritPetPanel, '灵宠苑', 34, new Vec3(0, 328, 0), new Color(232, 244, 236, 255), 260);
-        this.createLabel(this.homeSpiritPetPanel, '上观灵宠立绘并设置出战，下览全部灵宠谱录，切换当前养成目标', 18, new Vec3(0, 292, 0), new Color(166, 184, 202, 255), 560);
-        const closeBtn = this.createPanel(this.homeSpiritPetPanel, 62, 36, 270, 328, new Color(62, 70, 82, 255));
-        this.createLabel(closeBtn, '收起', 16, new Vec3(0, 0, 0), new Color(228, 236, 244, 255), 50);
-        closeBtn.on(Node.EventType.TOUCH_END, () => this.toggleSpiritPetPanel(false), this);
+        this.homeSpiritPetMask = this.createOverlayMask('SpiritPetMask', () => this.toggleSpiritPetPanel(false), 140);
+        this.homeSpiritPetPanel = this.createStandardModalPanel('SpiritPetPanel', '灵宠苑', '上观灵宠立绘并设置出战，下览全部灵宠谱录，切换当前养成目标', () => this.toggleSpiritPetPanel(false));
 
         const topPanel = this.createPanel(this.homeSpiritPetPanel, 596, 304, 0, 140, new Color(42, 48, 60, 245));
         const portraitFrame = this.createPanel(topPanel, 218, 224, -176, -2, new Color(46, 58, 66, 255));
@@ -1809,6 +2215,7 @@ export class GrottoExpeditionDemo extends Component {
         portraitFrame.addChild(this.spiritPetPagePortrait);
         this.spiritPetPagePortrait.setPosition(0, 0, 0);
         this.spiritPetPagePortrait.addComponent(UITransform).setContentSize(196, 188);
+        this.spiritPetPagePortrait.addComponent(Sprite).sizeMode = Sprite.SizeMode.CUSTOM;
         this.spiritPetPageNameLabel = this.createLabel(topPanel, '', 30, new Vec3(86, 92, 0), new Color(240, 244, 230, 255), 318);
         this.spiritPetPageInfoLabel = this.createLabel(topPanel, '', 17, new Vec3(96, 38, 0), new Color(186, 202, 220, 255), 336);
         this.spiritPetPageEffectLabel = this.createLabel(topPanel, '', 17, new Vec3(96, -26, 0), new Color(210, 224, 196, 255), 336);
@@ -1824,12 +2231,18 @@ export class GrottoExpeditionDemo extends Component {
         this.spiritPetPageHintLabel = this.createLabel(topPanel, '', 15, new Vec3(0, -146, 0), new Color(170, 188, 206, 255), 520);
 
         const listPanel = this.createPanel(this.homeSpiritPetPanel, 596, 286, 0, -198, new Color(40, 46, 58, 245));
-        this.createLabel(listPanel, '灵宠谱录', 28, new Vec3(-214, 108, 0), new Color(244, 238, 220, 255), 160);
-        this.createLabel(listPanel, '由低到高展示全部灵宠，点选后切换当前养成与出战候选', 16, new Vec3(30, 108, 0), new Color(150, 166, 186, 255), 390);
+        this.createSectionHeader(listPanel, '灵宠谱录', '由低到高展示全部灵宠，点选后切换当前养成与出战候选。', new Color(188, 232, 206, 255), '宠', 160, 360);
         for (let i = 0; i < SPIRIT_PET_DEFS.length; i++) {
             const def = SPIRIT_PET_DEFS[i];
             const card = this.createPanel(listPanel, 548, 72, 0, 26 - i * 78, new Color(42, 48, 58, 245));
+            this.createStatusBadgeNode(card, 228, 0, 30);
             this.createLabel(card, def.glyph, 28, new Vec3(-232, 0, 0), new Color(188, 232, 206, 255), 32);
+            const petIconNode = new Node('SpiritPetIcon');
+            petIconNode.layer = Layers.Enum.UI_2D;
+            card.addChild(petIconNode);
+            petIconNode.setPosition(-232, 0, 0);
+            petIconNode.addComponent(UITransform).setContentSize(56, 56);
+            petIconNode.addComponent(Sprite).sizeMode = Sprite.SizeMode.CUSTOM;
             const titleLabel = this.createLabel(card, def.name, 22, new Vec3(-108, 16, 0), new Color(242, 238, 224, 255), 190);
             titleLabel.horizontalAlign = HorizontalTextAlignment.LEFT;
             const infoLabel = this.createLabel(card, '', 15, new Vec3(-12, -12, 0), new Color(186, 202, 220, 255), 318);
@@ -1839,11 +2252,9 @@ export class GrottoExpeditionDemo extends Component {
                 this.selectedSpiritPetId = def.id;
                 this.refreshHomeStatus();
             }, this);
-            this.spiritPetListWidgets.set(def.id, { node: card, titleLabel, infoLabel, stateLabel });
+            this.spiritPetListWidgets.set(def.id, { node: card, iconNode: petIconNode, titleLabel, infoLabel, stateLabel });
         }
 
-        this.homeSpiritPetMask.active = false;
-        this.homeSpiritPetPanel.active = false;
     }
 
     private buildHomeShopView() {
@@ -1852,33 +2263,31 @@ export class GrottoExpeditionDemo extends Component {
         scrollNode.layer = Layers.Enum.UI_2D;
         this.homeShopView.addChild(scrollNode);
         scrollNode.setPosition(0, 0, 0);
-        scrollNode.addComponent(UITransform).setContentSize(676, 900);
+        scrollNode.addComponent(UITransform).setContentSize(HOME_LAYOUT.contentWidth, HOME_LAYOUT.contentHeight);
 
         const viewport = new Node('view');
         viewport.layer = Layers.Enum.UI_2D;
         scrollNode.addChild(viewport);
         viewport.setPosition(0, 0, 0);
-        viewport.addComponent(UITransform).setContentSize(676, 900);
+        viewport.addComponent(UITransform).setContentSize(HOME_LAYOUT.contentWidth, HOME_LAYOUT.contentHeight);
         viewport.addComponent(Mask);
 
         const content = new Node('content');
         content.layer = Layers.Enum.UI_2D;
         viewport.addChild(content);
-        content.addComponent(UITransform).setContentSize(660, 1440);
-        content.setPosition(0, 270, 0);
+        content.addComponent(UITransform).setContentSize(660, 1900);
+        content.setPosition(0, 430, 0);
         this.shopScrollContent = content;
         this.attachVerticalDragScroll(viewport, content);
 
-        const header = this.createPanel(content, 640, 126, 0, 334, new Color(40, 44, 52, 245));
-        this.createLabel(header, '云游商坊', 34, new Vec3(0, 30, 0), new Color(238, 224, 180, 255));
-        this.createLabel(header, '竖向浏览各类商店；灵石商店按每日 / 每周切换，其余分页保持常驻供给。', 17, new Vec3(0, -4, 0), new Color(184, 198, 210, 255), 586);
-        this.shopCurrencyLabel = this.createLabel(header, '', 17, new Vec3(0, -42, 0), new Color(210, 220, 232, 255), 586);
+        const header = this.createStandardHomeHeader(content, '云游商坊', '竖向浏览各类商店；灵石商店按每日 / 每周切换，其余分页保持常驻供给。', new Color(40, 44, 52, 245), new Color(238, 224, 180, 255), new Color(184, 198, 210, 255));
+        this.shopCurrencyLabel = this.createLabel(header, '', 18, new Vec3(0, -42, 0), new Color(210, 220, 232, 255), 620);
 
-        const goldPanel = this.buildShopSection(content, '灵石商店', '消耗灵石购买日常补给与周常成长材料', 114, 352, new Color(58, 52, 42, 245), new Color(230, 202, 130, 255), '灵');
-        const dailyBtn = this.createPanel(goldPanel, 88, 34, 176, 86, new Color(70, 62, 48, 255));
-        const weeklyBtn = this.createPanel(goldPanel, 88, 34, 272, 86, new Color(58, 56, 50, 255));
-        this.createLabel(dailyBtn, '每日', 18, new Vec3(0, 0, 0), new Color(244, 234, 214, 255));
-        this.createLabel(weeklyBtn, '每周', 18, new Vec3(0, 0, 0), new Color(196, 190, 180, 255));
+        const goldPanel = this.buildShopSection(content, '灵石商店', '消耗灵石购买日常补给与周常成长材料', 14, 470, new Color(58, 52, 42, 245), new Color(230, 202, 130, 255), '灵');
+        const dailyBtn = this.createPanel(goldPanel, 98, 38, 160, 126, new Color(70, 62, 48, 255));
+        const weeklyBtn = this.createPanel(goldPanel, 98, 38, 268, 126, new Color(58, 56, 50, 255));
+        this.createLabel(dailyBtn, '每日', 19, new Vec3(0, 0, 0), new Color(244, 234, 214, 255));
+        this.createLabel(weeklyBtn, '每周', 19, new Vec3(0, 0, 0), new Color(196, 190, 180, 255));
         dailyBtn.on(Node.EventType.TOUCH_END, () => this.switchGoldShopTab('daily'), this);
         weeklyBtn.on(Node.EventType.TOUCH_END, () => this.switchGoldShopTab('weekly'), this);
         this.shopGoldTabButtons.daily = dailyBtn;
@@ -1887,109 +2296,128 @@ export class GrottoExpeditionDemo extends Component {
         this.shopGoldDailyPage = new Node('GoldDailyPage');
         this.shopGoldDailyPage.layer = Layers.Enum.UI_2D;
         goldPanel.addChild(this.shopGoldDailyPage);
-        this.shopGoldDailyPage.addComponent(UITransform).setContentSize(596, 236);
-        this.shopGoldDailyPage.setPosition(0, -34, 0);
+        this.shopGoldDailyPage.addComponent(UITransform).setContentSize(632, 344);
+        this.shopGoldDailyPage.setPosition(0, -18, 0);
         this.buildShopGrid(this.shopGoldDailyPage, GOLD_DAILY_SHOP_ITEMS, new Color(224, 200, 146, 255), new Color(72, 62, 50, 255));
 
         this.shopGoldWeeklyPage = new Node('GoldWeeklyPage');
         this.shopGoldWeeklyPage.layer = Layers.Enum.UI_2D;
         goldPanel.addChild(this.shopGoldWeeklyPage);
-        this.shopGoldWeeklyPage.addComponent(UITransform).setContentSize(596, 236);
-        this.shopGoldWeeklyPage.setPosition(0, -34, 0);
+        this.shopGoldWeeklyPage.addComponent(UITransform).setContentSize(632, 344);
+        this.shopGoldWeeklyPage.setPosition(0, -18, 0);
         this.buildShopGrid(this.shopGoldWeeklyPage, GOLD_WEEKLY_SHOP_ITEMS, new Color(214, 190, 162, 255), new Color(68, 60, 56, 255));
 
-        const mijingPanel = this.buildShopSection(content, '秘境商店', '每周刷新，使用秘境徽记兑换稀有材料与探索道具', -214, 320, new Color(42, 52, 56, 245), new Color(166, 214, 200, 255), '秘');
-        this.createLabel(mijingPanel, '每周一辰时刷新', 16, new Vec3(228, 72, 0), new Color(172, 214, 196, 255), 140);
+        const mijingPanel = this.buildShopSection(content, '秘境商店', '每周刷新，使用秘境徽记兑换稀有材料与探索道具', -462, 430, new Color(42, 52, 56, 245), new Color(166, 214, 200, 255), '秘');
+        this.createLabel(mijingPanel, '每周一辰时刷新', 17, new Vec3(222, 92, 0), new Color(172, 214, 196, 255), 150);
         this.buildShopGrid(mijingPanel, MIJING_SHOP_ITEMS, new Color(170, 216, 202, 255), new Color(50, 62, 66, 255));
 
-        const crystalPanel = this.buildShopSection(content, '钻石商店', '常驻出售高价值成长包、外观与便利道具', -554, 320, new Color(44, 48, 62, 245), new Color(176, 206, 242, 255), '晶');
+        const crystalPanel = this.buildShopSection(content, '钻石商店', '常驻出售高价值成长包、外观与便利道具', -902, 430, new Color(44, 48, 62, 245), new Color(176, 206, 242, 255), '晶');
         this.buildShopGrid(crystalPanel, DIAMOND_SHOP_ITEMS, new Color(180, 210, 242, 255), new Color(52, 58, 74, 255));
 
-        this.shopHintLabel = this.createLabel(content, '前期可先买每日补给，再去秘境刷徽记与材料。', 18, new Vec3(0, -790, 0), new Color(160, 184, 204, 255), 620);
+        this.shopHintLabel = this.createLabel(content, '前期可先买每日补给，再去秘境刷徽记与材料。', 18, new Vec3(0, -1158, 0), new Color(160, 184, 204, 255), 652);
 
         this.switchGoldShopTab('daily');
         this.refreshShopStatus();
     }
 
     private buildShopSection(parent: Node, title: string, subtitle: string, y: number, height: number, fill: Color, accent: Color, glyph: string) {
-        const panel = this.createPanel(parent, 640, height, 0, y, fill);
-        this.decorateRoleInfoCard(panel, accent, glyph, subtitle);
-        this.createLabel(panel, title, 28, new Vec3(-220, height / 2 - 28, 0), new Color(242, 240, 230, 255), 180);
+        const panel = this.createPanel(parent, 668, height, 0, y, fill);
+        this.createSectionHeader(panel, title, subtitle, accent, glyph, 200, 400);
         return panel;
     }
 
     private buildShopGrid(parent: Node, items: ShopItemDef[], accent: Color, fill: Color) {
-        const gridRows = Math.ceil(items.length / 3);
+        const columns = 2;
+        const gridRows = Math.ceil(items.length / columns);
         const visibleRows = Math.min(2, gridRows);
-        const viewHeight = visibleRows * 104 + 8;
+        const rowPitch = 154;
+        const viewHeight = visibleRows * rowPitch + 10;
         const scrollRoot = new Node('ShopGridScroll');
         scrollRoot.layer = Layers.Enum.UI_2D;
         parent.addChild(scrollRoot);
-        scrollRoot.setPosition(0, -30, 0);
-        scrollRoot.addComponent(UITransform).setContentSize(606, viewHeight);
+        scrollRoot.setPosition(0, -44, 0);
+        scrollRoot.addComponent(UITransform).setContentSize(640, viewHeight);
 
         const viewNode = new Node('view');
         viewNode.layer = Layers.Enum.UI_2D;
         scrollRoot.addChild(viewNode);
         viewNode.setPosition(0, 0, 0);
-        viewNode.addComponent(UITransform).setContentSize(606, viewHeight);
+        viewNode.addComponent(UITransform).setContentSize(640, viewHeight);
         viewNode.addComponent(Mask);
 
         const contentNode = new Node('content');
         contentNode.layer = Layers.Enum.UI_2D;
         viewNode.addChild(contentNode);
-        const contentHeight = Math.max(viewHeight, gridRows * 104 + 8);
-        contentNode.addComponent(UITransform).setContentSize(596, contentHeight);
+        const contentHeight = Math.max(viewHeight, gridRows * rowPitch + 10);
+        contentNode.addComponent(UITransform).setContentSize(632, contentHeight);
         contentNode.setPosition(0, (contentHeight - viewHeight) * 0.5, 0);
         if (gridRows > 2) this.attachVerticalDragScroll(viewNode, contentNode);
 
-        const startX = -192;
-        const startY = contentHeight / 2 - 52;
-        const cardW = 180;
-        const cardH = 94;
-        const gapX = 192;
-        const gapY = 104;
+        const startX = -150;
+        const startY = contentHeight / 2 - 70;
+        const cardW = 274;
+        const cardH = 126;
+        const gapX = 300;
+        const gapY = rowPitch;
         for (let i = 0; i < items.length; i++) {
-            const col = i % 3;
-            const row = Math.floor(i / 3);
+            const col = i % columns;
+            const row = Math.floor(i / columns);
             const x = startX + col * gapX;
             const y = startY - row * gapY;
             const card = this.createPanel(contentNode, cardW, cardH, x, y, fill);
-            this.repaintPanel(card, fill, new Color(accent.r, accent.g, accent.b, 128));
+            this.styleCardPanel(card, 'neutral', accent);
+            this.createStatusBadgeNode(card, 82, 40, 34);
             const icon = new Node('ShopCellIcon');
             icon.layer = Layers.Enum.UI_2D;
             card.addChild(icon);
-            icon.setPosition(-66, 14, 0);
-            icon.addComponent(UITransform).setContentSize(34, 34);
+            icon.setPosition(-88, 18, 0);
+            icon.addComponent(UITransform).setContentSize(68, 68);
             const g = icon.addComponent(Graphics);
             g.fillColor = new Color(accent.r, accent.g, accent.b, 40);
             g.strokeColor = new Color(accent.r, accent.g, accent.b, 210);
-            g.lineWidth = 1.8;
-            g.roundRect(-14, -14, 28, 28, 8);
+            g.lineWidth = 2;
+            g.roundRect(-28, -28, 56, 56, 14);
             g.fill();
-            g.roundRect(-14, -14, 28, 28, 8);
+            g.roundRect(-28, -28, 56, 56, 14);
             g.stroke();
-            g.moveTo(-6, 0);
-            g.lineTo(0, 6);
-            g.lineTo(7, -6);
+            g.moveTo(-12, 0);
+            g.lineTo(0, 12);
+            g.lineTo(13, -12);
             g.stroke();
-            const name = this.createLabel(card, items[i].name, 19, new Vec3(18, 24, 0), new Color(236, 240, 244, 255), 118);
+            const iconSpriteNode = new Node('ShopItemIconSprite');
+            iconSpriteNode.layer = Layers.Enum.UI_2D;
+            icon.addChild(iconSpriteNode);
+            iconSpriteNode.setPosition(0, 0, 0);
+            iconSpriteNode.addComponent(UITransform).setContentSize(56, 56);
+            iconSpriteNode.addComponent(Sprite).sizeMode = Sprite.SizeMode.CUSTOM;
+            iconSpriteNode.active = false;
+            const iconAsset = this.getShopItemIconAsset(items[i]);
+            if (iconAsset) {
+                this.loadXianxiaTexture(iconAsset, (sf) => {
+                    if (!sf || !iconSpriteNode.isValid) return;
+                    const sprite = iconSpriteNode.getComponent(Sprite);
+                    if (sprite) sprite.spriteFrame = sf;
+                    this.applyAssetDisplayScale(iconSpriteNode, iconAsset);
+                    iconSpriteNode.active = true;
+                });
+            }
+            const name = this.createLabel(card, items[i].name, 20, new Vec3(30, 34, 0), new Color(236, 240, 244, 255), 156);
             name.horizontalAlign = HorizontalTextAlignment.LEFT;
-            const price = this.createLabel(card, `${this.getShopCurrencyLabel(items[i].currency)} ${items[i].cost}`, 15, new Vec3(18, 2, 0), accent, 118);
+            const price = this.createLabel(card, `${this.getShopCurrencyLabel(items[i].currency)} ${items[i].cost}`, 16, new Vec3(30, 10, 0), accent, 156);
             price.horizontalAlign = HorizontalTextAlignment.LEFT;
-            const desc = this.createLabel(card, items[i].rewardText, 14, new Vec3(18, -16, 0), new Color(176, 188, 200, 255), 118);
+            const desc = this.createLabel(card, items[i].rewardText, 15, new Vec3(30, -18, 0), new Color(176, 188, 200, 255), 156);
             desc.horizontalAlign = HorizontalTextAlignment.LEFT;
-            const stock = this.createLabel(card, '', 12, new Vec3(-26, -36, 0), new Color(196, 204, 214, 255), 104);
+            const stock = this.createLabel(card, '', 13, new Vec3(-56, -50, 0), new Color(196, 204, 214, 255), 132);
             stock.horizontalAlign = HorizontalTextAlignment.LEFT;
-            const buyBtn = this.createPanel(card, 60, 28, 56, -34, new Color(76, 88, 100, 255));
+            const buyBtn = this.createPanel(card, 82, 34, 88, -48, new Color(76, 88, 100, 255));
             buyBtn.addComponent(Button).transition = Button.Transition.NONE;
-            this.createLabel(buyBtn, '购买', 14, new Vec3(0, 0, 0), new Color(240, 246, 252, 255));
+            this.createLabel(buyBtn, '购买', 15, new Vec3(0, 0, 0), new Color(240, 246, 252, 255));
             buyBtn.on(Node.EventType.TOUCH_END, () => this.buyShopItem(items[i].id), this);
-            this.shopItemWidgets.set(items[i].id, { button: buyBtn, stockLabel: stock });
+            this.shopItemWidgets.set(items[i].id, { card, button: buyBtn, stockLabel: stock });
         }
 
         if (gridRows > 2) {
-            this.createLabel(parent, '下拉查看更多', 14, new Vec3(222, -126, 0), new Color(accent.r, accent.g, accent.b, 220), 140);
+            this.createLabel(parent, '下拉查看更多', 15, new Vec3(214, -170, 0), new Color(accent.r, accent.g, accent.b, 220), 150);
         }
     }
 
@@ -2034,20 +2462,8 @@ export class GrottoExpeditionDemo extends Component {
         if (this.shopGoldWeeklyPage) this.shopGoldWeeklyPage.active = tab === 'weekly';
         const dailyBtn = this.shopGoldTabButtons.daily;
         const weeklyBtn = this.shopGoldTabButtons.weekly;
-        if (dailyBtn) {
-            this.repaintPanel(dailyBtn, tab === 'daily' ? new Color(102, 84, 58, 255) : new Color(70, 62, 48, 255), tab === 'daily' ? new Color(234, 208, 152, 220) : new Color(128, 112, 92, 180));
-            const labels = dailyBtn.getComponentsInChildren(Label);
-            labels.forEach((label) => {
-                label.color = tab === 'daily' ? new Color(255, 244, 220, 255) : new Color(208, 198, 182, 255);
-            });
-        }
-        if (weeklyBtn) {
-            this.repaintPanel(weeklyBtn, tab === 'weekly' ? new Color(92, 82, 68, 255) : new Color(58, 56, 50, 255), tab === 'weekly' ? new Color(230, 214, 184, 220) : new Color(124, 118, 108, 180));
-            const labels = weeklyBtn.getComponentsInChildren(Label);
-            labels.forEach((label) => {
-                label.color = tab === 'weekly' ? new Color(255, 244, 220, 255) : new Color(196, 190, 180, 255);
-            });
-        }
+        if (dailyBtn) this.styleTabButton(dailyBtn, tab === 'daily', 'gold');
+        if (weeklyBtn) this.styleTabButton(weeklyBtn, tab === 'weekly', 'gold');
     }
 
     private getAllShopItems() {
@@ -2167,25 +2583,35 @@ export class GrottoExpeditionDemo extends Component {
         if (!item) return;
         const bought = this.shopPurchaseCounts[id] || 0;
         if (bought >= item.limit) {
-            if (this.shopHintLabel) this.shopHintLabel.string = `${item.name} 已售罄，${this.getRefreshHintText(item.refresh)}。`;
+            if (this.shopHintLabel) this.shopHintLabel.string = `${item.name} 已售罄，${this.getRefreshHintText(item.refresh)}后可再次购买。`;
             this.refreshShopStatus();
             return;
         }
-        if (this.getShopCurrencyAmount(item.currency) < item.cost) {
-            if (this.shopHintLabel) this.shopHintLabel.string = `${item.name} 需要 ${this.getShopCurrencyLabel(item.currency)} ${item.cost}。${this.getShopCurrencyAcquireHint(item.currency)}`;
+        const currencyAmount = this.getShopCurrencyAmount(item.currency);
+        if (currencyAmount < item.cost) {
+            if (this.shopHintLabel) this.shopHintLabel.string = `${item.name} 需要 ${this.getShopCurrencyLabel(item.currency)} ${currencyAmount}/${item.cost}。${this.getShopCurrencyAcquireHint(item.currency)}`;
             this.refreshShopStatus();
             return;
         }
         this.consumeShopCurrency(item.currency, item.cost);
         this.applyShopItemReward(item);
-        this.shopPurchaseCounts[id] = bought + 1;
+        const nextBought = bought + 1;
+        this.shopPurchaseCounts[id] = nextBought;
         this.addTaskProgress('daily_shop_purchase', 1);
-        if (this.shopHintLabel) this.shopHintLabel.string = `购入 ${item.name}，获得 ${item.rewardText}。可继续补给后前往秘境推进。`;
+        if (this.shopHintLabel) {
+            const remaining = Math.max(0, item.limit - nextBought);
+            this.shopHintLabel.string = `购入 ${item.name}，获得 ${item.rewardText}。剩余 ${remaining}/${item.limit}，${this.getRefreshHintText(item.refresh)}。`;
+        }
         this.refreshHomeStatus();
     }
 
     private getRefreshHintText(refresh: ShopRefreshType) {
         return refresh === 'daily' ? '明日刷新' : refresh === 'weekly' ? '下周刷新' : '常驻供应';
+    }
+
+    private canBuyShopItem(item: ShopItemDef) {
+        const bought = this.shopPurchaseCounts[item.id] || 0;
+        return bought < item.limit && this.getShopCurrencyAmount(item.currency) >= item.cost;
     }
 
     private getShopCurrencyAcquireHint(currency: ShopCurrency) {
@@ -2204,7 +2630,7 @@ export class GrottoExpeditionDemo extends Component {
     private refreshShopStatus() {
         this.ensureShopRefreshState();
         if (this.shopCurrencyLabel) {
-            this.shopCurrencyLabel.string = `灵石 ${this.getSpiritStoneSummary(this.spiritStoneInventory, 2)}  |  折值 ${this.getSpiritStoneTotalValue(this.spiritStoneInventory)}  |  秘境徽记 ${this.dungeonBadge}`;
+            this.shopCurrencyLabel.string = `灵石 ${this.getSpiritStoneSummary(this.spiritStoneInventory, 2)}  |  折值 ${this.getSpiritStoneTotalValue(this.spiritStoneInventory)}  |  徽记 ${this.dungeonBadge}  |  钻石 ${this.mysticCrystal}`;
         }
         const items = this.getAllShopItems();
         for (let i = 0; i < items.length; i++) {
@@ -2213,49 +2639,74 @@ export class GrottoExpeditionDemo extends Component {
             if (!widget) continue;
             const bought = this.shopPurchaseCounts[item.id] || 0;
             const soldOut = bought >= item.limit;
-            widget.stockLabel.string = soldOut ? '已售罄' : `余量 ${item.limit - bought}/${item.limit} · ${item.description}`;
-            widget.stockLabel.color = soldOut ? new Color(188, 144, 144, 255) : new Color(196, 204, 214, 255);
+            const canAfford = this.getShopCurrencyAmount(item.currency) >= item.cost;
+            const canBuy = this.canBuyShopItem(item);
+            const badgeNode = widget.card.getChildByName('StatusBadge');
+            widget.stockLabel.string = soldOut
+                ? `已售罄 · ${this.getRefreshHintText(item.refresh)}`
+                : `余量 ${item.limit - bought}/${item.limit} · ${item.description}`;
+            widget.stockLabel.color = soldOut
+                ? new Color(188, 144, 144, 255)
+                : canAfford ? new Color(196, 204, 214, 255) : new Color(214, 188, 156, 255);
+            this.styleCardPanel(widget.card, soldOut ? 'disabled' : canAfford ? 'neutral' : 'selected', this.getShopItemAccent(item));
             const button = widget.button.getComponent(Button);
-            if (button) button.interactable = !soldOut;
-            this.repaintPanel(widget.button, soldOut ? new Color(82, 68, 68, 255) : new Color(76, 88, 100, 255), soldOut ? new Color(156, 120, 120, 180) : new Color(166, 192, 216, 180));
+            if (button) button.interactable = canBuy;
+            this.styleActionButton(widget.button, canBuy ? 'ready' : 'disabled', item.currency === 'gold' ? 'gold' : item.currency === 'mijing' ? 'jade' : 'azure');
+            this.setAssetSprite(badgeNode, this.getShopStatusBadgeAsset(soldOut));
             const labels = widget.button.getComponentsInChildren(Label);
             labels.forEach((label) => {
-                label.string = soldOut ? '售罄' : '购买';
-                label.color = soldOut ? new Color(214, 188, 188, 255) : new Color(240, 246, 252, 255);
+                label.string = soldOut ? '售罄' : canAfford ? '购买' : '不足';
             });
         }
     }
 
+    private getShopItemAccent(item: ShopItemDef) {
+        switch (item.currency) {
+            case 'gold':
+                return new Color(232, 196, 134, 255);
+            case 'mijing':
+                return new Color(166, 220, 190, 255);
+            case 'diamond':
+                return new Color(176, 204, 232, 255);
+            default:
+                return new Color(150, 170, 190, 255);
+        }
+    }
+
     private buildHomeFaqiView() {
-        const detail = this.createPanel(this.homeFaqiView, 676, 300, 0, 208, new Color(38, 44, 56, 245));
+        this.createStandardHomeHeader(this.homeFaqiView, '法器中枢', '统一陈列法器详情、操作区与谱录列表，保持顶部信息与中段养成结构一致。', new Color(38, 44, 56, 245), new Color(244, 238, 220, 255), new Color(174, 192, 210, 255));
+        const detail = this.createPanel(this.homeFaqiView, 676, HOME_LAYOUT.primarySectionHeight, 0, HOME_LAYOUT.primarySectionY, new Color(38, 44, 56, 245));
         this.decorateRoleInfoCard(detail, new Color(180, 214, 240, 255), '器', '中枢养成');
-        this.faqiExpLabel = this.createLabel(detail, '', 19, new Vec3(0, 122, 0), new Color(220, 232, 244, 255), 620);
+        this.faqiExpLabel = this.createLabel(detail, '', 19, new Vec3(0, 104, 0), new Color(220, 232, 244, 255), 620);
 
-        const iconPanel = this.createPanel(detail, 168, 168, -228, 2, new Color(48, 58, 72, 245));
-        this.faqiGlyphLabel = this.createLabel(iconPanel, '', 54, new Vec3(0, 22, 0), new Color(240, 244, 232, 255), 110);
-        this.createLabel(iconPanel, '当前本命', 18, new Vec3(0, -52, 0), new Color(182, 202, 220, 255), 120);
+        const iconPanel = this.createPanel(detail, 214, 214, -210, -2, new Color(48, 58, 72, 245));
+        const iconInnerPanel = this.createPanel(iconPanel, 158, 158, 0, 22, new Color(62, 74, 90, 255));
+        this.faqiDetailIconNode = this.createAssetSpriteNode(iconInnerPanel, 'FaqiDetailIcon', 148, 148, new Vec3(0, 0, 0));
+        this.faqiGlyphLabel = this.createLabel(iconPanel, '', 34, new Vec3(0, -60, 0), new Color(240, 244, 232, 255), 168);
+        this.createLabel(iconPanel, '当前本命', 18, new Vec3(0, -88, 0), new Color(182, 202, 220, 255), 140);
 
-        this.faqiDetailTitleLabel = this.createLabel(detail, '', 30, new Vec3(42, 76, 0), new Color(244, 238, 220, 255), 360);
-        this.faqiDetailInfoLabel = this.createLabel(detail, '', 18, new Vec3(88, 30, 0), new Color(186, 202, 220, 255), 448);
-        this.faqiDetailEffectLabel = this.createLabel(detail, '', 18, new Vec3(88, -22, 0), new Color(214, 228, 190, 255), 448);
-        this.faqiDetailShardLabel = this.createLabel(detail, '', 16, new Vec3(88, -76, 0), new Color(162, 180, 198, 255), 448);
+        this.faqiDetailTitleLabel = this.createLabel(detail, '', 30, new Vec3(88, 72, 0), new Color(244, 238, 220, 255), 398);
+        this.faqiDetailInfoLabel = this.createLabel(detail, '', 18, new Vec3(116, 22, 0), new Color(186, 202, 220, 255), 430);
+        this.faqiDetailEffectLabel = this.createLabel(detail, '', 18, new Vec3(116, -30, 0), new Color(214, 228, 190, 255), 430);
+        this.faqiDetailShardLabel = this.createLabel(detail, '', 16, new Vec3(116, -82, 0), new Color(162, 180, 198, 255), 430);
 
-        const actionStrip = this.createPanel(detail, 412, 56, 118, -118, new Color(46, 54, 68, 255));
+        const actionStrip = this.createPanel(detail, 430, 58, 118, -100, new Color(46, 54, 68, 255));
 
         this.faqiPrimaryBtn = this.createPanel(actionStrip, 118, 38, -132, 0, new Color(66, 76, 92, 255));
         this.faqiPrimaryBtn.addComponent(Button).transition = Button.Transition.NONE;
         this.faqiPrimaryBtnLabel = this.createLabel(this.faqiPrimaryBtn, '', 18, new Vec3(0, 0, 0), new Color(238, 244, 250, 255));
         this.faqiPrimaryBtn.on(Node.EventType.TOUCH_END, () => this.onArtifactPrimaryAction(), this);
         this.faqiUpgradeBtn = this.createPanel(actionStrip, 118, 38, 0, 0, new Color(72, 74, 84, 255));
+        this.faqiUpgradeBtn.addComponent(Button).transition = Button.Transition.NONE;
         this.faqiUpgradeBtnLabel = this.createLabel(this.faqiUpgradeBtn, '', 18, new Vec3(0, 0, 0), new Color(238, 244, 250, 255));
         this.faqiUpgradeBtn.on(Node.EventType.TOUCH_END, () => this.tryUpgradeArtifact(), this);
         this.faqiStarBtn = this.createPanel(actionStrip, 118, 38, 132, 0, new Color(82, 72, 66, 255));
+        this.faqiStarBtn.addComponent(Button).transition = Button.Transition.NONE;
         this.faqiStarBtnLabel = this.createLabel(this.faqiStarBtn, '', 18, new Vec3(0, 0, 0), new Color(244, 238, 228, 255));
         this.faqiStarBtn.on(Node.EventType.TOUCH_END, () => this.tryStarUpArtifact(), this);
 
-        const listPanel = this.createPanel(this.homeFaqiView, 676, 248, 0, -108, new Color(40, 46, 58, 245));
-        this.createLabel(listPanel, '法器录', 28, new Vec3(-248, 92, 0), new Color(244, 238, 220, 255), 140);
-        this.createLabel(listPanel, '切换飞剑、护符、灵灯，专注养成当前本命', 16, new Vec3(-68, 92, 0), new Color(150, 166, 186, 255), 316);
+        const listPanel = this.createPanel(this.homeFaqiView, 676, 314, 0, -154, new Color(40, 46, 58, 245));
+        this.createSectionHeader(listPanel, '法器谱录', '切换飞剑、护符、灵灯，专注养成当前本命并统一养成节奏。', new Color(188, 214, 240, 255), '器', 150, 360);
         const tabDefs: Array<{ slot: ArtifactSlot; label: string; x: number; color: Color }> = [
             { slot: 'sword', label: '飞剑', x: -132, color: new Color(214, 198, 160, 255) },
             { slot: 'talisman', label: '护符', x: 0, color: new Color(176, 214, 238, 255) },
@@ -2263,7 +2714,7 @@ export class GrottoExpeditionDemo extends Component {
         ];
         for (let i = 0; i < tabDefs.length; i++) {
             const tab = tabDefs[i];
-            const tabBtn = this.createPanel(listPanel, 116, 38, tab.x, 78, new Color(54, 62, 74, 255));
+            const tabBtn = this.createPanel(listPanel, 116, 38, tab.x, 96, new Color(54, 62, 74, 255));
             this.createLabel(tabBtn, tab.label, 18, new Vec3(0, 0, 0), new Color(tab.color.r, tab.color.g, tab.color.b, 255), 100);
             tabBtn.on(Node.EventType.TOUCH_END, () => this.setArtifactListTab(tab.slot), this);
             this.faqiListTabButtons[tab.slot] = tabBtn;
@@ -2279,27 +2730,34 @@ export class GrottoExpeditionDemo extends Component {
             const def = ARTIFACT_DEFS[i];
             const cardIndex = slotCardIndex[def.slot];
             slotCardIndex[def.slot] += 1;
-            const card = this.createPanel(listPanel, 286, 110, cardXs[def.slot][cardIndex], -20, new Color(42, 48, 58, 245));
+            const card = this.createPanel(listPanel, 296, 126, cardXs[def.slot][cardIndex], -30, new Color(42, 48, 58, 245));
+            this.createStatusBadgeNode(card, 114, 34, 30);
             const accent = def.slot === 'sword' ? new Color(214, 198, 160, 255) : def.slot === 'talisman' ? new Color(176, 214, 238, 255) : new Color(176, 226, 196, 255);
             const topLine = new Node('ArtifactCardLine');
             topLine.layer = Layers.Enum.UI_2D;
             card.addChild(topLine);
-            topLine.setPosition(0, 46, 0);
-            topLine.addComponent(UITransform).setContentSize(220, 8);
+            topLine.setPosition(0, 54, 0);
+            topLine.addComponent(UITransform).setContentSize(236, 8);
             const topLineG = topLine.addComponent(Graphics);
             topLineG.fillColor = new Color(accent.r, accent.g, accent.b, 70);
             topLineG.strokeColor = new Color(accent.r, accent.g, accent.b, 170);
             topLineG.lineWidth = 1.5;
-            topLineG.roundRect(-110, -4, 220, 8, 4);
+            topLineG.roundRect(-118, -4, 236, 8, 4);
             topLineG.fill();
-            topLineG.roundRect(-110, -4, 220, 8, 4);
+            topLineG.roundRect(-118, -4, 236, 8, 4);
             topLineG.stroke();
-            this.createLabel(card, def.glyph, 28, new Vec3(-108, 12, 0), new Color(accent.r, accent.g, accent.b, 255), 30);
-            const titleLabel = this.createLabel(card, def.name, 24, new Vec3(18, 24, 0), new Color(242, 238, 224, 255), 200);
-            const infoLabel = this.createLabel(card, '', 16, new Vec3(26, -4, 0), new Color(186, 202, 220, 255), 210);
-            const stateLabel = this.createLabel(card, '', 15, new Vec3(26, -32, 0), new Color(160, 178, 196, 255), 210);
+            this.createLabel(card, def.glyph, 24, new Vec3(-118, 34, 0), new Color(accent.r, accent.g, accent.b, 255), 40);
+            const iconNode = new Node('ArtifactIcon');
+            iconNode.layer = Layers.Enum.UI_2D;
+            card.addChild(iconNode);
+            iconNode.setPosition(-102, 4, 0);
+            iconNode.addComponent(UITransform).setContentSize(58, 58);
+            iconNode.addComponent(Sprite).sizeMode = Sprite.SizeMode.CUSTOM;
+            const titleLabel = this.createLabel(card, def.name, 24, new Vec3(26, 28, 0), new Color(242, 238, 224, 255), 208);
+            const infoLabel = this.createLabel(card, '', 16, new Vec3(34, -2, 0), new Color(186, 202, 220, 255), 216);
+            const stateLabel = this.createLabel(card, '', 15, new Vec3(34, -34, 0), new Color(160, 178, 196, 255), 216);
             card.on(Node.EventType.TOUCH_END, () => this.selectArtifact(def.id), this);
-            this.artifactCardWidgets.set(def.id, { node: card, titleLabel, infoLabel, stateLabel });
+            this.artifactCardWidgets.set(def.id, { node: card, iconNode, titleLabel, infoLabel, stateLabel });
         }
 
         this.refreshFaqiStatus();
@@ -2557,20 +3015,14 @@ export class GrottoExpeditionDemo extends Component {
             if (!id) {
                 label.string = '未装配\n点击前往';
                 label.color = new Color(172, 188, 204, 255);
-                if (panel) this.repaintPanel(panel, new Color(44, 52, 62, 245), new Color(tabAccent[slot].r, tabAccent[slot].g, tabAccent[slot].b, 150));
+                if (panel) this.styleCardPanel(panel, 'neutral', tabAccent[slot]);
                 continue;
             }
             const state = this.artifactStates[id];
             const selected = this.artifactListTab === slot && this.homeTab === 'faqi';
             label.string = `${this.getArtifactDef(id).name}\nLv.${state.level}  ${'★'.repeat(state.star)}`;
             label.color = selected ? new Color(248, 242, 228, 255) : new Color(204, 218, 232, 255);
-            if (panel) {
-                this.repaintPanel(
-                    panel,
-                    selected ? new Color(82, 94, 110, 255) : new Color(52, 60, 72, 248),
-                    selected ? new Color(tabAccent[slot].r, tabAccent[slot].g, tabAccent[slot].b, 228) : new Color(tabAccent[slot].r, tabAccent[slot].g, tabAccent[slot].b, 168)
-                );
-            }
+            if (panel) this.styleCardPanel(panel, selected ? 'selected' : 'neutral', tabAccent[slot]);
         }
         const selectedDef = this.getArtifactDef(this.artifactSelectedId);
         const selectedState = this.artifactStates[this.artifactSelectedId];
@@ -2579,6 +3031,7 @@ export class GrottoExpeditionDemo extends Component {
         this.faqiDetailEffectLabel.string = this.getArtifactEffectSummary(this.artifactSelectedId);
         this.faqiDetailShardLabel.string = `碎片 ${selectedState.shards}${selectedState.unlocked ? `  |  升级需经验 ${this.getArtifactUpgradeCost(selectedState)} / 养护灵石 ${this.getArtifactMaintenanceCost(selectedState)}` : `  |  合成需碎片 ${selectedDef.synthCost}`}`;
         if (this.faqiGlyphLabel) this.faqiGlyphLabel.string = selectedDef.glyph;
+        if (this.faqiDetailIconNode) this.setAssetSprite(this.faqiDetailIconNode, `icon-artifact-${selectedDef.id}`);
         if (this.faqiPrimaryBtn && this.faqiPrimaryBtnLabel) {
             const equipped = this.artifactEquipped[selectedDef.slot] === selectedDef.id;
             const canSynthesize = !selectedState.unlocked && selectedState.shards >= selectedDef.synthCost;
@@ -2587,14 +3040,42 @@ export class GrottoExpeditionDemo extends Component {
             this.faqiPrimaryBtnLabel.string = primaryText;
             const button = this.faqiPrimaryBtn.getComponent(Button);
             if (button) button.interactable = primaryInteractive;
-            this.repaintPanel(this.faqiPrimaryBtn, primaryInteractive ? new Color(66, 76, 92, 255) : new Color(72, 76, 82, 255), primaryInteractive ? new Color(152, 184, 216, 180) : new Color(128, 138, 148, 160));
-            this.faqiPrimaryBtnLabel.color = primaryInteractive ? new Color(238, 244, 250, 255) : new Color(188, 196, 204, 255);
+            this.styleActionButton(this.faqiPrimaryBtn, equipped ? 'active' : primaryInteractive ? 'ready' : 'disabled', 'azure');
         }
         if (this.faqiUpgradeBtn && this.faqiUpgradeBtnLabel) {
-            this.faqiUpgradeBtnLabel.string = `升级(${selectedState.unlocked ? this.getArtifactUpgradeCost(selectedState) : '-'})`;
+            const levelCap = this.getArtifactLevelCap(selectedState);
+            const upgradeCost = this.getArtifactUpgradeCost(selectedState);
+            const maintenanceCost = this.getArtifactMaintenanceCost(selectedState);
+            const canUpgrade = selectedState.unlocked
+                && selectedState.level < levelCap
+                && this.artifactExpPool >= upgradeCost
+                && this.getSpiritStoneTotalValue(this.spiritStoneInventory) >= maintenanceCost;
+            const button = this.faqiUpgradeBtn.getComponent(Button);
+            if (button) button.interactable = canUpgrade;
+            this.faqiUpgradeBtnLabel.string = !selectedState.unlocked
+                ? '待合成'
+                : selectedState.level >= levelCap
+                    ? '先升星'
+                    : canUpgrade ? `升级(${upgradeCost})` : `不足(${upgradeCost})`;
+            this.styleActionButton(this.faqiUpgradeBtn, canUpgrade ? 'ready' : 'disabled', 'azure');
         }
         if (this.faqiStarBtn && this.faqiStarBtnLabel) {
-            this.faqiStarBtnLabel.string = `升星(${selectedState.unlocked ? this.getArtifactStarCost(selectedState) : '-'})`;
+            const levelCap = this.getArtifactLevelCap(selectedState);
+            const starCost = this.getArtifactStarCost(selectedState);
+            const canStar = selectedState.unlocked
+                && selectedState.star < MAX_ARTIFACT_STAR
+                && selectedState.level >= levelCap
+                && selectedState.shards >= starCost;
+            const button = this.faqiStarBtn.getComponent(Button);
+            if (button) button.interactable = canStar;
+            this.faqiStarBtnLabel.string = !selectedState.unlocked
+                ? '待合成'
+                : selectedState.star >= MAX_ARTIFACT_STAR
+                    ? '满星'
+                    : selectedState.level < levelCap
+                        ? '先满级'
+                        : canStar ? `升星(${starCost})` : `不足(${starCost})`;
+            this.styleActionButton(this.faqiStarBtn, canStar ? 'ready' : 'disabled', 'gold');
         }
         const listTabs: ArtifactSlot[] = ['sword', 'talisman', 'lamp'];
         for (let i = 0; i < listTabs.length; i++) {
@@ -2602,10 +3083,10 @@ export class GrottoExpeditionDemo extends Component {
             const btn = this.faqiListTabButtons[slot];
             if (!btn) continue;
             const active = slot === this.artifactListTab;
-            this.repaintPanel(btn, active ? new Color(70, 82, 98, 255) : new Color(54, 62, 74, 255), active ? new Color(tabAccent[slot].r, tabAccent[slot].g, tabAccent[slot].b, 220) : new Color(102, 114, 130, 180));
+            this.styleSelectionButton(btn, active, tabAccent[slot]);
             const labels = btn.getComponentsInChildren(Label);
             labels.forEach((label) => {
-                label.color = active ? tabAccent[slot] : new Color(188, 198, 212, 255);
+                label.color = active ? new Color(250, 246, 232, 255) : tabAccent[slot];
             });
         }
         for (let i = 0; i < ARTIFACT_DEFS.length; i++) {
@@ -2615,11 +3096,14 @@ export class GrottoExpeditionDemo extends Component {
             const state = this.artifactStates[def.id];
             const equipped = this.artifactEquipped[def.slot] === def.id;
             const selected = this.artifactSelectedId === def.id;
+            const badgeNode = widget.node.getChildByName('StatusBadge');
             widget.node.active = def.slot === this.artifactListTab;
             widget.titleLabel.string = def.name;
             widget.infoLabel.string = state.unlocked ? `Lv.${state.level}  ${'★'.repeat(state.star)}` : `碎片 ${state.shards}/${def.synthCost}`;
             widget.stateLabel.string = state.unlocked ? `${equipped ? '已装配' : '可装配'} · ${def.title}` : '未合成';
-            this.repaintPanel(widget.node, selected ? new Color(70, 82, 98, 255) : new Color(42, 48, 58, 245), selected ? new Color(188, 214, 240, 220) : equipped ? new Color(186, 220, 162, 180) : new Color(88, 102, 118, 180));
+            widget.stateLabel.color = !state.unlocked ? new Color(174, 160, 160, 255) : equipped ? new Color(210, 236, 196, 255) : selected ? new Color(206, 224, 240, 255) : new Color(182, 194, 208, 255);
+            this.styleCardPanel(widget.node, !state.unlocked ? 'disabled' : equipped ? 'accent' : selected ? 'selected' : 'neutral', equipped ? new Color(186, 220, 162, 255) : new Color(188, 214, 240, 255));
+            this.setAssetSprite(badgeNode, this.getArtifactStatusBadgeAsset(def, state, equipped));
         }
     }
 
@@ -2668,21 +3152,22 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private buildHomeRoleView() {
-        const upperPanel = this.createPanel(this.homeRoleView, 640, 312, 0, 262, new Color(38, 46, 56, 245));
-        this.createLabel(upperPanel, '角色形象', 20, new Vec3(84, 118, 0), new Color(180, 205, 225, 255));
-        this.buildHomeAnimatedPortrait(upperPanel, 84, -10);
-        this.createLabel(upperPanel, '本命法器', 18, new Vec3(-188, 112, 0), new Color(196, 210, 224, 255), 130);
+        this.createStandardHomeHeader(this.homeRoleView, '角色总览', '顶部展示角色核心形象与法器槽位，中段展示属性分区，底部固定放置修炼与渡劫操作。', new Color(38, 46, 56, 245));
+        const upperPanel = this.createPanel(this.homeRoleView, 648, 278, 0, 146, new Color(38, 46, 56, 245));
+        this.createLabel(upperPanel, '角色形象', 20, new Vec3(108, 108, 0), new Color(180, 205, 225, 255));
+        this.buildHomeAnimatedPortrait(upperPanel, 108, -18);
+        this.createLabel(upperPanel, '本命法器', 18, new Vec3(-198, 108, 0), new Color(196, 210, 224, 255), 130);
 
         const artifactSlots: Array<{ slot: ArtifactSlot; title: string; glyph: string; accent: Color; x: number; y: number }> = [
-            { slot: 'sword', title: '飞剑位', glyph: '剑', accent: new Color(214, 198, 160, 255), x: -188, y: 54 },
-            { slot: 'talisman', title: '护符位', glyph: '符', accent: new Color(176, 214, 238, 255), x: -188, y: -18 },
-            { slot: 'lamp', title: '灵灯位', glyph: '灯', accent: new Color(176, 226, 196, 255), x: -188, y: -90 },
+            { slot: 'sword', title: '飞剑位', glyph: '剑', accent: new Color(214, 198, 160, 255), x: -196, y: 42 },
+            { slot: 'talisman', title: '护符位', glyph: '符', accent: new Color(176, 214, 238, 255), x: -196, y: -28 },
+            { slot: 'lamp', title: '灵灯位', glyph: '灯', accent: new Color(176, 226, 196, 255), x: -196, y: -98 },
         ];
         for (let i = 0; i < artifactSlots.length; i++) {
             const slot = artifactSlots[i];
-            const slotPanel = this.createPanel(upperPanel, 150, 62, slot.x, slot.y, new Color(52, 60, 72, 248));
+            const slotPanel = this.createPanel(upperPanel, 160, 62, slot.x, slot.y, new Color(52, 60, 72, 248));
             this.decorateRoleInfoCard(slotPanel, slot.accent, slot.glyph, '点击养成');
-            this.createLabel(slotPanel, slot.title, 17, new Vec3(12, 15, 0), new Color(240, 240, 230, 255), 100);
+            this.createLabel(slotPanel, slot.title, 17, new Vec3(12, 12, 0), new Color(240, 240, 230, 255), 100);
             const label = this.createLabel(slotPanel, '', 13, new Vec3(10, -10, 0), new Color(186, 202, 220, 255), 108);
             label.lineHeight = 16;
             this.faqiSlotPanels[slot.slot] = slotPanel;
@@ -2693,34 +3178,36 @@ export class GrottoExpeditionDemo extends Component {
             }, this);
         }
 
-        const basicPanel = this.createPanel(this.homeRoleView, 196, 236, -220, -86, new Color(40, 50, 62, 245));
+        const basicPanel = this.createPanel(this.homeRoleView, 204, HOME_LAYOUT.secondarySectionHeight, -228, HOME_LAYOUT.secondarySectionY, new Color(40, 50, 62, 245));
         this.decorateRoleInfoCard(basicPanel, new Color(188, 214, 238, 255), '体', '筋骨凝实');
-        this.createLabel(basicPanel, '基础属性', 20, new Vec3(0, 86, 0), new Color(180, 205, 225, 255));
-        this.statusLabel = this.createLabel(basicPanel, '', 25, new Vec3(0, 42, 0), new Color(255, 240, 220, 255), 168);
-        this.roleHpLabel = this.createRoleStatRow(basicPanel, 8, new Color(220, 146, 146, 255), 'hp');
-        this.roleManaLabel = this.createRoleStatRow(basicPanel, -24, new Color(142, 188, 234, 255), 'mana');
-        this.roleAttackLabel = this.createRoleStatRow(basicPanel, -56, new Color(174, 220, 174, 255), 'ap');
+        this.createLabel(basicPanel, '基础属性', 20, new Vec3(0, 74, 0), new Color(180, 205, 225, 255));
+        this.statusLabel = this.createLabel(basicPanel, '', 25, new Vec3(0, 34, 0), new Color(255, 240, 220, 255), 176);
+        this.roleHpLabel = this.createRoleStatRow(basicPanel, 0, new Color(220, 146, 146, 255), 'hp');
+        this.roleManaLabel = this.createRoleStatRow(basicPanel, -32, new Color(142, 188, 234, 255), 'mana');
+        this.roleAttackLabel = this.createRoleStatRow(basicPanel, -64, new Color(174, 220, 174, 255), 'ap');
 
-        const practicePanel = this.createPanel(this.homeRoleView, 196, 236, 0, -86, new Color(44, 50, 66, 245));
+        const practicePanel = this.createPanel(this.homeRoleView, 204, HOME_LAYOUT.secondarySectionHeight, 0, HOME_LAYOUT.secondarySectionY, new Color(44, 50, 66, 245));
         this.decorateRoleInfoCard(practicePanel, new Color(220, 210, 170, 255), '道', '丹田运转');
-        this.createLabel(practicePanel, '丹器造诣', 20, new Vec3(0, 86, 0), new Color(180, 205, 225, 255));
-        this.roleExpLabel = this.createRoleStatRow(practicePanel, 18, new Color(208, 200, 154, 255), 'exp');
-        this.roleApLabel = this.createRoleStatRow(practicePanel, -14, new Color(214, 186, 128, 255), 'atk');
-        this.roleBreakLabel = this.createRoleStatRow(practicePanel, -46, new Color(216, 176, 232, 255), 'break');
+        this.createLabel(practicePanel, '丹器造诣', 20, new Vec3(0, 74, 0), new Color(180, 205, 225, 255));
+        this.roleExpLabel = this.createRoleStatRow(practicePanel, 12, new Color(208, 200, 154, 255), 'exp');
+        this.roleApLabel = this.createRoleStatRow(practicePanel, -20, new Color(214, 186, 128, 255), 'atk');
+        this.roleBreakLabel = this.createRoleStatRow(practicePanel, -52, new Color(216, 176, 232, 255), 'break');
 
-        const dungeonPanel = this.createPanel(this.homeRoleView, 196, 236, 220, -86, new Color(40, 50, 64, 245));
+        const dungeonPanel = this.createPanel(this.homeRoleView, 204, HOME_LAYOUT.secondarySectionHeight, 228, HOME_LAYOUT.secondarySectionY, new Color(40, 50, 64, 245));
         this.decorateRoleInfoCard(dungeonPanel, new Color(168, 214, 200, 255), '境', '周天运转');
-        this.createLabel(dungeonPanel, '境界养成', 20, new Vec3(0, 86, 0), new Color(180, 205, 225, 255));
-        this.roleDungeonLabel = this.createRoleStatRow(dungeonPanel, 12, new Color(160, 216, 194, 255), 'dungeon');
-        this.roleDungeonProgressLabel = this.createRoleStatRow(dungeonPanel, -36, new Color(184, 212, 228, 255), 'progress');
+        this.createLabel(dungeonPanel, '境界养成', 20, new Vec3(0, 74, 0), new Color(180, 205, 225, 255));
+        this.roleDungeonLabel = this.createRoleStatRow(dungeonPanel, 8, new Color(160, 216, 194, 255), 'dungeon');
+        this.roleDungeonProgressLabel = this.createRoleStatRow(dungeonPanel, -40, new Color(184, 212, 228, 255), 'progress');
 
-        const realmBtn = this.createPanel(this.homeRoleView, 148, 70, -154, -268, new Color(50, 55, 65, 255));
-        this.createLabel(realmBtn, '修炼突破', 24, new Vec3(0, 0, 0), new Color(200, 230, 255, 255));
-        realmBtn.on(Node.EventType.TOUCH_END, () => this.tryRealmUp(), this);
+        this.roleRealmButton = this.createPanel(this.homeRoleView, 206, 62, -116, HOME_LAYOUT.actionRowY, new Color(50, 55, 65, 255));
+        this.roleRealmButton.addComponent(Button).transition = Button.Transition.NONE;
+        this.roleRealmButtonLabel = this.createLabel(this.roleRealmButton, '修炼突破', 24, new Vec3(0, 0, 0), new Color(200, 230, 255, 255));
+        this.roleRealmButton.on(Node.EventType.TOUCH_END, () => this.tryRealmUp(), this);
 
-        const prepareBtn = this.createPanel(this.homeRoleView, 148, 70, 154, -268, new Color(64, 74, 58, 255));
-        this.createLabel(prepareBtn, '渡劫准备', 24, new Vec3(0, 0, 0), new Color(220, 242, 214, 255));
-        prepareBtn.on(Node.EventType.TOUCH_END, () => this.tryPrepareTribulation(), this);
+        this.rolePrepareButton = this.createPanel(this.homeRoleView, 206, 62, 116, HOME_LAYOUT.actionRowY, new Color(64, 74, 58, 255));
+        this.rolePrepareButton.addComponent(Button).transition = Button.Transition.NONE;
+        this.rolePrepareButtonLabel = this.createLabel(this.rolePrepareButton, '渡劫准备', 24, new Vec3(0, 0, 0), new Color(220, 242, 214, 255));
+        this.rolePrepareButton.on(Node.EventType.TOUCH_END, () => this.tryPrepareTribulation(), this);
     }
 
     private createRoleStatRow(parent: Node, y: number, accent: Color, icon: 'hp' | 'mana' | 'atk' | 'exp' | 'ap' | 'break' | 'dungeon' | 'progress') {
@@ -2743,7 +3230,27 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private drawRoleStatIcon(node: Node, icon: 'hp' | 'mana' | 'atk' | 'exp' | 'ap' | 'break' | 'dungeon' | 'progress', accent: Color) {
-        const g = node.addComponent(Graphics);
+        const assetName = icon === 'hp'
+            ? 'icon-hp'
+            : icon === 'mana'
+                ? 'icon-mana'
+                : icon === 'atk'
+                    ? 'icon-stat-atk'
+                    : icon === 'exp'
+                        ? 'icon-exp'
+                        : icon === 'ap'
+                            ? 'icon-action'
+                            : icon === 'break'
+                                ? 'icon-stat-break'
+                                : icon === 'dungeon'
+                                    ? 'icon-stat-dungeon'
+                                    : 'icon-stat-progress';
+        if (this.tryApplyInlineIconSprite(node, assetName, 'RoleStatSprite', 18, 18, new Color(accent.r, accent.g, accent.b, 255))) return;
+
+        let g = node.getComponent(Graphics);
+        if (!g) g = node.addComponent(Graphics);
+        g.enabled = true;
+        g.clear();
         g.strokeColor = new Color(accent.r, accent.g, accent.b, 210);
         g.fillColor = new Color(accent.r, accent.g, accent.b, 44);
         g.lineWidth = 1.6;
@@ -2823,51 +3330,60 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private decorateRoleInfoCard(panel: Node, accent: Color, glyph: string, footer: string) {
+        const transform = panel.getComponent(UITransform);
+        const panelWidth = transform?.contentSize.width ?? 196;
+        const panelHeight = transform?.contentSize.height ?? 236;
+        const compact = panelHeight <= 100 || panelWidth <= 170;
+        const topLineWidth = compact ? Math.max(72, panelWidth - 42) : Math.min(112, panelWidth - 56);
+        const topLineY = panelHeight / 2 - (compact ? 10 : 18);
+        const markRadius = compact ? 12 : 14;
+        const markX = -panelWidth / 2 + (compact ? 20 : 66);
+        const markY = panelHeight / 2 - (compact ? 20 : 28);
         const topLine = new Node('CardAccent');
         topLine.layer = Layers.Enum.UI_2D;
         panel.addChild(topLine);
-        topLine.setPosition(0, 64, 0);
-        topLine.addComponent(UITransform).setContentSize(112, 10);
+        topLine.setPosition(0, topLineY, 0);
+        topLine.addComponent(UITransform).setContentSize(topLineWidth, compact ? 8 : 10);
         const line = topLine.addComponent(Graphics);
         line.fillColor = new Color(accent.r, accent.g, accent.b, 70);
         line.strokeColor = new Color(accent.r, accent.g, accent.b, 180);
         line.lineWidth = 1.5;
-        line.roundRect(-56, -5, 112, 10, 5);
+        line.roundRect(-topLineWidth / 2, compact ? -4 : -5, topLineWidth, compact ? 8 : 10, compact ? 4 : 5);
         line.fill();
-        line.roundRect(-56, -5, 112, 10, 5);
+        line.roundRect(-topLineWidth / 2, compact ? -4 : -5, topLineWidth, compact ? 8 : 10, compact ? 4 : 5);
         line.stroke();
 
         const mark = new Node('CardGlyph');
         mark.layer = Layers.Enum.UI_2D;
         panel.addChild(mark);
-        mark.setPosition(-66, 86, 0);
-        mark.addComponent(UITransform).setContentSize(28, 28);
+        mark.setPosition(markX, markY, 0);
+        mark.addComponent(UITransform).setContentSize(markRadius * 2, markRadius * 2);
         const markG = mark.addComponent(Graphics);
         markG.fillColor = new Color(accent.r, accent.g, accent.b, 34);
         markG.strokeColor = new Color(accent.r, accent.g, accent.b, 165);
         markG.lineWidth = 1.5;
-        markG.circle(0, 0, 14);
+        markG.circle(0, 0, markRadius);
         markG.fill();
-        markG.circle(0, 0, 14);
+        markG.circle(0, 0, markRadius);
         markG.stroke();
-        this.createLabel(mark, glyph, 16, new Vec3(0, 0, 0), new Color(246, 244, 236, 255), 24);
+        this.createLabel(mark, glyph, compact ? 14 : 16, new Vec3(0, 0, 0), new Color(246, 244, 236, 255), compact ? 20 : 24);
 
-        this.createLabel(panel, footer, 15, new Vec3(0, -94, 0), new Color(accent.r, accent.g, accent.b, 220), 156);
+        if (!compact) {
+            this.createLabel(panel, footer, 15, new Vec3(0, -panelHeight / 2 + 22, 0), new Color(accent.r, accent.g, accent.b, 220), Math.min(156, panelWidth - 28));
+        }
     }
 
     private buildHomeMijingView() {
-        const header = this.createPanel(this.homeMijingView, 620, 98, 0, 372, new Color(40, 48, 58, 245));
-        this.createLabel(header, '秘境历练', 32, new Vec3(0, 20, 0), new Color(236, 228, 208, 255), 200);
-        this.createLabel(header, '选择目标秘境，累计深度宝箱并在合适时机入场推进', 17, new Vec3(0, -18, 0), new Color(164, 184, 202, 255), 560);
+        this.createStandardHomeHeader(this.homeMijingView, '秘境历练', '选择目标秘境，累计深度宝箱并在合适时机入场推进。', new Color(40, 48, 58, 245), new Color(236, 228, 208, 255), new Color(164, 184, 202, 255));
 
-        const dungeonPanel = this.createPanel(this.homeMijingView, 620, 220, 0, 190, new Color(40, 48, 58, 245));
-        this.createLabel(dungeonPanel, '选择秘境', 26, new Vec3(0, 84, 0), new Color(228, 220, 200, 255));
-        this.selectedDungeonInfoLabel = this.createLabel(dungeonPanel, '', 18, new Vec3(0, 50, 0), new Color(150, 175, 195, 255), 560);
+        const dungeonPanel = this.createPanel(this.homeMijingView, 676, 248, 0, 160, new Color(40, 48, 58, 245));
+        this.createSectionHeader(dungeonPanel, '选择秘境', '四类秘境按成长阶段分层开放，建议根据当前缺口选择推进路线。', new Color(196, 214, 232, 255), '境');
+        this.selectedDungeonInfoLabel = this.createLabel(dungeonPanel, '', 18, new Vec3(0, 56, 0), new Color(150, 175, 195, 255), 620);
         DUNGEON_CONFIGS.forEach((config, index) => {
             const col = index % 2;
             const row = Math.floor(index / 2);
             const x = col === 0 ? -145 : 145;
-            const y = row === 0 ? 0 : -72;
+            const y = row === 0 ? 6 : -66;
             const btn = this.createPanel(dungeonPanel, 250, 54, x, y, new Color(54, 60, 70, 255));
             const label = this.createLabel(btn, config.label, 22, new Vec3(0, 0, 0), new Color(220, 230, 240, 255), 220);
             btn.on(Node.EventType.TOUCH_END, () => this.selectDungeon(config.id), this);
@@ -2875,26 +3391,676 @@ export class GrottoExpeditionDemo extends Component {
             this.dungeonButtonLabels[config.id] = label;
         });
 
-        const chestPanel = this.createPanel(this.homeMijingView, 620, 220, 0, -54, new Color(44, 38, 32, 245));
-        this.progressChestTitleLabel = this.createLabel(chestPanel, '', 24, new Vec3(0, 84, 0), new Color(230, 215, 175, 255), 560);
-        this.progressChestInfoLabel = this.createLabel(chestPanel, '', 18, new Vec3(0, 54, 0), new Color(170, 160, 145, 255), 560);
+        const chestPanel = this.createPanel(this.homeMijingView, 676, 252, 0, -108, new Color(44, 38, 32, 245));
+        this.createSectionHeader(chestPanel, '进度宝箱', '每一档历史最深层数都会解锁一枚宝箱，建议先打到节点再回头领取。', new Color(235, 205, 130, 255), '箱');
+        this.progressChestTitleLabel = this.createLabel(chestPanel, '', 22, new Vec3(0, 54, 0), new Color(230, 215, 175, 255), 560);
+        this.progressChestInfoLabel = this.createLabel(chestPanel, '', 17, new Vec3(0, 26, 0), new Color(170, 160, 145, 255), 560);
         for (let i = 0; i < MAX_PROGRESS_CHESTS; i++) {
             const col = i % 5;
             const row = Math.floor(i / 5);
             const x = -220 + col * 110;
-            const y = row === 0 ? -6 : -74;
+            const y = row === 0 ? -12 : -82;
             const chestBtn = this.createPanel(chestPanel, 92, 48, x, y, new Color(88, 72, 45, 255));
-            const chestLabel = this.createLabel(chestBtn, '', 18, new Vec3(0, 0, 0), new Color(240, 220, 180, 255), 84);
+            const glowNode = this.createAssetSpriteNode(chestBtn, 'ProgressChestGlow', 86, 92, new Vec3(0, 8, 0));
+            glowNode.setSiblingIndex(0);
+            const glowSprite = glowNode.getComponent(Sprite);
+            if (glowSprite) glowSprite.color = new Color(255, 255, 255, 190);
+            this.setAssetSprite(glowNode, 'rarity-chest-glow-v2');
+            const chestIconNode = new Node('ProgressChestIcon');
+            chestIconNode.layer = Layers.Enum.UI_2D;
+            chestBtn.addChild(chestIconNode);
+            chestIconNode.setPosition(0, 8, 0);
+            chestIconNode.addComponent(UITransform).setContentSize(26, 26);
+            chestIconNode.addComponent(Sprite).sizeMode = Sprite.SizeMode.CUSTOM;
+            chestIconNode.active = false;
+            this.loadXianxiaTexture('icon-progress-chest', (sf) => {
+                if (sf && chestIconNode.isValid) {
+                    const s = chestIconNode.getComponent(Sprite);
+                    if (s) s.spriteFrame = sf;
+                    this.applyAssetDisplayScale(chestIconNode, 'icon-progress-chest');
+                    chestIconNode.active = true;
+                }
+            });
+            const chestLabel = this.createLabel(chestBtn, '', 16, new Vec3(0, -11, 0), new Color(240, 220, 180, 255), 84);
             chestBtn.on(Node.EventType.TOUCH_END, () => this.claimProgressChest(i), this);
             this.progressChestNodes.push(chestBtn);
             this.progressChestLabels.push(chestLabel);
         }
 
-        const goBtn = this.createPanel(this.homeMijingView, 260, 76, 0, -316, new Color(45, 70, 60, 255));
+        const goBtn = this.createPanel(this.homeMijingView, 260, 76, 0, HOME_LAYOUT.actionRowY, new Color(45, 70, 60, 255));
         this.createLabel(goBtn, '进入秘境', 36, new Vec3(0, 0, 0), new Color(180, 255, 220, 255));
         goBtn.on(Node.EventType.TOUCH_END, () => this.tryStartExpedition(), this);
 
-        this.hintLabel = this.createLabel(this.homeMijingView, '前期建议先刷练气秘境，缺灵石去商城补给，缺战力先回角色、工坊与法器页整备。', 20, new Vec3(0, -424, 0), new Color(120, 140, 160, 255), 660);
+        this.hintLabel = this.createLabel(this.homeMijingView, '前期建议先刷练气秘境，缺灵石去商城补给，缺战力先回角色、工坊与法器页整备。', 20, new Vec3(0, HOME_LAYOUT.hintY, 0), new Color(120, 140, 160, 255), 660);
+    }
+
+    private getPanelCornerRadius(w: number, h: number) {
+        const minSide = Math.min(w, h);
+        if (minSide <= 34) return 10;
+        if (minSide <= 44) return 11;
+        if (minSide <= 64) return 12;
+        if (minSide <= 96) return 14;
+        if (minSide <= 180) return 16;
+        return 20;
+    }
+
+    private getPanelStrokeWidth(w: number, h: number) {
+        return Math.min(w, h) <= 44 ? 1.6 : 2;
+    }
+
+    private tintColor(color: Color, delta: number, alpha = color.a) {
+        const clamp = (value: number) => Math.max(0, Math.min(255, value));
+        return new Color(clamp(color.r + delta), clamp(color.g + delta), clamp(color.b + delta), alpha);
+    }
+
+    private paintPanelGraphic(g: Graphics, w: number, h: number, fill: Color, stroke: Color) {
+        const radius = this.getPanelCornerRadius(w, h);
+        const strokeWidth = this.getPanelStrokeWidth(w, h);
+        g.clear();
+        g.fillColor = fill;
+        g.roundRect(-w / 2, -h / 2, w, h, radius);
+        g.fill();
+
+        const innerStroke = this.tintColor(fill, 20, Math.min(120, fill.a));
+        g.strokeColor = innerStroke;
+        g.lineWidth = 1;
+        g.roundRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4, Math.max(6, radius - 2));
+        g.stroke();
+
+        g.strokeColor = stroke;
+        g.lineWidth = strokeWidth;
+        g.roundRect(-w / 2, -h / 2, w, h, radius);
+        g.stroke();
+    }
+
+    private ensurePanelSkinSprite(panel: Node) {
+        const transform = panel.getComponent(UITransform);
+        if (!transform) return null;
+        let skinNode = panel.getChildByName('PanelSkin');
+        if (!skinNode) {
+            skinNode = new Node('PanelSkin');
+            skinNode.layer = Layers.Enum.UI_2D;
+            panel.addChild(skinNode);
+        }
+        skinNode.setSiblingIndex(0);
+        skinNode.setPosition(0, 0, 0);
+        const skinTransform = skinNode.getComponent(UITransform) || skinNode.addComponent(UITransform);
+        skinTransform.setContentSize(transform.contentSize.width, transform.contentSize.height);
+        let sprite = skinNode.getComponent(Sprite);
+        if (!sprite) sprite = skinNode.addComponent(Sprite);
+        sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+        return sprite;
+    }
+
+    private applyPanelTexture(panel: Node, assetName: string, tint: Color) {
+        const sprite = this.ensurePanelSkinSprite(panel);
+        if (!sprite) return;
+        sprite.color = new Color(tint.r, tint.g, tint.b, tint.a);
+        sprite.node.active = false;
+        this.loadXianxiaTexture(assetName, (sf) => {
+            if (!sprite.isValid || !sprite.node.isValid) return;
+            if (!sf) {
+                sprite.node.active = false;
+                return;
+            }
+            sprite.spriteFrame = sf;
+            sprite.color = new Color(tint.r, tint.g, tint.b, tint.a);
+            sprite.node.active = true;
+        });
+    }
+
+    private applyButtonSkin(button: Node, assetName: 'btn-primary' | 'btn-secondary', tint: Color) {
+        this.applyPanelTexture(button, assetName, tint);
+    }
+
+    private isLikelyButtonPanel(w: number, h: number) {
+        if (w < 96 || h < 32) return false;
+        if (w > 380 || h > 110) return false;
+        return w / Math.max(1, h) >= 1.7;
+    }
+
+    private shouldApplyStandardPanelSkin(w: number, h: number) {
+        if (this.isLikelyButtonPanel(w, h)) return false;
+        if (w < 120 || h < 48) return false;
+        if (w <= 96 && h <= 96) return false;
+        return true;
+    }
+
+    private getStandardSkinTint(fill: Color, alpha: number) {
+        const clamp = (value: number) => Math.max(0, Math.min(255, value));
+        return new Color(clamp(fill.r + 118), clamp(fill.g + 118), clamp(fill.b + 118), alpha);
+    }
+
+    private getStandardButtonSkinAsset(fill: Color): 'btn-primary' | 'btn-secondary' {
+        return fill.g >= fill.r && fill.g >= fill.b ? 'btn-primary' : 'btn-secondary';
+    }
+
+    private applyStandardPanelSkin(panel: Node, w: number, h: number, fill: Color) {
+        if (this.isLikelyButtonPanel(w, h)) {
+            this.applyButtonSkin(panel, this.getStandardButtonSkinAsset(fill), this.getStandardSkinTint(fill, 236));
+            return;
+        }
+        if (!this.shouldApplyStandardPanelSkin(w, h)) return;
+        const alpha = w >= 560 || h >= 140 ? 228 : 214;
+        this.applyPanelTexture(panel, 'ui-panel-bg', this.getStandardSkinTint(fill, alpha));
+    }
+
+    private getShopItemIconAsset(item: ShopItemDef) {
+        switch (item.effect) {
+            case 'hp':
+                return 'icon-hp';
+            case 'mana':
+                return 'icon-mana';
+            case 'atk':
+            case 'ap':
+                return 'icon-action';
+            case 'exp':
+                return 'icon-exp';
+            case 'crystal':
+                return 'icon-mystic-crystal';
+            case 'artifactExp':
+                return 'icon-badge';
+            case 'spiritStone':
+                return 'icon-spirit-stone';
+            default:
+                return item.currency === 'mijing' ? 'icon-badge' : null;
+        }
+    }
+
+    private getTaskIconAsset(task: TaskEntry) {
+        const reward = task.rewards[0];
+        if (!reward) return null;
+        if (reward.effect === 'badge') return 'icon-badge';
+        switch (reward.effect) {
+            case 'hp':
+                return 'icon-hp';
+            case 'mana':
+                return 'icon-mana';
+            case 'atk':
+            case 'ap':
+                return 'icon-action';
+            case 'exp':
+                return 'icon-exp';
+            case 'crystal':
+                return 'icon-mystic-crystal';
+            case 'artifactExp':
+                return 'icon-badge';
+            case 'spiritStone':
+                return 'icon-spirit-stone';
+            default:
+                return null;
+        }
+    }
+
+    private createAssetSpriteNode(parent: Node, name: string, width: number, height: number, pos: Vec3) {
+        const node = new Node(name);
+        node.layer = Layers.Enum.UI_2D;
+        parent.addChild(node);
+        node.setPosition(pos);
+        node.addComponent(UITransform).setContentSize(width, height);
+        const sprite = node.addComponent(Sprite);
+        sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+        node.active = false;
+        return node;
+    }
+
+    private getAssetDisplayScale(assetName: string) {
+        if (assetName.startsWith('portrait-')) return 1.24;
+        if (assetName === 'protagonist-seated') return 1.16;
+        if (assetName.startsWith('icon-tile-')) return 1.38;
+        if (assetName.startsWith('icon-badge')) return 1.12;
+        if (assetName.startsWith('icon-lottery-')) return 1.2;
+        if (assetName.startsWith('building-')) return 1.2;
+        if (assetName === 'ui-alchemy-cauldron') return 1.18;
+        if (assetName.startsWith('icon-nav-')) return 0.92;
+        if (
+            assetName.startsWith('icon-quick-')
+            || assetName.startsWith('icon-stat-')
+            || assetName.startsWith('icon-pill-')
+            || assetName.startsWith('icon-material-')
+            || assetName.startsWith('icon-forge-')
+            || assetName.startsWith('icon-kungfu-')
+            || assetName.startsWith('icon-artifact-')
+            || assetName.startsWith('icon-spirit-')
+            || assetName.startsWith('icon-building-')
+            || assetName === 'icon-progress-chest'
+            || assetName === 'icon-spirit-stone'
+            || assetName === 'icon-mystic-crystal'
+            || assetName === 'icon-exp'
+            || assetName === 'icon-action'
+            || assetName === 'icon-hp'
+            || assetName === 'icon-mana'
+        ) {
+            return 1.28;
+        }
+        return 1;
+    }
+
+    private applyAssetDisplayScale(node: Node | null, assetName: string) {
+        if (!node?.isValid) return;
+        const scale = this.getAssetDisplayScale(assetName);
+        node.setScale(scale, scale, 1);
+    }
+
+    private setAssetSprite(node: Node | null, assetName: string | null, onLoaded?: () => void) {
+        if (!node?.isValid) return;
+        if (!assetName) {
+            node.active = false;
+            return;
+        }
+        const sprite = node.getComponent(Sprite);
+        if (!sprite) return;
+        this.loadXianxiaTexture(assetName, (sf) => {
+            if (!sf || !node.isValid) {
+                if (node.isValid) node.active = false;
+                return;
+            }
+            sprite.spriteFrame = sf;
+            this.applyAssetDisplayScale(node, assetName);
+            node.active = true;
+            onLoaded?.();
+        });
+    }
+
+    private addTitleBarArt(parent: Node | null, width: number, y: number, alpha = 255) {
+        if (!parent?.isValid) return null;
+        const art = this.createAssetSpriteNode(parent, 'ConfirmTitleArt', width, 64, new Vec3(0, y, 0));
+        art.setSiblingIndex(0);
+        const sprite = art.getComponent(Sprite);
+        if (sprite) sprite.color = new Color(255, 255, 255, alpha);
+        this.setAssetSprite(art, 'ui-confirm-title-v2');
+        return art;
+    }
+
+    private createStatusBadgeNode(parent: Node, x: number, y: number, size = 34) {
+        return this.createAssetSpriteNode(parent, 'StatusBadge', size, size, new Vec3(x, y, 0));
+    }
+
+    private getTaskStatusBadgeAsset(claimed: boolean, completed: boolean) {
+        if (claimed) return 'icon-badge-done';
+        if (completed) return 'icon-badge-claimable';
+        return null;
+    }
+
+    private getShopStatusBadgeAsset(soldOut: boolean) {
+        return soldOut ? 'icon-badge-soldout' : null;
+    }
+
+    private getArtifactStatusBadgeAsset(def: ArtifactDef, state: ArtifactState, equipped: boolean) {
+        if (equipped) return 'icon-badge-equipped';
+        if (!state.unlocked) return state.shards >= def.synthCost ? 'icon-badge-upgradable' : 'icon-badge-locked';
+        const levelCap = this.getArtifactLevelCap(state);
+        const canUpgrade = state.level < levelCap
+            && this.artifactExpPool >= this.getArtifactUpgradeCost(state)
+            && this.getSpiritStoneTotalValue(this.spiritStoneInventory) >= this.getArtifactMaintenanceCost(state);
+        const canStar = state.star < MAX_ARTIFACT_STAR && state.level >= levelCap && state.shards >= this.getArtifactStarCost(state);
+        return canUpgrade || canStar ? 'icon-badge-upgradable' : null;
+    }
+
+    private getKungfuStatusBadgeAsset(id: KungfuId, equipped: boolean) {
+        if (equipped) return 'icon-badge-equipped';
+        return this.getSpiritStoneTotalValue(this.spiritStoneInventory) >= this.getKungfuUpgradeCost(id) ? 'icon-badge-upgradable' : null;
+    }
+
+    private getSpiritPetStatusBadgeAsset(id: SpiritPetId, unlocked: boolean, equipped: boolean) {
+        if (!unlocked) return 'icon-badge-locked';
+        if (equipped) return 'icon-badge-equipped';
+        return this.getSpiritStoneTotalValue(this.spiritStoneInventory) >= this.getSpiritPetUpgradeCost(id) ? 'icon-badge-upgradable' : null;
+    }
+
+    private getRarityFrameAsset(rarity: Rarity) {
+        switch (rarity) {
+            case 'green':
+                return 'rarity-frame-green';
+            case 'blue':
+                return 'rarity-frame-blue';
+            case 'purple':
+                return 'rarity-frame-purple';
+            case 'orange':
+                return 'rarity-frame-orange';
+            default:
+                return null;
+        }
+    }
+
+    private getRarityTopbarAsset(rarity: Rarity) {
+        switch (rarity) {
+            case 'green':
+                return 'rarity-topbar-green-v2';
+            case 'blue':
+                return 'rarity-topbar-blue-v2';
+            case 'purple':
+                return 'rarity-topbar-purple-v2';
+            case 'orange':
+                return 'rarity-topbar-orange-v2';
+            default:
+                return null;
+        }
+    }
+
+    private getRarityCornerAsset(rarity: Rarity) {
+        switch (rarity) {
+            case 'green':
+                return 'rarity-corner-green-v2';
+            case 'blue':
+                return 'rarity-corner-blue-v2';
+            case 'purple':
+                return 'rarity-corner-purple-v2';
+            case 'orange':
+                return 'rarity-corner-orange-v2';
+            default:
+                return null;
+        }
+    }
+
+    private getLotteryEntryIconAsset(entry: LotteryWheelEntry | null) {
+        if (!entry) return null;
+        switch (entry.effect.type) {
+            case 'restoreHp':
+            case 'reduceHp':
+                return 'icon-hp';
+            case 'restoreMana':
+            case 'reduceMana':
+                return 'icon-mana';
+            case 'restoreAction':
+            case 'reduceAction':
+                return 'icon-action';
+            default:
+                return null;
+        }
+    }
+
+    private getLotteryEntryIconTint(entry: LotteryWheelEntry | null) {
+        if (!entry) return new Color(255, 255, 255, 0);
+        switch (entry.effect.type) {
+            case 'restoreHp':
+                return new Color(238, 110, 110, 255);
+            case 'reduceHp':
+                return new Color(176, 72, 92, 255);
+            case 'restoreMana':
+                return new Color(122, 196, 255, 255);
+            case 'reduceMana':
+                return new Color(96, 116, 208, 255);
+            case 'restoreAction':
+                return new Color(236, 196, 76, 255);
+            case 'reduceAction':
+                return new Color(212, 130, 72, 255);
+            default:
+                return new Color(255, 255, 255, 255);
+        }
+    }
+
+    private getSlotTileIconAsset(type: SlotType) {
+        switch (type) {
+            case 'empty':
+                return 'icon-tile-empty';
+            case 'herb':
+                return 'icon-tile-herb';
+            case 'stone':
+                return 'icon-tile-ore';
+            case 'treasure':
+                return 'icon-tile-treasure';
+            case 'monster':
+                return 'icon-tile-monster';
+            case 'trap':
+                return 'icon-tile-trap';
+            case 'buff':
+                return 'icon-tile-buff';
+            case 'intercept':
+                return 'icon-tile-evil';
+            case 'boss':
+                return 'icon-tile-boss';
+            default:
+                return null;
+        }
+    }
+
+    private getSlotTileStateAsset(revealed: boolean) {
+        return revealed ? 'ui-tile-opened-v2' : 'ui-tile-unopened-v2';
+    }
+
+    private getSlotTileClueAsset(slot: MapNode) {
+        if (!slot.revealed) return null;
+        switch (slot.type) {
+            case 'monster':
+            case 'trap':
+            case 'intercept':
+            case 'boss':
+                return 'ui-tile-danger-clue-v2';
+            case 'empty':
+                return null;
+            default:
+                return 'ui-tile-reward-clue-v2';
+        }
+    }
+
+    private applyArtToNode(node: Node | null, assetName: string, width?: number, height?: number, disableGraphics = true) {
+        if (!node?.isValid) return;
+        const size = node.getComponent(UITransform)?.contentSize;
+        const artNode = this.createAssetSpriteNode(node, `${assetName}-Art`, width ?? size?.width ?? 100, height ?? size?.height ?? 100, new Vec3(0, 0, 0));
+        this.setAssetSprite(artNode, assetName, () => {
+            if (!node?.isValid) return;
+            if (disableGraphics) {
+                const graphics = node.getComponent(Graphics);
+                if (graphics) graphics.enabled = false;
+            }
+        });
+    }
+
+    private applyButtonArt(button: Node | null, assetName: string) {
+        if (!button?.isValid) return;
+        const size = button.getComponent(UITransform)?.contentSize;
+        const art = this.createAssetSpriteNode(button, 'ButtonArt', size?.width ?? 100, size?.height ?? 40, new Vec3(0, 0, 0));
+        art.setSiblingIndex(0);
+        this.setAssetSprite(art, assetName, () => {
+            const graphics = button.getComponent(Graphics);
+            if (graphics) graphics.enabled = false;
+        });
+    }
+
+    private setLotteryResultIcon(entry: LotteryWheelEntry | null) {
+        if (!this.lotteryResultIconNode?.isValid) return;
+        this.setAssetSprite(this.lotteryResultIconNode, this.getLotteryEntryIconAsset(entry));
+        const sprite = this.lotteryResultIconNode.getComponent(Sprite);
+        if (sprite) sprite.color = entry ? this.getLotteryEntryIconTint(entry) : new Color(255, 255, 255, 0);
+    }
+
+    private tryApplyInlineIconSprite(node: Node | null, assetName: string | null, childName: string, width: number, height: number, tint: Color) {
+        if (!node?.isValid || !assetName) return false;
+        let spriteNode = node.getChildByName(childName);
+        if (!spriteNode) {
+            spriteNode = new Node(childName);
+            spriteNode.layer = Layers.Enum.UI_2D;
+            node.addChild(spriteNode);
+            spriteNode.setPosition(0, 0, 0);
+            spriteNode.addComponent(UITransform).setContentSize(width, height);
+            const sprite = spriteNode.addComponent(Sprite);
+            sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+            spriteNode.active = false;
+        }
+        const transform = spriteNode.getComponent(UITransform);
+        if (transform) transform.setContentSize(width, height);
+        const sprite = spriteNode.getComponent(Sprite);
+        if (!sprite) return false;
+        sprite.color = tint;
+        if (sprite.spriteFrame) {
+            this.applyAssetDisplayScale(spriteNode, assetName);
+            spriteNode.active = true;
+            const graphics = node.getComponent(Graphics);
+            if (graphics) graphics.enabled = false;
+            return true;
+        }
+        spriteNode.active = false;
+        const graphics = node.getComponent(Graphics);
+        if (graphics) graphics.enabled = true;
+        this.loadXianxiaTexture(assetName, (sf) => {
+            if (!sf || !node.isValid || !spriteNode?.isValid) return;
+            const nextSprite = spriteNode.getComponent(Sprite);
+            if (!nextSprite) return;
+            nextSprite.spriteFrame = sf;
+            this.applyAssetDisplayScale(spriteNode, assetName);
+            spriteNode.active = true;
+            const nextGraphics = node.getComponent(Graphics);
+            if (nextGraphics) nextGraphics.enabled = false;
+        });
+        return false;
+    }
+
+    private styleTabButton(button: Node, active: boolean, accent: 'neutral' | 'gold' | 'azure' | 'jade' = 'neutral') {
+        const palette = accent === 'gold'
+            ? {
+                activeFill: new Color(98, 80, 56, 255),
+                inactiveFill: new Color(62, 54, 46, 248),
+                activeStroke: new Color(232, 196, 134, 220),
+                inactiveStroke: new Color(126, 112, 92, 180),
+                activeText: new Color(250, 242, 220, 255),
+                inactiveText: new Color(214, 204, 188, 255),
+            }
+            : accent === 'azure'
+                ? {
+                    activeFill: new Color(68, 84, 104, 255),
+                    inactiveFill: new Color(52, 60, 72, 248),
+                    activeStroke: new Color(172, 204, 236, 220),
+                    inactiveStroke: new Color(98, 112, 130, 180),
+                    activeText: new Color(238, 244, 252, 255),
+                    inactiveText: new Color(210, 220, 232, 255),
+                }
+                : accent === 'jade'
+                    ? {
+                        activeFill: new Color(60, 92, 84, 255),
+                        inactiveFill: new Color(48, 68, 64, 248),
+                        activeStroke: new Color(164, 220, 198, 220),
+                        inactiveStroke: new Color(92, 124, 116, 180),
+                        activeText: new Color(236, 248, 242, 255),
+                        inactiveText: new Color(210, 232, 222, 255),
+                    }
+                    : {
+                        activeFill: new Color(66, 82, 100, 255),
+                        inactiveFill: new Color(52, 60, 72, 248),
+                        activeStroke: new Color(176, 204, 228, 220),
+                        inactiveStroke: new Color(88, 104, 124, 180),
+                        activeText: new Color(242, 246, 250, 255),
+                        inactiveText: new Color(204, 214, 228, 255),
+                    };
+        this.repaintPanel(button, active ? palette.activeFill : palette.inactiveFill, active ? palette.activeStroke : palette.inactiveStroke);
+        const labels = button.getComponentsInChildren(Label);
+        labels.forEach((label) => {
+            label.color = active ? palette.activeText : palette.inactiveText;
+        });
+    }
+
+    private styleQuickButton(button: Node, active: boolean, accent: 'neutral' | 'gold' | 'azure' | 'jade' = 'neutral') {
+        const palette = accent === 'gold'
+            ? {
+                activeFill: new Color(102, 78, 54, 255),
+                inactiveFill: new Color(70, 58, 46, 248),
+                activeStroke: new Color(236, 198, 128, 220),
+                inactiveStroke: new Color(136, 112, 84, 200),
+                activeText: new Color(250, 242, 220, 255),
+                inactiveText: new Color(242, 230, 198, 255),
+            }
+            : accent === 'azure'
+                ? {
+                    activeFill: new Color(68, 86, 110, 255),
+                    inactiveFill: new Color(50, 62, 78, 248),
+                    activeStroke: new Color(172, 204, 236, 220),
+                    inactiveStroke: new Color(98, 112, 130, 200),
+                    activeText: new Color(236, 244, 252, 255),
+                    inactiveText: new Color(214, 224, 236, 255),
+                }
+                : accent === 'jade'
+                    ? {
+                        activeFill: new Color(60, 98, 88, 255),
+                        inactiveFill: new Color(48, 70, 66, 248),
+                        activeStroke: new Color(164, 228, 204, 220),
+                        inactiveStroke: new Color(92, 128, 118, 200),
+                        activeText: new Color(238, 250, 244, 255),
+                        inactiveText: new Color(214, 240, 228, 255),
+                    }
+                    : {
+                        activeFill: new Color(62, 78, 96, 255),
+                        inactiveFill: new Color(46, 56, 72, 248),
+                        activeStroke: new Color(164, 198, 228, 220),
+                        inactiveStroke: new Color(88, 104, 124, 200),
+                        activeText: new Color(236, 242, 248, 255),
+                        inactiveText: new Color(214, 224, 236, 255),
+                    };
+        this.repaintPanel(button, active ? palette.activeFill : palette.inactiveFill, active ? palette.activeStroke : palette.inactiveStroke);
+        const labels = button.getComponentsInChildren(Label);
+        labels.forEach((label) => {
+            label.color = active ? palette.activeText : palette.inactiveText;
+        });
+    }
+
+    private styleSelectionButton(button: Node, active: boolean, accent: Color, inactiveFill = new Color(54, 62, 74, 255), inactiveText = new Color(188, 198, 212, 255), disabled = false) {
+        const activeFill = this.tintColor(accent, -80, 255);
+        const activeStroke = this.tintColor(accent, 24, 228);
+        const inactiveStroke = this.tintColor(accent, -24, 168);
+        const fill = disabled ? new Color(55, 55, 60, 255) : active ? activeFill : inactiveFill;
+        this.repaintPanel(button, fill, disabled ? new Color(96, 96, 106, 150) : active ? activeStroke : inactiveStroke);
+        const labels = button.getComponentsInChildren(Label);
+        labels.forEach((label) => {
+            label.color = disabled ? new Color(130, 130, 140, 255) : active ? new Color(250, 246, 232, 255) : inactiveText;
+        });
+    }
+
+    private styleActionButton(button: Node, state: 'ready' | 'active' | 'disabled', accent: 'gold' | 'azure' | 'jade' = 'azure') {
+        const palette = accent === 'gold'
+            ? {
+                readyFill: new Color(96, 78, 54, 255),
+                readyStroke: new Color(226, 196, 138, 200),
+                readyText: new Color(248, 238, 220, 255),
+                activeFill: new Color(82, 68, 50, 255),
+                activeStroke: new Color(240, 214, 162, 220),
+                activeText: new Color(252, 244, 228, 255),
+            }
+            : accent === 'jade'
+                ? {
+                    readyFill: new Color(64, 90, 74, 255),
+                    readyStroke: new Color(144, 200, 170, 180),
+                    readyText: new Color(228, 244, 230, 255),
+                    activeFill: new Color(58, 84, 70, 255),
+                    activeStroke: new Color(170, 220, 194, 210),
+                    activeText: new Color(238, 250, 244, 255),
+                }
+                : {
+                    readyFill: new Color(66, 76, 92, 255),
+                    readyStroke: new Color(152, 184, 216, 180),
+                    readyText: new Color(238, 244, 250, 255),
+                    activeFill: new Color(60, 72, 88, 255),
+                    activeStroke: new Color(176, 204, 232, 220),
+                    activeText: new Color(244, 248, 252, 255),
+                };
+        if (state === 'disabled') {
+            this.repaintPanel(button, new Color(72, 76, 82, 255), new Color(128, 138, 148, 160));
+            const disabledLabels = button.getComponentsInChildren(Label);
+            disabledLabels.forEach((label) => {
+                label.color = new Color(188, 196, 204, 255);
+            });
+            return;
+        }
+        const fill = state === 'active' ? palette.activeFill : palette.readyFill;
+        this.repaintPanel(button, fill, state === 'active' ? palette.activeStroke : palette.readyStroke);
+        const labels = button.getComponentsInChildren(Label);
+        labels.forEach((label) => {
+            label.color = state === 'active' ? palette.activeText : palette.readyText;
+        });
+    }
+
+    private styleCardPanel(card: Node, state: 'neutral' | 'selected' | 'accent' | 'disabled', accent = new Color(150, 170, 190, 255)) {
+        if (state === 'disabled') {
+            this.repaintPanel(card, new Color(52, 56, 62, 245), new Color(120, 126, 132, 140));
+            return;
+        }
+        if (state === 'accent') {
+            this.repaintPanel(card, this.tintColor(accent, -106, 245), this.tintColor(accent, 12, 220));
+            return;
+        }
+        if (state === 'selected') {
+            this.repaintPanel(card, this.tintColor(accent, -118, 248), this.tintColor(accent, 22, 220));
+            return;
+        }
+        this.repaintPanel(card, new Color(42, 48, 58, 245), new Color(accent.r, accent.g, accent.b, 150));
     }
 
     private switchHomeTab(tab: 'dongtian' | 'mijing' | 'shop' | 'faqi' | 'role') {
@@ -2911,14 +4077,10 @@ export class GrottoExpeditionDemo extends Component {
             const iconNode = this.homeNavIcons[key];
             if (!btn) return;
             const active = key === tab;
-            this.repaintPanel(btn, active ? new Color(62, 78, 96, 255) : new Color(45, 52, 62, 255), active ? new Color(152, 192, 224, 220) : new Color(70, 85, 100, 200));
+            this.styleTabButton(btn, active, 'neutral');
             if (iconNode) {
                 this.drawHomeNavIcon(iconNode, key, active);
             }
-            const labels = btn.getComponentsInChildren(Label);
-            labels.forEach((label) => {
-                label.color = active ? new Color(220, 232, 244, 255) : new Color(180, 195, 210, 255);
-            });
         });
 
         this.refreshWorkshopQuickButtons();
@@ -2997,21 +4159,13 @@ export class GrottoExpeditionDemo extends Component {
         if (this.homeAlchemyQuickButton) {
             const active = panelOpen && this.alchemyTab !== 'forge';
             const icon = this.homeAlchemyQuickButton.getChildByName('AlchemyIcon');
-            this.repaintPanel(this.homeAlchemyQuickButton, active ? new Color(98, 72, 50, 255) : new Color(66, 52, 42, 248), active ? new Color(232, 188, 122, 220) : new Color(126, 106, 90, 200));
-            const labels = this.homeAlchemyQuickButton.getComponentsInChildren(Label);
-            labels.forEach((label) => {
-                label.color = active ? new Color(248, 238, 218, 255) : new Color(240, 226, 196, 255);
-            });
+            this.styleQuickButton(this.homeAlchemyQuickButton, active, 'gold');
             if (icon) this.drawAlchemyQuickIcon(icon, active);
         }
         if (this.homeForgeQuickButton) {
             const active = panelOpen && this.alchemyTab === 'forge';
             const icon = this.homeForgeQuickButton.getChildByName('ForgeIcon');
-            this.repaintPanel(this.homeForgeQuickButton, active ? new Color(70, 86, 112, 255) : new Color(52, 58, 72, 248), active ? new Color(172, 204, 236, 220) : new Color(98, 112, 130, 200));
-            const labels = this.homeForgeQuickButton.getComponentsInChildren(Label);
-            labels.forEach((label) => {
-                label.color = active ? new Color(236, 244, 252, 255) : new Color(214, 224, 236, 255);
-            });
+            this.styleQuickButton(this.homeForgeQuickButton, active, 'azure');
             if (icon) this.drawForgeQuickIcon(icon, active);
         }
     }
@@ -3022,21 +4176,13 @@ export class GrottoExpeditionDemo extends Component {
         if (this.homeKungfuQuickButton) {
             const active = kungfuOpen;
             const icon = this.homeKungfuQuickButton.getChildByName('KungfuIcon');
-            this.repaintPanel(this.homeKungfuQuickButton, active ? new Color(102, 80, 50, 255) : new Color(72, 58, 42, 248), active ? new Color(236, 198, 128, 220) : new Color(136, 112, 84, 200));
-            const labels = this.homeKungfuQuickButton.getComponentsInChildren(Label);
-            labels.forEach((label) => {
-                label.color = active ? new Color(250, 242, 220, 255) : new Color(242, 230, 198, 255);
-            });
+            this.styleQuickButton(this.homeKungfuQuickButton, active, 'gold');
             if (icon) this.drawKungfuQuickIcon(icon, active);
         }
         if (this.homeSpiritPetQuickButton) {
             const active = spiritPetOpen;
             const icon = this.homeSpiritPetQuickButton.getChildByName('SpiritPetIcon');
-            this.repaintPanel(this.homeSpiritPetQuickButton, active ? new Color(60, 98, 88, 255) : new Color(48, 70, 66, 248), active ? new Color(164, 228, 204, 220) : new Color(92, 128, 118, 200));
-            const labels = this.homeSpiritPetQuickButton.getComponentsInChildren(Label);
-            labels.forEach((label) => {
-                label.color = active ? new Color(238, 250, 244, 255) : new Color(214, 240, 228, 255);
-            });
+            this.styleQuickButton(this.homeSpiritPetQuickButton, active, 'jade');
             if (icon) this.drawSpiritPetQuickIcon(icon, active);
         }
     }
@@ -3067,8 +4213,7 @@ export class GrottoExpeditionDemo extends Component {
     private toggleAlchemyPanel(force?: boolean) {
         if (!this.homeAlchemyPanel || !this.homeAlchemyMask) return;
         const nextActive = typeof force === 'boolean' ? force : !this.homeAlchemyPanel.active;
-        this.homeAlchemyPanel.active = nextActive;
-        this.homeAlchemyMask.active = nextActive;
+        this.setOverlayVisible(this.homeAlchemyMask, this.homeAlchemyPanel, nextActive);
         if (nextActive) {
             this.toggleTaskPanel(false);
             this.closeRoleFeaturePanels();
@@ -3160,14 +4305,27 @@ export class GrottoExpeditionDemo extends Component {
             const btn = this.alchemyTabButtons[tab];
             if (!btn) continue;
             const active = tab === this.alchemyTab;
-            this.repaintPanel(btn, active ? new Color(92, 76, 58, 255) : new Color(52, 60, 72, 255), active ? new Color(232, 188, 122, 220) : new Color(92, 108, 124, 180));
-            const labels = btn.getComponentsInChildren(Label);
-            labels.forEach((label) => {
-                label.color = active ? new Color(248, 238, 214, 255) : new Color(210, 220, 232, 255);
-            });
+            this.styleTabButton(btn, active, tab === 'forge' ? 'azure' : 'gold');
         }
         const recipe = this.getAlchemyRecipe(this.alchemySelectedRecipe);
         const forgeRecipe = this.getForgeRecipe(this.forgeSelectedRecipe);
+        const displayAsset = this.alchemyTab === 'forge' ? `icon-forge-${forgeRecipe.id}` : `icon-pill-${recipe.id}`;
+        const displayGlyph = this.alchemyTab === 'forge' ? forgeRecipe.glyph : recipe.glyph;
+        if (this.alchemyDisplayGlyphLabel) this.alchemyDisplayGlyphLabel.string = displayGlyph;
+        if (this.alchemyDisplayCaptionLabel) this.alchemyDisplayCaptionLabel.string = this.alchemyTab === 'forge' ? '当前器胚' : '当前丹方';
+        if (this.alchemyDisplayIconNode) {
+            this.alchemyDisplayIconNode.active = false;
+            if (this.alchemyDisplayGlyphLabel?.node?.isValid) this.alchemyDisplayGlyphLabel.node.active = true;
+            this.loadXianxiaTexture(displayAsset, (sf) => {
+                if (!this.alchemyDisplayIconNode?.isValid || !sf) return;
+                const sprite = this.alchemyDisplayIconNode.getComponent(Sprite);
+                if (!sprite) return;
+                sprite.spriteFrame = sf;
+                this.applyAssetDisplayScale(this.alchemyDisplayIconNode, displayAsset);
+                this.alchemyDisplayIconNode.active = true;
+                if (this.alchemyDisplayGlyphLabel?.node?.isValid) this.alchemyDisplayGlyphLabel.node.active = false;
+            });
+        }
         if (this.alchemyTitleLabel) this.alchemyTitleLabel.string = this.alchemyTab === 'forge' ? `${forgeRecipe.name} · ${forgeRecipe.title}` : `${recipe.name} · ${recipe.title}`;
         if (this.alchemyInfoLabel) this.alchemyInfoLabel.string = this.alchemyTab === 'forge' ? forgeRecipe.summary : recipe.summary;
         if (this.alchemyCostLabel) {
@@ -3195,7 +4353,7 @@ export class GrottoExpeditionDemo extends Component {
             if (this.alchemyTab !== 'forge') {
                 const hasStock = this.alchemyInventory[recipe.id] > 0;
                 this.alchemyUseBtnLabel.string = hasStock ? `服用(${this.alchemyInventory[recipe.id]})` : '服用(0)';
-                this.repaintPanel(this.alchemyUseBtn, hasStock ? new Color(60, 84, 72, 255) : new Color(66, 74, 82, 255), hasStock ? new Color(170, 220, 194, 180) : new Color(124, 136, 148, 160));
+                this.styleSelectionButton(this.alchemyUseBtn, hasStock, new Color(150, 208, 182, 255), new Color(66, 74, 82, 255), new Color(214, 224, 236, 255), !hasStock);
             }
         }
         if (this.alchemyHintLabel && this.homeAlchemyPanel.active) {
@@ -3211,7 +4369,7 @@ export class GrottoExpeditionDemo extends Component {
             widget.titleLabel.string = def.name;
             widget.infoLabel.string = `${def.rewardText}  |  ${this.formatMaterialCosts(def.materialCosts)}`;
             widget.stateLabel.string = `库存 ${this.alchemyInventory[def.id]} 枚 · ${def.title}`;
-            this.repaintPanel(widget.node, selected ? new Color(88, 72, 58, 255) : new Color(42, 48, 60, 245), selected ? new Color(232, 188, 122, 220) : new Color(92, 108, 124, 180));
+            this.styleCardPanel(widget.node, selected ? 'selected' : 'neutral', new Color(232, 188, 122, 255));
         }
         for (let i = 0; i < FORGE_RECIPES.length; i++) {
             const def = FORGE_RECIPES[i];
@@ -3221,7 +4379,7 @@ export class GrottoExpeditionDemo extends Component {
             widget.titleLabel.string = def.name;
             widget.infoLabel.string = `${def.rewardText}  |  ${this.formatMaterialCosts(def.materialCosts)}`;
             widget.stateLabel.string = `已成 ${this.forgeInventory[def.id]} 件 · ${def.title}`;
-            this.repaintPanel(widget.node, selected ? new Color(88, 72, 58, 255) : new Color(42, 48, 60, 245), selected ? new Color(232, 188, 122, 220) : new Color(92, 108, 124, 180));
+            this.styleCardPanel(widget.node, selected ? 'selected' : 'neutral', new Color(176, 204, 232, 255));
         }
         for (let i = 0; i < MATERIAL_DEFS.length; i++) {
             const def = MATERIAL_DEFS[i];
@@ -3244,19 +4402,14 @@ export class GrottoExpeditionDemo extends Component {
     private toggleTaskPanel(force?: boolean) {
         if (!this.homeTaskPanel || !this.homeTaskMask) return;
         const nextActive = typeof force === 'boolean' ? force : !this.homeTaskPanel.active;
-        this.homeTaskPanel.active = nextActive;
-        this.homeTaskMask.active = nextActive;
+        this.setOverlayVisible(this.homeTaskMask, this.homeTaskPanel, nextActive);
         if (nextActive) {
             this.toggleAlchemyPanel(false);
             this.closeRoleFeaturePanels();
         }
         if (this.homeTaskButton) {
             const taskIcon = this.homeTaskButton.getChildByName('TaskIcon');
-            this.repaintPanel(this.homeTaskButton, nextActive ? new Color(62, 78, 96, 255) : new Color(46, 56, 72, 248), nextActive ? new Color(164, 198, 228, 220) : new Color(88, 104, 124, 200));
-            const labels = this.homeTaskButton.getComponentsInChildren(Label);
-            labels.forEach((label) => {
-                label.color = nextActive ? new Color(236, 242, 248, 255) : new Color(214, 224, 236, 255);
-            });
+            this.styleQuickButton(this.homeTaskButton, nextActive, 'azure');
             if (taskIcon) this.drawTaskQuickIcon(taskIcon, nextActive);
         }
         if (nextActive) this.refreshTaskPanel();
@@ -3265,8 +4418,7 @@ export class GrottoExpeditionDemo extends Component {
     private toggleKungfuPanel(force?: boolean) {
         if (!this.homeKungfuPanel || !this.homeKungfuMask) return;
         const nextActive = typeof force === 'boolean' ? force : !this.homeKungfuPanel.active;
-        this.homeKungfuPanel.active = nextActive;
-        this.homeKungfuMask.active = nextActive;
+        this.setOverlayVisible(this.homeKungfuMask, this.homeKungfuPanel, nextActive);
         if (nextActive) {
             this.switchHomeTab('role');
             this.toggleTaskPanel(false);
@@ -3281,8 +4433,7 @@ export class GrottoExpeditionDemo extends Component {
     private toggleSpiritPetPanel(force?: boolean) {
         if (!this.homeSpiritPetPanel || !this.homeSpiritPetMask) return;
         const nextActive = typeof force === 'boolean' ? force : !this.homeSpiritPetPanel.active;
-        this.homeSpiritPetPanel.active = nextActive;
-        this.homeSpiritPetMask.active = nextActive;
+        this.setOverlayVisible(this.homeSpiritPetMask, this.homeSpiritPetPanel, nextActive);
         if (nextActive) {
             this.switchHomeTab('role');
             this.toggleTaskPanel(false);
@@ -3301,6 +4452,16 @@ export class GrottoExpeditionDemo extends Component {
         const equipped = this.equippedKungfuId === selected.id;
         const upgradeCost = this.getKungfuUpgradeCost(selected.id);
         const canUpgrade = this.getSpiritStoneTotalValue(this.spiritStoneInventory) >= upgradeCost;
+        if (this.kungfuPageSealIcon?.isValid) {
+            this.loadXianxiaTexture(`icon-kungfu-${selected.id}`, (sf) => {
+                if (sf && this.kungfuPageSealIcon?.isValid) {
+                    const s = this.kungfuPageSealIcon.getComponent(Sprite);
+                    if (s) s.spriteFrame = sf;
+                    this.kungfuPageSealIcon.setScale(1.02, 1.02, 1);
+                    this.kungfuPageSealIcon.active = true;
+                }
+            });
+        }
         if (this.kungfuPageNameLabel) this.kungfuPageNameLabel.string = `${selected.name}${equipped ? ' · 运转中' : ''}`;
         if (this.kungfuPageInfoLabel) this.kungfuPageInfoLabel.string = `${selected.title}  |  Lv.${selectedLevel}  |  吐纳 ${Math.round((20 + selected.cultivationQiPerSecond) * this.getKungfuBonusScale(selected.id))}灵气/秒\n${selected.summary}`;
         if (this.kungfuPageEffectLabel) this.kungfuPageEffectLabel.string = `丹成 +${Math.round(selected.alchemySuccessBonus * this.getKungfuBonusScale(selected.id) * 100)}% / 出丹 +${Math.floor(selected.alchemyYieldMinBonus * this.getKungfuBonusScale(selected.id))}-${Math.floor(selected.alchemyYieldMaxBonus * this.getKungfuBonusScale(selected.id))}\n器成 +${Math.round(selected.forgeSuccessBonus * this.getKungfuBonusScale(selected.id) * 100)}% / 品质 +${Math.round(selected.forgeQualityBonus * this.getKungfuBonusScale(selected.id) * 100)}%`;
@@ -3309,15 +4470,13 @@ export class GrottoExpeditionDemo extends Component {
             this.kungfuPageRunButtonLabel.string = equipped ? '运转中' : '切换运转';
             const button = this.kungfuPageRunButton.getComponent(Button);
             if (button) button.interactable = !equipped;
-            this.repaintPanel(this.kungfuPageRunButton, equipped ? new Color(82, 94, 72, 255) : new Color(96, 78, 54, 255), equipped ? new Color(186, 220, 162, 200) : new Color(226, 196, 138, 200));
-            this.kungfuPageRunButtonLabel.color = equipped ? new Color(200, 214, 188, 255) : new Color(248, 238, 220, 255);
+            this.styleActionButton(this.kungfuPageRunButton, equipped ? 'active' : 'ready', 'gold');
         }
         if (this.kungfuPageUpgradeButton && this.kungfuPageUpgradeButtonLabel) {
             const button = this.kungfuPageUpgradeButton.getComponent(Button);
             if (button) button.interactable = canUpgrade;
-            this.kungfuPageUpgradeButtonLabel.string = canUpgrade ? `升阶(${upgradeCost})` : `灵石不足(${upgradeCost})`;
-            this.repaintPanel(this.kungfuPageUpgradeButton, canUpgrade ? new Color(62, 88, 74, 255) : new Color(72, 76, 82, 255), canUpgrade ? new Color(160, 208, 180, 180) : new Color(128, 136, 146, 150));
-            this.kungfuPageUpgradeButtonLabel.color = canUpgrade ? new Color(228, 244, 230, 255) : new Color(188, 196, 204, 255);
+            this.kungfuPageUpgradeButtonLabel.string = canUpgrade ? `升阶 ${upgradeCost}` : `不足 ${upgradeCost}`;
+            this.styleActionButton(this.kungfuPageUpgradeButton, canUpgrade ? 'ready' : 'disabled', 'jade');
         }
         for (let i = 0; i < KUNGFU_DEFS.length; i++) {
             const def = KUNGFU_DEFS[i];
@@ -3326,11 +4485,13 @@ export class GrottoExpeditionDemo extends Component {
             const level = this.getKungfuLevel(def.id);
             const isSelected = def.id === this.selectedKungfuId;
             const isEquipped = def.id === this.equippedKungfuId;
+            const badgeNode = widget.node.getChildByName('StatusBadge');
             widget.titleLabel.string = `${i + 1}. ${def.name}`;
             widget.infoLabel.string = `${def.title}  |  Lv.${level}  |  吐纳 ${Math.round((20 + def.cultivationQiPerSecond) * this.getKungfuBonusScale(def.id))}/秒`;
             widget.stateLabel.string = isEquipped ? '运转中' : isSelected ? '参悟中' : '可切换';
             widget.stateLabel.color = isEquipped ? new Color(236, 220, 176, 255) : isSelected ? new Color(206, 224, 240, 255) : new Color(174, 188, 202, 255);
-            this.repaintPanel(widget.node, isSelected ? new Color(70, 82, 98, 255) : new Color(42, 48, 58, 245), isEquipped ? new Color(232, 200, 134, 220) : isSelected ? new Color(176, 204, 232, 220) : new Color(88, 102, 118, 180));
+            this.styleCardPanel(widget.node, isEquipped ? 'accent' : isSelected ? 'selected' : 'neutral', isEquipped ? new Color(232, 200, 134, 255) : new Color(176, 204, 232, 255));
+            this.setAssetSprite(badgeNode, this.getKungfuStatusBadgeAsset(def.id, isEquipped));
         }
     }
 
@@ -3340,7 +4501,34 @@ export class GrottoExpeditionDemo extends Component {
         const selectedLevel = this.getSpiritPetLevel(selected.id);
         const unlocked = this.spiritPetUnlocked[selected.id];
         const deployed = this.equippedSpiritPetId === selected.id;
-        if (this.spiritPetPagePortrait) this.drawSpiritPetPortrait(this.spiritPetPagePortrait, selected.id);
+        if (this.spiritPetPagePortrait) {
+            this.drawSpiritPetPortrait(this.spiritPetPagePortrait, selected.id);
+            let portraitArt = this.spiritPetPagePortrait.getChildByName('SpiritPetPortraitArt');
+            if (!portraitArt) {
+                portraitArt = this.createAssetSpriteNode(this.spiritPetPagePortrait, 'SpiritPetPortraitArt', 188, 180, new Vec3(0, 0, 0));
+            }
+            const applyPortrait = (frame: SpriteFrame | null) => {
+                if (!portraitArt?.isValid) return;
+                const sp = portraitArt.getComponent(Sprite);
+                if (!frame || !sp) {
+                    portraitArt.active = false;
+                    return;
+                }
+                sp.spriteFrame = frame;
+                portraitArt.active = true;
+            };
+            this.loadXianxiaTexture(`portrait-spirit-${selected.id}`, (sf) => {
+                if (sf) {
+                    applyPortrait(sf);
+                    this.applyAssetDisplayScale(portraitArt, `portrait-spirit-${selected.id}`);
+                } else {
+                    this.loadXianxiaTexture(`icon-spirit-${selected.id}`, (fallback) => {
+                        applyPortrait(fallback);
+                        this.applyAssetDisplayScale(portraitArt, `icon-spirit-${selected.id}`);
+                    });
+                }
+            });
+        }
         if (this.spiritPetPageNameLabel) this.spiritPetPageNameLabel.string = `${selected.name}${deployed ? ' · 出战中' : unlocked ? '' : ' · 未收服'}`;
         if (this.spiritPetPageInfoLabel) this.spiritPetPageInfoLabel.string = `${selected.title}  |  Lv.${selectedLevel}\n${selected.summary}`;
         if (this.spiritPetPageEffectLabel) this.spiritPetPageEffectLabel.string = this.getSpiritPetEffectSummary(selected.id);
@@ -3350,8 +4538,7 @@ export class GrottoExpeditionDemo extends Component {
             const button = this.spiritPetPageDeployButton.getComponent(Button);
             if (button) button.interactable = canDeploy;
             this.spiritPetPageDeployButtonLabel.string = !unlocked ? '未收服' : deployed ? '已出战' : '设置出战';
-            this.repaintPanel(this.spiritPetPageDeployButton, canDeploy ? new Color(64, 90, 74, 255) : new Color(72, 76, 82, 255), canDeploy ? new Color(144, 200, 170, 180) : new Color(128, 136, 146, 150));
-            this.spiritPetPageDeployButtonLabel.color = canDeploy ? new Color(228, 244, 230, 255) : new Color(188, 196, 204, 255);
+            this.styleActionButton(this.spiritPetPageDeployButton, deployed ? 'active' : canDeploy ? 'ready' : 'disabled', 'jade');
         }
         if (this.spiritPetPageUpgradeButton && this.spiritPetPageUpgradeButtonLabel) {
             const upgradeCost = this.getSpiritPetUpgradeCost(selected.id);
@@ -3359,8 +4546,7 @@ export class GrottoExpeditionDemo extends Component {
             const button = this.spiritPetPageUpgradeButton.getComponent(Button);
             if (button) button.interactable = canUpgrade;
             this.spiritPetPageUpgradeButtonLabel.string = !unlocked ? '待收服' : canUpgrade ? `养成(${upgradeCost})` : `灵石不足(${upgradeCost})`;
-            this.repaintPanel(this.spiritPetPageUpgradeButton, canUpgrade ? new Color(76, 82, 96, 255) : new Color(68, 68, 74, 255), canUpgrade ? new Color(182, 198, 222, 180) : new Color(122, 126, 134, 140));
-            this.spiritPetPageUpgradeButtonLabel.color = canUpgrade ? new Color(236, 242, 248, 255) : new Color(188, 196, 204, 255);
+            this.styleActionButton(this.spiritPetPageUpgradeButton, canUpgrade ? 'ready' : 'disabled', 'azure');
         }
         for (let i = 0; i < SPIRIT_PET_DEFS.length; i++) {
             const def = SPIRIT_PET_DEFS[i];
@@ -3369,11 +4555,13 @@ export class GrottoExpeditionDemo extends Component {
             const isSelected = def.id === this.selectedSpiritPetId;
             const isUnlocked = this.spiritPetUnlocked[def.id];
             const isEquipped = this.equippedSpiritPetId === def.id;
+            const badgeNode = widget.node.getChildByName('StatusBadge');
             widget.titleLabel.string = `${i + 1}. ${def.name}`;
             widget.infoLabel.string = `${def.title}  |  Lv.${this.getSpiritPetLevel(def.id)}  |  ${isUnlocked ? '可养成' : '待收服'}`;
             widget.stateLabel.string = isEquipped ? '出战中' : isSelected ? '养成中' : '待命';
             widget.stateLabel.color = !isUnlocked ? new Color(168, 154, 154, 255) : isEquipped ? new Color(210, 236, 196, 255) : isSelected ? new Color(206, 224, 240, 255) : new Color(174, 188, 202, 255);
-            this.repaintPanel(widget.node, isSelected ? new Color(70, 82, 98, 255) : new Color(42, 48, 58, 245), !isUnlocked ? new Color(122, 108, 108, 160) : isEquipped ? new Color(166, 220, 190, 220) : isSelected ? new Color(176, 204, 232, 220) : new Color(88, 102, 118, 180));
+            this.styleCardPanel(widget.node, !isUnlocked ? 'disabled' : isEquipped ? 'accent' : isSelected ? 'selected' : 'neutral', isEquipped ? new Color(166, 220, 190, 255) : new Color(176, 204, 232, 255));
+            this.setAssetSprite(badgeNode, this.getSpiritPetStatusBadgeAsset(def.id, isUnlocked, isEquipped));
         }
     }
 
@@ -3507,17 +4695,33 @@ export class GrottoExpeditionDemo extends Component {
             const btn = this.taskTabButtons[tab];
             if (!btn) continue;
             const active = tab === this.taskTab;
-            this.repaintPanel(btn, active ? new Color(74, 92, 112, 255) : new Color(52, 60, 72, 255), active ? new Color(176, 204, 228, 220) : new Color(88, 104, 124, 180));
-            const labels = btn.getComponentsInChildren(Label);
-            labels.forEach((label) => {
-                label.color = active ? new Color(240, 244, 248, 255) : new Color(204, 214, 228, 255);
-            });
+            this.styleTabButton(btn, active, 'azure');
         }
         for (let i = 0; i < this.taskRowNodes.length; i++) {
             const row = this.taskRowNodes[i];
             const entry = entries[i];
             row.active = !!entry;
             if (!entry) continue;
+            const badgeLabel = this.taskRowBadgeLabels[i];
+            const badgeIconNode = this.taskRowBadgeIconNodes[i];
+            const iconAsset = this.getTaskIconAsset(entry);
+            if (badgeLabel?.node?.isValid) {
+                badgeLabel.node.active = true;
+                badgeLabel.string = `${i + 1}`;
+            }
+            if (badgeIconNode?.isValid) {
+                badgeIconNode.active = false;
+                if (iconAsset) {
+                    this.loadXianxiaTexture(iconAsset, (sf) => {
+                        if (!sf || !badgeIconNode.isValid) return;
+                        const sprite = badgeIconNode.getComponent(Sprite);
+                        if (sprite) sprite.spriteFrame = sf;
+                        this.applyAssetDisplayScale(badgeIconNode, iconAsset);
+                        badgeIconNode.active = true;
+                        if (badgeLabel?.node?.isValid) badgeLabel.node.active = false;
+                    });
+                }
+            }
             this.taskRowTitleLabels[i].string = entry.title;
             this.taskRowInfoLabels[i].string = this.getTaskProgressText(entry);
             this.taskRowRewardLabels[i].string = entry.rewardText;
@@ -3525,13 +4729,13 @@ export class GrottoExpeditionDemo extends Component {
             const completed = this.isTaskCompleted(entry);
             const claimBtn = this.taskRowClaimButtons[i];
             const claimLabel = this.taskRowClaimLabels[i];
-            this.repaintPanel(row, claimed ? new Color(52, 56, 62, 245) : completed ? new Color(56, 50, 42, 245) : new Color(42, 48, 60, 245), claimed ? new Color(120, 126, 132, 140) : completed ? new Color(176, 146, 92, 170) : new Color(84, 98, 116, 140));
+            const statusBadgeNode = row.getChildByName('StatusBadge');
+            this.styleCardPanel(row, claimed ? 'disabled' : completed ? 'accent' : 'neutral', completed ? new Color(232, 194, 118, 255) : new Color(140, 164, 186, 255));
+            this.setAssetSprite(statusBadgeNode, this.getTaskStatusBadgeAsset(claimed, completed));
             if (claimBtn && claimLabel) {
-                const bg = claimed ? new Color(70, 78, 82, 255) : completed ? new Color(120, 96, 58, 255) : new Color(74, 92, 112, 255);
-                const border = claimed ? new Color(142, 150, 156, 180) : completed ? new Color(232, 194, 118, 220) : new Color(140, 164, 186, 180);
                 const button = claimBtn.getComponent(Button);
                 if (button) button.interactable = !claimed && completed;
-                this.repaintPanel(claimBtn, bg, border);
+                this.styleSelectionButton(claimBtn, completed && !claimed, new Color(232, 194, 118, 255), new Color(74, 92, 112, 255), new Color(214, 224, 236, 255), claimed || !completed);
                 claimLabel.string = claimed ? '已领取' : completed ? '领取' : '未达成';
                 claimLabel.color = claimed ? new Color(180, 188, 194, 255) : completed ? new Color(252, 238, 206, 255) : new Color(214, 224, 236, 255);
             }
@@ -3546,8 +4750,13 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private drawHomeNavIcon(node: Node, key: 'shop' | 'faqi' | 'role' | 'mijing' | 'dongtian', active: boolean) {
+        const tint = active ? new Color(255, 243, 212, 255) : new Color(198, 210, 224, 236);
+        const childName = key === 'faqi' ? 'FaqiSprite' : 'NavIconSprite';
+        if (this.tryApplyInlineIconSprite(node, `icon-nav-${key}`, childName, 28, 24, tint)) return;
+
         let g = node.getComponent(Graphics);
         if (!g) g = node.addComponent(Graphics);
+        g.enabled = true;
         g.clear();
 
         const stroke = active ? new Color(236, 230, 196, 255) : new Color(194, 202, 216, 255);
@@ -3645,8 +4854,12 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private drawTaskQuickIcon(node: Node, active: boolean) {
+        const tint = active ? new Color(255, 242, 210, 255) : new Color(206, 220, 234, 236);
+        if (this.tryApplyInlineIconSprite(node, 'icon-quick-task', 'QuickIconSprite', 40, 40, tint)) return;
+
         let g = node.getComponent(Graphics);
         if (!g) g = node.addComponent(Graphics);
+        g.enabled = true;
         g.clear();
         g.lineWidth = 2.4;
         g.strokeColor = active ? new Color(238, 226, 194, 255) : new Color(204, 216, 228, 255);
@@ -3671,8 +4884,12 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private drawAlchemyQuickIcon(node: Node, active: boolean) {
+        const tint = active ? new Color(255, 236, 194, 255) : new Color(224, 208, 184, 236);
+        if (this.tryApplyInlineIconSprite(node, 'icon-quick-alchemy', 'QuickIconSprite', 40, 40, tint)) return;
+
         let g = node.getComponent(Graphics);
         if (!g) g = node.addComponent(Graphics);
+        g.enabled = true;
         g.clear();
         g.lineWidth = 2.4;
         g.strokeColor = active ? new Color(248, 226, 182, 255) : new Color(224, 214, 196, 255);
@@ -3696,8 +4913,12 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private drawForgeQuickIcon(node: Node, active: boolean) {
+        const tint = active ? new Color(214, 238, 255, 255) : new Color(206, 220, 234, 236);
+        if (this.tryApplyInlineIconSprite(node, 'icon-quick-forge', 'QuickIconSprite', 40, 40, tint)) return;
+
         let g = node.getComponent(Graphics);
         if (!g) g = node.addComponent(Graphics);
+        g.enabled = true;
         g.clear();
         g.lineWidth = 2.4;
         g.strokeColor = active ? new Color(198, 226, 252, 255) : new Color(210, 220, 232, 255);
@@ -3723,8 +4944,12 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private drawKungfuQuickIcon(node: Node, active: boolean) {
+        const tint = active ? new Color(250, 230, 188, 255) : new Color(224, 210, 186, 236);
+        if (this.tryApplyInlineIconSprite(node, 'icon-quick-kungfu', 'QuickIconSprite', 40, 40, tint)) return;
+
         let g = node.getComponent(Graphics);
         if (!g) g = node.addComponent(Graphics);
+        g.enabled = true;
         g.clear();
         g.lineWidth = 2.4;
         g.strokeColor = active ? new Color(248, 226, 178, 255) : new Color(230, 214, 186, 255);
@@ -3749,8 +4974,12 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private drawSpiritPetQuickIcon(node: Node, active: boolean) {
+        const tint = active ? new Color(214, 246, 230, 255) : new Color(206, 232, 224, 236);
+        if (this.tryApplyInlineIconSprite(node, 'icon-quick-spiritpet', 'SpiritPetQuickSprite', 40, 40, tint)) return;
+
         let g = node.getComponent(Graphics);
         if (!g) g = node.addComponent(Graphics);
+        g.enabled = true;
         g.clear();
         g.lineWidth = 2.4;
         g.strokeColor = active ? new Color(196, 244, 222, 255) : new Color(210, 232, 222, 255);
@@ -3933,28 +5162,28 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private buildHomeAnimatedPortrait(parent: Node, x: number, y: number) {
-        const portraitPanel = this.createPanel(parent, 260, 210, x, y, new Color(36, 42, 52, 245));
+        const portraitPanel = this.createPanel(parent, 244, 202, x, y, new Color(36, 42, 52, 245));
         this.homeRoleSparkles = [];
         this.homeRoleAuraOuter = new Node('RoleAuraOuter');
         this.homeRoleAuraOuter.layer = Layers.Enum.UI_2D;
         portraitPanel.addChild(this.homeRoleAuraOuter);
-        this.homeRoleAuraOuter.setPosition(0, 12, 0);
-        this.homeRoleAuraOuter.addComponent(UITransform).setContentSize(220, 180);
+        this.homeRoleAuraOuter.setPosition(0, 8, 0);
+        this.homeRoleAuraOuter.addComponent(UITransform).setContentSize(204, 164);
         const outerAura = this.homeRoleAuraOuter.addComponent(Graphics);
         outerAura.strokeColor = new Color(180, 196, 224, 110);
         outerAura.fillColor = new Color(80, 100, 136, 28);
         outerAura.lineWidth = 2.5;
-        outerAura.circle(0, 12, 78);
+        outerAura.circle(0, 10, 66);
         outerAura.fill();
         outerAura.stroke();
-        outerAura.circle(0, 12, 62);
+        outerAura.circle(0, 10, 52);
         outerAura.stroke();
         for (let i = 0; i < 8; i++) {
             const angle = (Math.PI * 2 * i) / 8;
-            const x1 = Math.cos(angle) * 70;
-            const y1 = 12 + Math.sin(angle) * 70;
-            const x2 = Math.cos(angle) * 86;
-            const y2 = 12 + Math.sin(angle) * 86;
+            const x1 = Math.cos(angle) * 60;
+            const y1 = 10 + Math.sin(angle) * 60;
+            const x2 = Math.cos(angle) * 74;
+            const y2 = 10 + Math.sin(angle) * 74;
             outerAura.moveTo(x1, y1);
             outerAura.lineTo(x2, y2);
             outerAura.stroke();
@@ -3963,62 +5192,62 @@ export class GrottoExpeditionDemo extends Component {
         this.homeRoleAuraInner = new Node('RoleAuraInner');
         this.homeRoleAuraInner.layer = Layers.Enum.UI_2D;
         portraitPanel.addChild(this.homeRoleAuraInner);
-        this.homeRoleAuraInner.setPosition(0, 18, 0);
-        this.homeRoleAuraInner.addComponent(UITransform).setContentSize(180, 150);
+        this.homeRoleAuraInner.setPosition(0, 12, 0);
+        this.homeRoleAuraInner.addComponent(UITransform).setContentSize(166, 138);
         const innerAura = this.homeRoleAuraInner.addComponent(Graphics);
         innerAura.fillColor = new Color(110, 132, 176, 42);
         innerAura.strokeColor = new Color(210, 220, 238, 88);
         innerAura.lineWidth = 2;
-        innerAura.circle(0, 0, 48);
+        innerAura.circle(0, 0, 40);
         innerAura.fill();
         innerAura.stroke();
-        innerAura.moveTo(-42, -18);
-        innerAura.lineTo(0, 34);
-        innerAura.lineTo(42, -18);
+        innerAura.moveTo(-34, -14);
+        innerAura.lineTo(0, 28);
+        innerAura.lineTo(34, -14);
         innerAura.stroke();
-        innerAura.moveTo(-32, 18);
-        innerAura.lineTo(32, 18);
+        innerAura.moveTo(-26, 14);
+        innerAura.lineTo(26, 14);
         innerAura.stroke();
 
         this.homeRolePedestal = new Node('RolePedestal');
         this.homeRolePedestal.layer = Layers.Enum.UI_2D;
         portraitPanel.addChild(this.homeRolePedestal);
-        this.homeRolePedestal.setPosition(0, -40, 0);
-        this.homeRolePedestal.addComponent(UITransform).setContentSize(180, 54);
+        this.homeRolePedestal.setPosition(0, -42, 0);
+        this.homeRolePedestal.addComponent(UITransform).setContentSize(168, 50);
         const pedestal = this.homeRolePedestal.addComponent(Graphics);
         pedestal.fillColor = new Color(82, 98, 124, 70);
         pedestal.strokeColor = new Color(210, 222, 236, 100);
         pedestal.lineWidth = 2;
-        pedestal.ellipse(0, 0, 70, 14);
+        pedestal.ellipse(0, 0, 58, 12);
         pedestal.fill();
-        pedestal.ellipse(0, 0, 70, 14);
+        pedestal.ellipse(0, 0, 58, 12);
         pedestal.stroke();
         pedestal.strokeColor = new Color(168, 188, 220, 80);
-        pedestal.ellipse(0, 0, 48, 8);
+        pedestal.ellipse(0, 0, 38, 6);
         pedestal.stroke();
-        pedestal.moveTo(-50, -4);
-        pedestal.lineTo(-20, -4);
-        pedestal.moveTo(20, -4);
-        pedestal.lineTo(50, -4);
+        pedestal.moveTo(-40, -3);
+        pedestal.lineTo(-16, -3);
+        pedestal.moveTo(16, -3);
+        pedestal.lineTo(40, -3);
         pedestal.stroke();
 
-        this.homeRoleSparkles.push(this.createRoleSparkle(portraitPanel, -54, 52, 1));
-        this.homeRoleSparkles.push(this.createRoleSparkle(portraitPanel, 0, 76, 0.85));
-        this.homeRoleSparkles.push(this.createRoleSparkle(portraitPanel, 56, 44, 1.1));
+        this.homeRoleSparkles.push(this.createRoleSparkle(portraitPanel, -46, 42, 0.9));
+        this.homeRoleSparkles.push(this.createRoleSparkle(portraitPanel, 0, 62, 0.75));
+        this.homeRoleSparkles.push(this.createRoleSparkle(portraitPanel, 48, 36, 0.95));
 
         this.homeRoleRibbonLeft = new Node('RoleRibbonLeft');
         this.homeRoleRibbonLeft.layer = Layers.Enum.UI_2D;
         portraitPanel.addChild(this.homeRoleRibbonLeft);
-        this.homeRoleRibbonLeft.setPosition(-82, -6, 0);
-        this.homeRoleRibbonLeft.addComponent(UITransform).setContentSize(56, 124);
+        this.homeRoleRibbonLeft.setPosition(-76, -10, 0);
+        this.homeRoleRibbonLeft.addComponent(UITransform).setContentSize(48, 104);
         const leftRibbon = this.homeRoleRibbonLeft.addComponent(Graphics);
         leftRibbon.fillColor = new Color(96, 126, 160, 88);
         leftRibbon.strokeColor = new Color(190, 210, 228, 120);
         leftRibbon.lineWidth = 2;
-        leftRibbon.moveTo(18, 46);
-        leftRibbon.quadraticCurveTo(-10, 10, 0, -54);
-        leftRibbon.lineTo(16, -38);
-        leftRibbon.quadraticCurveTo(6, 2, 26, 44);
+        leftRibbon.moveTo(16, 38);
+        leftRibbon.quadraticCurveTo(-8, 8, 0, -44);
+        leftRibbon.lineTo(14, -30);
+        leftRibbon.quadraticCurveTo(5, 2, 22, 36);
         leftRibbon.close();
         leftRibbon.fill();
         leftRibbon.stroke();
@@ -4026,29 +5255,66 @@ export class GrottoExpeditionDemo extends Component {
         this.homeRoleRibbonRight = new Node('RoleRibbonRight');
         this.homeRoleRibbonRight.layer = Layers.Enum.UI_2D;
         portraitPanel.addChild(this.homeRoleRibbonRight);
-        this.homeRoleRibbonRight.setPosition(82, -6, 0);
-        this.homeRoleRibbonRight.addComponent(UITransform).setContentSize(56, 124);
+        this.homeRoleRibbonRight.setPosition(76, -10, 0);
+        this.homeRoleRibbonRight.addComponent(UITransform).setContentSize(48, 104);
         const rightRibbon = this.homeRoleRibbonRight.addComponent(Graphics);
         rightRibbon.fillColor = new Color(96, 126, 160, 88);
         rightRibbon.strokeColor = new Color(190, 210, 228, 120);
         rightRibbon.lineWidth = 2;
-        rightRibbon.moveTo(-18, 46);
-        rightRibbon.quadraticCurveTo(10, 10, 0, -54);
-        rightRibbon.lineTo(-16, -38);
-        rightRibbon.quadraticCurveTo(-6, 2, -26, 44);
+        rightRibbon.moveTo(-16, 38);
+        rightRibbon.quadraticCurveTo(8, 8, 0, -44);
+        rightRibbon.lineTo(-14, -30);
+        rightRibbon.quadraticCurveTo(-5, 2, -22, 36);
         rightRibbon.close();
         rightRibbon.fill();
         rightRibbon.stroke();
 
+        const roleGlow = this.createAssetSpriteNode(portraitPanel, 'RoleGlow', 188, 160, new Vec3(0, 10, 0));
+        roleGlow.setSiblingIndex(this.homeRoleAuraInner.getSiblingIndex());
+        this.setAssetSprite(roleGlow, 'ui-role-glow');
+        this.applyArtToNode(this.homeRoleAuraOuter, 'ui-role-ring-outer', 210, 172);
+        this.applyArtToNode(this.homeRoleAuraInner, 'ui-role-ring-inner', 176, 146);
+        this.applyArtToNode(this.homeRolePedestal, 'ui-role-base', 182, 62);
+        this.applyArtToNode(this.homeRoleRibbonLeft, 'ui-role-ribbon-left', 64, 116);
+        this.applyArtToNode(this.homeRoleRibbonRight, 'ui-role-ribbon-right', 64, 116);
+
         const rigRoot = new Node('RoleRigRoot');
         rigRoot.layer = Layers.Enum.UI_2D;
         portraitPanel.addChild(rigRoot);
-        rigRoot.setPosition(0, -16, 0);
-        rigRoot.addComponent(UITransform).setContentSize(200, 180);
+        rigRoot.setPosition(0, -12, 0);
+        rigRoot.addComponent(UITransform).setContentSize(184, 164);
+        this.homeRoleRigRoot = rigRoot;
         this.homeRoleRig = this.createCharacterRig(rigRoot, new Color(90, 100, 120, 255), new Color(200, 210, 230, 255));
-        this.homeRoleRig.root.setScale(new Vec3(3.05, 3.05, 1));
-        this.homeRoleRig.root.setPosition(0, 8, 0);
-        this.homeRoleRig.body.node.setPosition(0, 12, 0);
+        this.homeRoleRig.root.setScale(new Vec3(2.72, 2.72, 1));
+
+        const portraitSpriteNode = new Node('RolePortraitSprite');
+        portraitSpriteNode.layer = Layers.Enum.UI_2D;
+        portraitPanel.addChild(portraitSpriteNode);
+        portraitSpriteNode.setPosition(0, -12, 0);
+        portraitSpriteNode.addComponent(UITransform).setContentSize(176, 196);
+        portraitSpriteNode.active = false;
+        this.homeRolePortraitSpriteNode = portraitSpriteNode;
+        const portraitSprite = portraitSpriteNode.addComponent(Sprite);
+        portraitSprite.sizeMode = Sprite.SizeMode.CUSTOM;
+        this.loadXianxiaTexture('portrait-protagonist-role', (sf) => {
+            const applyPortrait = (frame: SpriteFrame | null) => {
+                if (frame && portraitSpriteNode.isValid && portraitSprite.isValid) {
+                    portraitSprite.spriteFrame = frame;
+                    portraitSpriteNode.active = true;
+                    if (this.homeRoleRigRoot && this.homeRoleRigRoot.isValid) this.homeRoleRigRoot.active = false;
+                }
+            };
+            const canUseRolePortrait = !!sf && sf.originalSize.width <= 900 && sf.originalSize.height <= 900;
+            if (canUseRolePortrait) {
+                applyPortrait(sf);
+                this.applyAssetDisplayScale(portraitSpriteNode, 'portrait-protagonist-role');
+            } else {
+                portraitSpriteNode.active = false;
+                if (this.homeRoleRigRoot && this.homeRoleRigRoot.isValid) this.homeRoleRigRoot.active = true;
+            }
+        });
+        this.homeRoleRig.root.setPosition(0, 4, 0);
+        this.homeRoleRig.body.node.setPosition(0, 10, 0);
         this.homeRoleRig.body.node.angle = 4;
         this.homeRoleRig.head.node.angle = -2;
         this.homeRoleRig.armL.node.setPosition(-10, 18, 0);
@@ -4060,7 +5326,7 @@ export class GrottoExpeditionDemo extends Component {
         this.homeRoleRig.legL.node.angle = -112;
         this.homeRoleRig.legR.node.angle = 112;
 
-        this.createLabel(portraitPanel, '灵台打坐', 18, new Vec3(0, -82, 0), new Color(208, 220, 235, 255));
+        this.createLabel(portraitPanel, '灵台打坐', 17, new Vec3(0, -70, 0), new Color(208, 220, 235, 255));
     }
 
     private createRoleSparkle(parent: Node, x: number, y: number, scale: number) {
@@ -4458,11 +5724,7 @@ export class GrottoExpeditionDemo extends Component {
             const btn = this.dongtianTabButtons[tab];
             if (!btn) continue;
             const active = tab === this.dongtianTab;
-            this.repaintPanel(btn, active ? new Color(74, 92, 112, 255) : new Color(54, 62, 74, 255), active ? new Color(176, 204, 228, 220) : new Color(88, 104, 124, 180));
-            const labels = btn.getComponentsInChildren(Label);
-            labels.forEach((label) => {
-                label.color = active ? new Color(244, 248, 252, 255) : new Color(210, 220, 232, 255);
-            });
+            this.styleTabButton(btn, active, tab === 'merit' ? 'gold' : 'jade');
         }
         if (this.dongtianMountLabel) this.dongtianMountLabel.string = `洞府挂载：青岚洞天·内府灵域  |  洞天灵机与洞府阵枢已连通`;
         if (this.dongtianMeritLabel) this.dongtianMeritLabel.string = `功勋 ${this.meritPoint}  |  洞府灵脉 Lv.${this.getBuildingLevel('gather')}  |  护山大阵 Lv.${this.getBuildingLevel('ward')}`;
@@ -4491,7 +5753,7 @@ export class GrottoExpeditionDemo extends Component {
             if (btn && btnLabel) {
                 const button = btn.getComponent(Button);
                 if (button) button.interactable = canAfford;
-                this.repaintPanel(btn, canAfford ? new Color(82, 96, 112, 255) : new Color(72, 76, 82, 255), canAfford ? new Color(164, 192, 216, 180) : new Color(128, 136, 146, 150));
+                this.styleSelectionButton(btn, canAfford, new Color(166, 192, 216, 255), new Color(72, 76, 82, 255), new Color(188, 196, 204, 255), !canAfford);
                 btnLabel.string = canAfford ? '升级' : '待备';
                 btnLabel.color = canAfford ? new Color(238, 244, 250, 255) : new Color(188, 196, 204, 255);
             }
@@ -4506,15 +5768,15 @@ export class GrottoExpeditionDemo extends Component {
             const reward = this.meritTaskRowRewardLabels[i];
             const claimBtn = this.meritTaskRowClaimButtons[i];
             const claimLabel = this.meritTaskRowClaimLabels[i];
+            const row = claimBtn?.parent || null;
             if (title) title.string = task.title;
             if (info) info.string = `进度 ${this.getMeritTaskCurrentValue(task)}/${task.target}`;
             if (reward) reward.string = `功勋 +${task.rewardMerit}`;
             if (claimBtn && claimLabel) {
                 const claimed = this.meritTaskClaimed[task.id];
                 const completed = this.getMeritTaskCurrentValue(task) >= task.target;
-                const bg = claimed ? new Color(70, 78, 82, 255) : completed ? new Color(120, 96, 58, 255) : new Color(82, 96, 112, 255);
-                const border = claimed ? new Color(142, 150, 156, 180) : completed ? new Color(232, 194, 118, 220) : new Color(164, 192, 216, 180);
-                this.repaintPanel(claimBtn, bg, border);
+                this.setAssetSprite(row?.getChildByName('StatusBadge') || null, this.getTaskStatusBadgeAsset(claimed, completed));
+                this.styleSelectionButton(claimBtn, completed && !claimed, new Color(232, 194, 118, 255), new Color(82, 96, 112, 255), new Color(214, 224, 236, 255), claimed || !completed);
                 claimLabel.string = claimed ? '已领' : completed ? '领取' : '未达成';
             }
         }
@@ -4526,9 +5788,10 @@ export class GrottoExpeditionDemo extends Component {
             const soldOut = bought >= item.limit;
             widget.stockLabel.string = soldOut ? '已兑尽' : `余量 ${item.limit - bought}/${item.limit}`;
             widget.stockLabel.color = soldOut ? new Color(188, 144, 144, 255) : new Color(196, 204, 214, 255);
+            this.setAssetSprite(widget.button.parent?.getChildByName('StatusBadge') || null, this.getShopStatusBadgeAsset(soldOut));
             const button = widget.button.getComponent(Button);
             if (button) button.interactable = !soldOut;
-            this.repaintPanel(widget.button, soldOut ? new Color(82, 68, 68, 255) : new Color(76, 88, 100, 255), soldOut ? new Color(156, 120, 120, 180) : new Color(166, 192, 216, 180));
+            this.styleSelectionButton(widget.button, !soldOut, soldOut ? new Color(156, 120, 120, 255) : new Color(166, 192, 216, 255), soldOut ? new Color(82, 68, 68, 255) : new Color(76, 88, 100, 255), soldOut ? new Color(214, 188, 188, 255) : new Color(240, 246, 252, 255), soldOut);
             const labels = widget.button.getComponentsInChildren(Label);
             labels.forEach((label) => {
                 label.string = soldOut ? '售罄' : '兑换';
@@ -4670,36 +5933,37 @@ export class GrottoExpeditionDemo extends Component {
     private returnToPrevBtnLabel!: Label;
 
     private buildExpeditionUI() {
-        const top = this.createPanel(this.expeditionLayer, 640, 100, 0, 560);
+        const top = this.createPanel(this.expeditionLayer, 684, 138, 0, 542);
         top.name = 'Top';
-        this.expeditionLayerLabel = this.createLabel(top, '练气秘境 1/30层', 28, new Vec3(-220, 18, 0), new Color(255, 248, 230, 255));
-        this.expeditionHpLabel = this.createLabel(top, '生命 100/100', 22, new Vec3(0, 18, 0), new Color(255, 200, 180, 255));
-        this.expeditionManaLabel = this.createLabel(top, '法力 100/100', 22, new Vec3(180, 18, 0), new Color(180, 220, 255, 255));
-        this.expeditionApLabel = this.createLabel(top, '行动力 100/100', 22, new Vec3(-180, -28, 0), new Color(200, 220, 180, 255));
-        this.expeditionResLabel = this.createLabel(top, '灵石 0 | 灵药 0 | 天材地宝 0', 20, new Vec3(120, -28, 0), new Color(180, 220, 200, 255), 420);
+        this.expeditionLayerLabel = this.createLabel(top, '练气秘境 1/30层', 31, new Vec3(-214, 40, 0), new Color(255, 248, 230, 255), 240);
+        this.expeditionHpLabel = this.createLabel(top, '生命 100/100', 22, new Vec3(42, 42, 0), new Color(255, 200, 180, 255), 150);
+        this.expeditionManaLabel = this.createLabel(top, '法力 100/100', 22, new Vec3(214, 42, 0), new Color(180, 220, 255, 255), 150);
+        this.expeditionApLabel = this.createLabel(top, '行动力 100/100', 21, new Vec3(-220, 4, 0), new Color(200, 220, 180, 255), 190);
+        this.expeditionResLabel = this.createLabel(top, '灵石 0 · 材料 0 · 器经验 0', 18, new Vec3(84, 4, 0), new Color(180, 220, 200, 255), 438);
 
-        this.expeditionRatioLabel = this.createLabel(this.expeditionLayer, '', 18, new Vec3(0, 498, 0), new Color(140, 160, 180, 255), 680);
+        this.expeditionRatioLabel = this.createLabel(top, '', 15, new Vec3(0, -44, 0), new Color(154, 170, 184, 255), 636);
 
         this.slotContainer = new Node('SlotContainer');
         this.slotContainer.layer = Layers.Enum.UI_2D;
         this.expeditionLayer.addChild(this.slotContainer);
-        this.slotContainer.setPosition(0, 80, 0);
-        this.slotContainer.addComponent(UITransform).setContentSize(640, 340);
+        this.slotContainer.setPosition(0, -8, 0);
+        this.slotContainer.addComponent(UITransform).setContentSize(688, 600);
 
         this.nextLayerBtn = this.createPanel(this.expeditionLayer, 220, 56, 0, -220, new Color(55, 75, 65, 255));
         this.nextLayerBtnLabel = this.createLabel(this.nextLayerBtn, '至少开启1格', 24, new Vec3(0, 0, 0), new Color(150, 150, 150, 255));
         this.nextLayerBtn.on(Node.EventType.TOUCH_END, () => this.goNextLayer(), this);
 
-        const bottomY = -300;
-        this.returnToPrevBtn = this.createPanel(this.expeditionLayer, 200, 56, -140, bottomY, new Color(65, 55, 70, 255));
+        const bottomY = -348;
+        this.returnToPrevBtn = this.createPanel(this.expeditionLayer, 228, 60, -144, bottomY, new Color(65, 55, 70, 255));
         this.returnToPrevBtnLabel = this.createLabel(this.returnToPrevBtn, '返回上一层', 22, new Vec3(0, 0, 0), new Color(255, 220, 200, 255));
         this.returnToPrevBtn.on(Node.EventType.TOUCH_END, () => this.onChoiceReturn(), this);
 
-        this.withdrawBtn = this.createPanel(this.expeditionLayer, 200, 56, 140, bottomY, new Color(65, 55, 70, 255));
+        this.withdrawBtn = this.createPanel(this.expeditionLayer, 228, 60, 144, bottomY, new Color(65, 55, 70, 255));
         this.withdrawBtnLabel = this.createLabel(this.withdrawBtn, '紧急撤离', 24, new Vec3(0, 0, 0), new Color(255, 220, 200, 255));
         this.withdrawBtn.on(Node.EventType.TOUCH_END, () => this.withdrawExpedition(), this);
 
         this.choicePanel = this.createPanel(this.expeditionLayer, 340, 160, 0, 0, new Color(40, 48, 56, 248));
+        this.addTitleBarArt(this.choicePanel, 212, 46, 235);
         this.choiceDiscoverLabel = this.createLabel(this.choicePanel, '发现：？', 26, new Vec3(0, 45, 0), new Color(255, 248, 200, 255));
         this.choiceExecuteLabel = this.createLabel(this.choicePanel, '执行 消耗？行动力', 20, new Vec3(0, 8, 0), new Color(180, 220, 200, 255));
         const execBtn = this.createPanel(this.choicePanel, 160, 44, 0, -50, new Color(55, 75, 65, 255));
@@ -4726,6 +5990,7 @@ export class GrottoExpeditionDemo extends Component {
         this.interceptPanel = this.createPanel(this.expeditionLayer, 380, 200, 0, 0, new Color(48, 40, 44, 248));
         this.interceptPanel.on(Node.EventType.TOUCH_START, (e: any) => { e.propagationStopped = true; }, this);
         this.interceptPanel.on(Node.EventType.TOUCH_END, (e: any) => { e.propagationStopped = true; }, this);
+        this.addTitleBarArt(this.interceptPanel, 228, 58, 240);
         this.createLabel(this.interceptPanel, '邪修截道', 26, new Vec3(0, 55, 0), new Color(220, 160, 160, 255));
         this.createLabel(this.interceptPanel, '逃跑：丢失1%-20%物资  战斗：胜无损失+奖励，败丢50%', 18, new Vec3(0, 15, 0), new Color(200, 190, 180, 255), 360);
         const fleeBtn = this.createPanel(this.interceptPanel, 160, 44, -90, -45, new Color(65, 55, 60, 255));
@@ -4783,6 +6048,7 @@ export class GrottoExpeditionDemo extends Component {
     private lotteryTitleLabel!: Label;
     private lotterySubtitleLabel!: Label;
     private lotteryResultLabel!: Label;
+    private lotteryResultIconNode!: Node;
     private lotterySpinBtn!: Node;
     private lotteryPointerNode!: Node;
     private lotteryPointerGfx!: Graphics;
@@ -4799,17 +6065,19 @@ export class GrottoExpeditionDemo extends Component {
 
         this.lotteryTitleLabel = this.createLabel(this.lotteryLayer, '福兮祸所伏', 30, new Vec3(0, 526, 0), new Color(228, 213, 168, 255));
         this.lotterySubtitleLabel = this.createLabel(this.lotteryLayer, '天机轮转  因果自成', 18, new Vec3(0, 490, 0), new Color(130, 162, 150, 255), 320);
+    const stagePanel = this.createPanel(this.lotteryLayer, 642, 862, 0, 22, new Color(14, 18, 24, 188));
+    this.repaintPanel(stagePanel, new Color(14, 18, 24, 188), new Color(166, 150, 120, 78));
         this.lotteryWheelNode = new Node('Wheel');
         this.lotteryWheelNode.layer = Layers.Enum.UI_2D;
         this.lotteryLayer.addChild(this.lotteryWheelNode);
-        this.lotteryWheelNode.setPosition(0, 60, 0);
-        this.lotteryWheelNode.addComponent(UITransform).setContentSize(580, 580);
+    this.lotteryWheelNode.setPosition(0, 88, 0);
+    this.lotteryWheelNode.addComponent(UITransform).setContentSize(620, 620);
 
         const pointer = new Node('Pointer');
         pointer.layer = Layers.Enum.UI_2D;
         this.lotteryLayer.addChild(pointer);
-        pointer.setPosition(0, 352, 0);
-        pointer.addComponent(UITransform).setContentSize(28, 72);
+    pointer.setPosition(0, 394, 0);
+    pointer.addComponent(UITransform).setContentSize(34, 82);
         const pg = pointer.addComponent(Graphics);
         this.lotteryPointerNode = pointer;
         this.lotteryPointerGfx = pg;
@@ -4826,14 +6094,21 @@ export class GrottoExpeditionDemo extends Component {
         pg.close();
         pg.fill();
 
-        this.lotteryResultLabel = this.createLabel(this.lotteryLayer, '', 22, new Vec3(0, -320, 0), new Color(208, 218, 228, 255), 520);
-        this.lotterySpinBtn = this.createPanel(this.lotteryLayer, 200, 56, 0, -420, new Color(50, 62, 72, 255));
+        const resultPanel = this.createPanel(this.lotteryLayer, 524, 120, 0, -330, new Color(18, 22, 28, 236));
+        this.repaintPanel(resultPanel, new Color(18, 22, 28, 236), new Color(184, 166, 126, 96));
+        this.createLabel(resultPanel, '天机落点', 15, new Vec3(0, 32, 0), new Color(150, 164, 180, 255), 220);
+        this.lotteryResultIconNode = this.createAssetSpriteNode(resultPanel, 'LotteryResultIcon', 86, 86, new Vec3(-186, 0, 0));
+        this.lotteryResultLabel = this.createLabel(resultPanel, '', 24, new Vec3(28, 0, 0), new Color(208, 218, 228, 255), 340);
+        this.lotteryResultLabel.horizontalAlign = HorizontalTextAlignment.LEFT;
+        this.lotterySpinBtn = this.createPanel(this.lotteryLayer, 220, 60, 0, -448, new Color(50, 62, 72, 255));
         this.createLabel(this.lotterySpinBtn, '窥天机', 26, new Vec3(0, 0, 0), new Color(210, 225, 235, 255));
+        this.applyButtonArt(this.lotterySpinBtn, 'btn-lottery-main');
         this.lotterySpinBtn.on(Node.EventType.TOUCH_END, () => this.runLotterySpin(), this);
     }
 
     private buildResultUI() {
         const panel = this.createPanel(this.resultLayer, 520, 360, 0, 0);
+        this.addTitleBarArt(panel, 232, 40, 238);
         this.resultLabel = this.createLabel(panel, '', 32, new Vec3(0, 100, 0), new Color(255, 248, 220, 255), 460);
         this.createLabel(panel, '本局收获', 24, new Vec3(0, 40, 0), new Color(200, 220, 240, 255));
         const backBtn = this.createPanel(this.resultLayer, 220, 60, 0, -140, new Color(50, 65, 75, 255));
@@ -4849,6 +6124,7 @@ export class GrottoExpeditionDemo extends Component {
         this.lotteryLayer.active = false;
         this.resultLayer.active = false;
         this.refreshHomeStatus();
+        this.setBgTexture('grotto-bg');
     }
 
     private getDungeonConfig(id: DungeonId = this.selectedDungeonId): DungeonConfig {
@@ -4972,6 +6248,8 @@ export class GrottoExpeditionDemo extends Component {
         const spiritPetBonuses = this.getEquippedSpiritPetBonuses();
         const kungfu = this.getEquippedKungfuDef();
         const selectedKungfu = this.getKungfuDef(this.selectedKungfuId);
+        const needPrep = this.getTribulationPrepNeed();
+        const prepareStoneCost = this.getTribulationPrepareStoneCost();
         this.playerMaxHp = 100 + this.realmLevel * 30 + this.shopBonusHp + artifactBonuses.hp + spiritPetBonuses.hp;
         this.playerMaxMana = 70 + this.realmLevel * 18 + this.shopBonusMana + artifactBonuses.mana + spiritPetBonuses.mana;
         this.playerDamage = 16 + this.realmLevel * 7 + this.shopBonusDamage + artifactBonuses.damage + spiritPetBonuses.damage;
@@ -4982,8 +6260,8 @@ export class GrottoExpeditionDemo extends Component {
         const best = this.dungeonBestDepth[current.id] || 0;
         const milestones = this.getProgressMilestones(current.id);
         const nextUnclaimed = milestones.find((milestone) => !this.claimedProgressChests[this.getProgressChestKey(current.id, milestone)]);
-        if (this.homeGoldLabel) this.homeGoldLabel.string = `灵石 ${this.getSpiritStoneItemCount(this.spiritStoneInventory)}枚`;
-        if (this.homeDiamondLabel) this.homeDiamondLabel.string = `钻石 ${this.mysticCrystal}`;
+        if (this.homeGoldLabel) this.homeGoldLabel.string = `${this.getSpiritStoneItemCount(this.spiritStoneInventory)}`;
+        if (this.homeDiamondLabel) this.homeDiamondLabel.string = `${this.mysticCrystal}`;
         this.statusLabel.string = `${this.getRealmTitle()}`;
         if (this.roleHpLabel) this.roleHpLabel.string = `气血 ${this.playerMaxHp}`;
         if (this.roleManaLabel) this.roleManaLabel.string = `法力 ${this.playerMaxMana}`;
@@ -4994,7 +6272,22 @@ export class GrottoExpeditionDemo extends Component {
         if (this.roleDungeonLabel) {
             this.roleDungeonLabel.string = `渡劫成功率 ${(this.getTribulationSuccessRate() * 100).toFixed(0)}%  |  雷劫伤害 ${this.getThunderDamageAfterFormation()}`;
         }
-        if (this.roleDungeonProgressLabel) this.roleDungeonProgressLabel.string = `渡劫准备 ${this.tribulationPrep}/${this.getTribulationPrepNeed()}  |  每次消耗灵石 ${this.getTribulationPrepareStoneCost()}  |  自动调用库存丹药`;
+        if (this.roleDungeonProgressLabel) this.roleDungeonProgressLabel.string = `渡劫准备 ${this.tribulationPrep}/${needPrep}  |  每次消耗灵石 ${prepareStoneCost}  |  自动调用库存丹药`;
+        if (this.roleRealmButton && this.roleRealmButtonLabel) {
+            const canBreakthrough = this.realmExp >= this.realmExpNeed && this.tribulationPrep >= needPrep;
+            const button = this.roleRealmButton.getComponent(Button);
+            if (button) button.interactable = canBreakthrough;
+            this.roleRealmButtonLabel.string = canBreakthrough ? '修炼突破' : this.realmExp < this.realmExpNeed ? '修为不足' : '准备不足';
+            this.styleActionButton(this.roleRealmButton, canBreakthrough ? 'ready' : 'disabled', 'azure');
+        }
+        if (this.rolePrepareButton && this.rolePrepareButtonLabel) {
+            const prepReady = this.tribulationPrep >= needPrep;
+            const canPrepare = !prepReady && this.getSpiritStoneTotalValue(this.spiritStoneInventory) >= prepareStoneCost;
+            const button = this.rolePrepareButton.getComponent(Button);
+            if (button) button.interactable = canPrepare;
+            this.rolePrepareButtonLabel.string = prepReady ? '已备足' : canPrepare ? '渡劫准备' : '灵石不足';
+            this.styleActionButton(this.rolePrepareButton, prepReady ? 'active' : canPrepare ? 'ready' : 'disabled', 'jade');
+        }
         if (this.kungfuNameLabel) this.kungfuNameLabel.string = `${selectedKungfu.name} Lv.${this.getKungfuLevel(selectedKungfu.id)}${selectedKungfu.id === kungfu.id ? ' · 运转中' : ''}`;
         if (this.kungfuInfoLabel) this.kungfuInfoLabel.string = `${selectedKungfu.title} | 吐纳 ${selectedKungfu.cultivationQiPerSecond}灵气/秒\n${selectedKungfu.summary}`;
         if (this.kungfuEffectLabel) {
@@ -5015,11 +6308,7 @@ export class GrottoExpeditionDemo extends Component {
             if (!button || !label) return;
             const unlocked = this.isDungeonUnlocked(config.id);
             const selected = this.selectedDungeonId === config.id;
-            this.repaintPanel(
-                button,
-                !unlocked ? new Color(55, 55, 60, 255) : selected ? config.accent : new Color(54, 60, 70, 255),
-                selected ? new Color(240, 220, 180, 220) : new Color(70, 85, 100, 200)
-            );
+            this.styleSelectionButton(button, selected && unlocked, config.accent, new Color(54, 60, 70, 255), new Color(220, 230, 240, 255), !unlocked);
             label.string = unlocked ? `${config.label} ${config.maxDepth}层` : `${config.label} (${config.unlockRealm}层解锁)`;
             label.color = !unlocked
                 ? new Color(130, 130, 140, 255)
@@ -5029,7 +6318,7 @@ export class GrottoExpeditionDemo extends Component {
         this.progressChestTitleLabel.string = `${current.label} 进度宝箱`;
         if (nextUnclaimed) {
             const rewards = this.getProgressChestRewards(current, nextUnclaimed);
-                this.progressChestInfoLabel.string = `历史最深 ${best}/${current.maxDepth} 层 | ${nextUnclaimed}层奖励：灵石折值+${rewards.spiritStone} 修为+${rewards.exp} 秘晶+${rewards.mysticCrystal}`;
+            this.progressChestInfoLabel.string = `历史最深 ${best}/${current.maxDepth} 层 | ${nextUnclaimed}层奖励：灵石折值+${rewards.spiritStone} 修为+${rewards.exp} 秘晶+${rewards.mysticCrystal}`;
         } else {
             this.progressChestInfoLabel.string = `历史最深 ${best}/${current.maxDepth} 层 | 本秘境进度宝箱已全部领取`;
         }
@@ -5046,11 +6335,13 @@ export class GrottoExpeditionDemo extends Component {
             const key = this.getProgressChestKey(current.id, milestone);
             const claimed = !!this.claimedProgressChests[key];
             const claimable = best >= milestone && !claimed;
-            this.repaintPanel(
-                chestNode,
-                claimed ? new Color(70, 78, 82, 255) : claimable ? new Color(156, 110, 52, 255) : new Color(88, 72, 45, 255),
-                claimable ? new Color(235, 205, 130, 220) : new Color(110, 90, 58, 200)
-            );
+            this.styleCardPanel(chestNode, claimed ? 'disabled' : claimable ? 'accent' : 'neutral', new Color(235, 205, 130, 255));
+            const glowNode = chestNode.getChildByName('ProgressChestGlow');
+            if (glowNode) {
+                glowNode.active = claimable;
+                const glowSprite = glowNode.getComponent(Sprite);
+                if (glowSprite) glowSprite.color = new Color(255, 255, 255, claimable ? 214 : 0);
+            }
             chestLabel.string = claimed ? `${milestone}层\n已领` : claimable ? `${milestone}层\n领取` : `${milestone}层`;
             chestLabel.color = claimed ? new Color(160, 170, 175, 255) : claimable ? new Color(255, 238, 190, 255) : new Color(225, 205, 160, 255);
         }
@@ -5103,6 +6394,8 @@ export class GrottoExpeditionDemo extends Component {
         this.expeditionLayer.active = true;
         this.combatLayer.active = false;
         this.resultLayer.active = false;
+        const dungeonBg = this.selectedDungeonId === 'qi' ? 'dungeon-qi-bg' : 'dungeon-deep-bg';
+        this.setBgTexture(dungeonBg, dungeonBg === 'dungeon-deep-bg' ? 'dungeon-qi-bg' : undefined);
 
         _nextNodeId = 0;
         this.nodePool.clear();
@@ -5151,7 +6444,7 @@ export class GrottoExpeditionDemo extends Component {
         return cur.nextIds.map((id) => this.nodePool.get(id)).filter((n): n is MapNode => !!n);
     }
 
-    /** 确保某节点有下一跳；若无则按图规则生成（2～4 个，可概率合并到同深度已有节点；Boss 层只生成 1 个 Boss） */
+    /** 确保某节点有下一跳；若无则按图规则生成（1～3 个，可概率合并到同深度已有节点；Boss 层只生成 1 个 Boss） */
     private ensureNextNodes(nodeId: string): void {
         const node = this.nodePool.get(nodeId);
         if (!node || node.nextIds.length > 0) return;
@@ -5164,7 +6457,7 @@ export class GrottoExpeditionDemo extends Component {
             node.nextIds = [bossId];
             return;
         }
-        const count = 2 + Math.floor(Math.random() * 3);
+        const count = 1 + Math.floor(Math.random() * 3);
         const existingAtDepth = this.getNodesAtDepth(nextDepth);
         const useMerge = existingAtDepth.length > 0 && Math.random() < MERGE_PROB;
         const newCount = useMerge ? Math.max(1, count - 1) : count;
@@ -5215,19 +6508,246 @@ export class GrottoExpeditionDemo extends Component {
             return type === 'treasure' ? `珍材·${def.name}` : def.name;
         }
         const names: Record<SlotType, string> = {
-            empty: '空',
+            empty: '空室',
             herb: '灵植',
             stone: '灵石',
             treasure: '天材地宝',
             monster: '妖兽',
-            trap: '机缘',
+            trap: '陷阱',
             buff: '机缘',
-            intercept: '邪修截道',
-            boss: 'Boss',
+            intercept: '邪修',
+            boss: '镇守',
         };
         const base = names[type];
         if (rarity && slotNeedsRarity(type)) return `${RARITY_NAMES[rarity]}${base}`;
         return base;
+    }
+
+    private getExpeditionSlotTag(slot: MapNode) {
+        if (!slot.revealed) return '随机';
+        if (slot.materialId) {
+            const material = this.getMaterialDef(slot.materialId);
+            return material.kind === 'herb' ? '灵植' : '灵石';
+        }
+        const tags: Record<SlotType, string> = {
+            empty: '空室',
+            herb: '灵植',
+            stone: '灵石',
+            treasure: '珍材',
+            monster: '妖兽',
+            trap: '陷阱',
+            buff: '机缘',
+            intercept: '邪修',
+            boss: '镇守',
+        };
+        return tags[slot.type];
+    }
+
+    private getExpeditionSlotTitle(slot: MapNode) {
+        if (!slot.revealed) return '未探明';
+        if (slot.materialId) return this.getMaterialDef(slot.materialId).name;
+        const titles: Record<SlotType, string> = {
+            empty: '空室回响',
+            herb: '灵植采集',
+            stone: '灵矿采集',
+            treasure: '珍材机缘',
+            monster: '妖兽盘踞',
+            trap: '禁制陷阱',
+            buff: '机缘现世',
+            intercept: '邪修截道',
+            boss: '深层镇守',
+        };
+        return titles[slot.type];
+    }
+
+    private getExpeditionSlotHint(slot: MapNode) {
+        if (!slot.revealed) return '消耗1点行动力揭示，结果可能偏收益，也可能偏风险。';
+        const rarityName = slot.rarity ? RARITY_NAMES[slot.rarity] : '';
+        switch (slot.type) {
+            case 'empty':
+                return '空室或残痕，无直接收益，适合作为继续下探的过渡节点。';
+            case 'herb':
+                return `${rarityName || '常见'}灵植，偏炼丹与任务材料收益。`;
+            case 'stone':
+                return `${rarityName || '常见'}灵石灵矿，偏灵石折值与炼器储备。`;
+            case 'treasure':
+                return `${rarityName || '高阶'}珍材节点，高收益，但通常更稀有。`;
+            case 'monster':
+                return '击败妖兽可拿修为与掉落，但会消耗气血、法力与状态。';
+            case 'trap':
+                return '负面事件节点，常见禁制、毒雾、塌陷与额外损耗。';
+            case 'buff':
+                return '正向机缘节点，可恢复状态或获得临时增益。';
+            case 'intercept':
+                return '邪修伏击节点，可止损撤离，也可强行一战换回报。';
+            case 'boss':
+                return '本层镇守强敌，胜利收益最高，并可安全撤离。';
+            default:
+                return '秘境异动节点。';
+        }
+    }
+
+    private getExpeditionDirectionMarker(slot: MapNode, index: number) {
+        if (!slot.revealed) return { kind: 'cave' as const, accent: new Color(170, 178, 188, 255) };
+        if (slot.type === 'boss') return { kind: 'gate' as const, accent: new Color(232, 112, 112, 255) };
+        if (slot.type === 'intercept') return { kind: 'crack' as const, accent: new Color(198, 122, 148, 255) };
+        if (slot.type === 'trap') return { kind: 'spikes' as const, accent: new Color(222, 154, 118, 255) };
+        if (slot.type === 'buff') return { kind: 'swirl' as const, accent: new Color(150, 212, 206, 255) };
+        if (slot.type === 'monster') return { kind: 'cave' as const, accent: new Color(212, 148, 148, 255) };
+        if (slot.type === 'treasure') return { kind: 'stairs' as const, accent: new Color(228, 196, 120, 255) };
+        if (slot.type === 'stone') return { kind: 'stairs' as const, accent: new Color(156, 188, 226, 255) };
+        if (slot.type === 'herb') return { kind: 'arch' as const, accent: new Color(142, 202, 164, 255) };
+        return index % 2 === 0
+            ? { kind: 'cave' as const, accent: new Color(176, 188, 202, 255) }
+            : { kind: 'stairs' as const, accent: new Color(176, 188, 202, 255) };
+    }
+
+    private drawExpeditionDirectionGlyph(node: Node, kind: 'stairs' | 'cave' | 'swirl' | 'gate' | 'crack' | 'arch' | 'spikes', accent: Color) {
+        let g = node.getComponent(Graphics);
+        if (!g) g = node.addComponent(Graphics);
+        g.clear();
+        g.lineWidth = 2.2;
+        g.strokeColor = accent;
+        g.fillColor = new Color(accent.r, accent.g, accent.b, 42);
+
+        switch (kind) {
+            case 'stairs':
+                g.moveTo(-14, -10);
+                g.lineTo(-4, -10);
+                g.lineTo(-4, -2);
+                g.lineTo(4, -2);
+                g.lineTo(4, 6);
+                g.lineTo(14, 6);
+                g.stroke();
+                g.moveTo(-14, -10);
+                g.lineTo(14, 18);
+                g.stroke();
+                break;
+            case 'cave':
+                g.moveTo(-14, 10);
+                g.quadraticCurveTo(0, -16, 14, 10);
+                g.lineTo(10, 10);
+                g.quadraticCurveTo(0, -8, -10, 10);
+                g.close();
+                g.fill();
+                g.stroke();
+                break;
+            case 'swirl':
+                g.circle(0, 2, 12);
+                g.stroke();
+                g.arc(0, 2, 8, Math.PI * 0.2, Math.PI * 1.7, false);
+                g.stroke();
+                g.moveTo(7, -3);
+                g.lineTo(14, -10);
+                g.stroke();
+                break;
+            case 'gate':
+                g.rect(-12, -10, 24, 20);
+                g.stroke();
+                g.moveTo(-6, 10);
+                g.lineTo(-6, -4);
+                g.quadraticCurveTo(0, -14, 6, -4);
+                g.lineTo(6, 10);
+                g.stroke();
+                break;
+            case 'crack':
+                g.moveTo(-10, 14);
+                g.lineTo(-2, 2);
+                g.lineTo(-8, 2);
+                g.lineTo(2, -12);
+                g.lineTo(0, -2);
+                g.lineTo(10, -2);
+                g.stroke();
+                break;
+            case 'arch':
+                g.moveTo(-14, 10);
+                g.lineTo(-14, -8);
+                g.quadraticCurveTo(0, -18, 14, -8);
+                g.lineTo(14, 10);
+                g.stroke();
+                g.moveTo(-6, 10);
+                g.lineTo(-6, -2);
+                g.moveTo(6, 10);
+                g.lineTo(6, -2);
+                g.stroke();
+                break;
+            case 'spikes':
+                g.moveTo(-14, 10);
+                g.lineTo(-8, -8);
+                g.lineTo(-2, 10);
+                g.lineTo(4, -8);
+                g.lineTo(10, 10);
+                g.stroke();
+                break;
+        }
+    }
+
+    private getExpeditionMarkerAsset(kind: 'stairs' | 'cave' | 'swirl' | 'gate' | 'crack' | 'arch' | 'spikes') {
+        switch (kind) {
+            case 'stairs':
+                return 'ui-expedition-marker-stairs';
+            case 'cave':
+                return 'ui-expedition-marker-cave';
+            case 'swirl':
+                return 'ui-expedition-marker-swirl';
+            case 'gate':
+                return 'ui-expedition-marker-gate';
+            case 'crack':
+                return 'ui-expedition-marker-crack';
+            case 'arch':
+                return 'ui-expedition-marker-arch';
+            case 'spikes':
+                return 'ui-expedition-marker-spikes';
+            default:
+                return null;
+        }
+    }
+
+    private getExpeditionMapBackdropAsset() {
+        return this.selectedDungeonId === 'qi' ? 'dungeon-qi-bg' : 'dungeon-deep-bg';
+    }
+
+    private getExpeditionMapBoardAsset() {
+        return this.selectedDungeonId === 'qi' ? 'ui-expedition-map-board-qi' : 'ui-expedition-map-board-deep';
+    }
+
+    private getExpeditionPathAsset() {
+        if (this.selectedDungeonId === 'qi') return 'ui-expedition-path-glow';
+        return this.getCurrentDepth() >= 21 ? 'ui-expedition-path-chain' : 'ui-expedition-path-rune';
+    }
+
+    private createExpeditionPathSegment(parent: Node, from: Vec3, to: Vec3, assetName: string, tint: Color) {
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const length = Math.sqrt(dx * dx + dy * dy);
+        if (length <= 0.1) return;
+        const node = this.createAssetSpriteNode(
+            parent,
+            'PathSegmentArt',
+            Math.max(48, Math.round(length)),
+            30,
+            new Vec3((from.x + to.x) * 0.5, (from.y + to.y) * 0.5, 0),
+        );
+        node.angle = Math.atan2(dy, dx) * 180 / Math.PI;
+        const sprite = node.getComponent(Sprite);
+        if (sprite) sprite.color = tint;
+        this.setAssetSprite(node, assetName);
+    }
+
+    private getMapNodeCardPositions(count: number) {
+        if (count <= 0) return [] as Array<{ x: number; y: number }>;
+        if (count === 1) return [{ x: 0, y: 58 }];
+        if (count === 2) return [{ x: -148, y: 88 }, { x: 148, y: -6 }];
+        if (count === 3) return [{ x: 0, y: 152 }, { x: -170, y: -30 }, { x: 170, y: -30 }];
+        if (count === 4) return [{ x: -138, y: 118 }, { x: 138, y: 118 }, { x: -212, y: -58 }, { x: 212, y: -58 }];
+        const out: Array<{ x: number; y: number }> = [];
+        const span = 520;
+        const step = span / Math.max(1, count - 1);
+        const start = -span / 2;
+        for (let i = 0; i < count; i++) {
+            out.push({ x: start + i * step, y: i % 2 === 0 ? 48 : -24 });
+        }
+        return out;
     }
 
     /** 地图节点图标文案（妖兽=骷髅/战斗，机缘=？，资源=宝箱/灵植等） */
@@ -5389,9 +6909,12 @@ export class GrottoExpeditionDemo extends Component {
     private getMapNodePositions(count: number): number[] {
         if (count <= 0) return [];
         if (count === 1) return [0];
-        const span = 260;
-        const step = count === 2 ? span : span * (2 / (count - 1));
-        const start = count === 2 ? -span / 2 : -span;
+        if (count === 2) return [-132, 132];
+        if (count === 3) return [-196, 0, 196];
+        if (count === 4) return [-252, -84, 84, 252];
+        const span = 520;
+        const step = span / (count - 1);
+        const start = -span / 2;
         const out: number[] = [];
         for (let i = 0; i < count; i++) out.push(start + i * step);
         return out;
@@ -5404,27 +6927,48 @@ export class GrottoExpeditionDemo extends Component {
             this.expeditionHpLabel.string = `生命 ${Math.ceil(this.playerHp)}/${this.playerMaxHp}`;
         if (this.expeditionManaLabel)
             this.expeditionManaLabel.string = `法力 ${Math.ceil(this.playerMana)}/${this.playerMaxMana}`;
-        this.expeditionResLabel.string = `灵石 ${this.getSpiritStoneSummary(this.expeditionSpiritStoneInventory, 2)} | 材料 ${this.getMaterialSummary(this.expeditionMaterials, 2)} | 器经验 ${this.expeditionArtifactExp}${this.buffAtkPercent > 0 ? ' | 攻+' + Math.round(this.buffAtkPercent * 100) + '%' : ''}`;
+        this.expeditionResLabel.string = `灵石 ${this.getSpiritStoneSummary(this.expeditionSpiritStoneInventory, 2)} · 材料 ${this.getMaterialSummary(this.expeditionMaterials, 2)} · 器经验 ${this.expeditionArtifactExp}${this.buffAtkPercent > 0 ? ' · 攻+' + Math.round(this.buffAtkPercent * 100) + '%' : ''}`;
         if (this.expeditionApLabel) this.expeditionApLabel.string = `行动力 ${this.actionPoints}/${this.actionPointMax}`;
-        if (this.expeditionRatioLabel) this.expeditionRatioLabel.string = `${dungeon.label} · 下方显示下一层节点 · ${this.getSlotRatioText()} · 历史最高 ${this.dungeonBestDepth[dungeon.id]}/${dungeon.maxDepth}`;
+        if (this.expeditionRatioLabel) this.expeditionRatioLabel.string = `${dungeon.label} · 下一层卡牌预览 · ${this.getSlotRatioText()} · 历史最高 ${this.dungeonBestDepth[dungeon.id]}/${dungeon.maxDepth}`;
 
         this.slotContainer.removeAllChildren();
-        const pathFromY = 60;
-        const nodeY = -100;
+        const pathFromY = 222;
         const choices = this.getCurrentChoiceNodes();
-        const xs = this.getMapNodePositions(choices.length);
+        const positions = this.getMapNodeCardPositions(choices.length);
+        const cardWidth = 204;
+        const cardHeight = 248;
+
+        const mapFrame = this.createPanel(this.slotContainer, 676, 540, 0, 10, new Color(14, 18, 24, 196));
+        const mapBoardArt = this.createAssetSpriteNode(mapFrame, 'MapBoardArt', 676, 540, new Vec3(0, 0, 0));
+        mapBoardArt.setSiblingIndex(0);
+        this.setAssetSprite(mapBoardArt, this.getExpeditionMapBoardAsset());
+        const mapArt = this.createAssetSpriteNode(mapFrame, 'MapBackdropArt', 668, 532, new Vec3(0, 0, 0));
+        mapArt.setSiblingIndex(1);
+        const mapArtSprite = mapArt.getComponent(Sprite);
+        if (mapArtSprite) mapArtSprite.color = new Color(168, 182, 200, 72);
+        this.setAssetSprite(mapArt, this.getExpeditionMapBackdropAsset());
+        const mapShade = this.createPanel(mapFrame, 668, 532, 0, 0, new Color(10, 14, 20, 110));
+        mapShade.setSiblingIndex(mapFrame.children.length - 1);
 
         const pathNode = new Node('Paths');
         pathNode.layer = Layers.Enum.UI_2D;
         pathNode.setPosition(0, 0, 0);
         this.slotContainer.addChild(pathNode);
         const pathGfx = pathNode.addComponent(Graphics);
-        pathGfx.strokeColor = new Color(120, 110, 95, 180);
+        const pathTint = this.selectedDungeonId === 'qi'
+            ? new Color(168, 214, 216, 192)
+            : new Color(182, 162, 126, 196);
+        pathGfx.strokeColor = new Color(pathTint.r, pathTint.g, pathTint.b, 112);
         pathGfx.lineWidth = 2;
-        for (let i = 0; i < xs.length; i++) {
-            const x = xs[i];
+        const pathAsset = this.getExpeditionPathAsset();
+        for (let i = 0; i < positions.length; i++) {
+            const x = positions[i].x;
+            const y = positions[i].y;
+            const start = new Vec3(0, pathFromY, 0);
+            const end = new Vec3(x, y + cardHeight * 0.5 - 18, 0);
+            this.createExpeditionPathSegment(pathNode, start, end, pathAsset, pathTint);
             const dx = x - 0;
-            const dy = nodeY - pathFromY;
+            const dy = (y + cardHeight * 0.5 - 18) - pathFromY;
             const len = Math.sqrt(dx * dx + dy * dy);
             const steps = Math.max(8, Math.floor(len / 12));
             for (let s = 0; s < steps; s++) {
@@ -5437,35 +6981,110 @@ export class GrottoExpeditionDemo extends Component {
             }
         }
 
-        const currentPanel = this.createPanel(this.slotContainer, 100, 44, 0, pathFromY, new Color(72, 82, 92, 250));
-        this.createLabel(currentPanel, '当前层', 20, new Vec3(0, 0, 0), new Color(255, 248, 220, 255));
+        const currentPanel = this.createPanel(this.slotContainer, 132, 56, 0, pathFromY, new Color(72, 82, 92, 250));
+        this.createLabel(currentPanel, '当前层', 20, new Vec3(0, 8, 0), new Color(255, 248, 220, 255));
+        this.createLabel(currentPanel, '下探预览', 13, new Vec3(0, -12, 0), new Color(196, 206, 216, 255));
 
         choices.forEach((slot, i) => {
-            const x = xs[i];
+            const x = positions[i].x;
+            const y = positions[i].y;
             const hasRarity = slot.revealed && slot.rarity && slotNeedsRarity(slot.type);
             const isMonster = slot.revealed && slot.type === 'monster';
             const isBoss = slot.revealed && slot.type === 'boss';
-            const panelBg = hasRarity
-                ? new Color(RARITY_COLORS[slot.rarity!].r, RARITY_COLORS[slot.rarity!].g, RARITY_COLORS[slot.rarity!].b, 40)
-                : isBoss ? new Color(120, 30, 30, 250)
-                : isMonster ? new Color(90, 40, 40, 250)
-                : new Color(48, 52, 58, 250);
-            const panel = this.createPanel(this.slotContainer, 120, 100, x, nodeY, panelBg);
-            const text = slot.revealed ? this.getSlotTypeName(slot.type, slot.rarity, slot.materialId) : '？';
+            const accent = !slot.revealed ? new Color(156, 162, 170, 255)
+                : hasRarity ? RARITY_COLORS[slot.rarity!]
+                : slot.type === 'herb' ? new Color(142, 202, 164, 255)
+                : slot.type === 'stone' ? new Color(156, 188, 226, 255)
+                : slot.type === 'treasure' ? new Color(228, 196, 120, 255)
+                : isBoss ? new Color(232, 112, 112, 255)
+                : isMonster ? new Color(212, 148, 148, 255)
+                : slot.type === 'buff' ? new Color(150, 212, 206, 255)
+                : slot.type === 'trap' ? new Color(222, 154, 118, 255)
+                : slot.type === 'intercept' ? new Color(198, 122, 148, 255)
+                : new Color(176, 188, 202, 255);
+            const panelBg = !slot.revealed ? new Color(52, 56, 62, 244)
+                : hasRarity ? new Color(accent.r, accent.g, accent.b, 50)
+                : slot.type === 'herb' ? new Color(44, 62, 52, 244)
+                : slot.type === 'stone' ? new Color(42, 50, 66, 244)
+                : slot.type === 'treasure' ? new Color(70, 58, 38, 244)
+                : isBoss ? new Color(92, 34, 40, 244)
+                : isMonster ? new Color(76, 42, 48, 244)
+                : slot.type === 'buff' ? new Color(40, 64, 68, 244)
+                : slot.type === 'trap' ? new Color(70, 48, 42, 244)
+                : slot.type === 'intercept' ? new Color(72, 38, 54, 244)
+                : new Color(48, 52, 58, 244);
+            const panel = this.createPanel(this.slotContainer, cardWidth, cardHeight, x, y, panelBg);
+            const cardBackdropArt = this.createAssetSpriteNode(panel, 'CardBackdropArt', cardWidth, cardHeight, new Vec3(0, 0, 0));
+            cardBackdropArt.setSiblingIndex(0);
+            this.setAssetSprite(cardBackdropArt, 'ui-expedition-card-neutral');
+            const cardBackdropSprite = cardBackdropArt.getComponent(Sprite);
+            if (cardBackdropSprite) cardBackdropSprite.color = new Color(255, 255, 255, slot.revealed ? 236 : 184);
+            const text = this.getExpeditionSlotTitle(slot);
+            const marker = this.getExpeditionDirectionMarker(slot, i);
             const color = hasRarity ? RARITY_COLORS[slot.rarity!]
                 : isBoss ? new Color(255, 80, 80, 255)
                 : isMonster ? new Color(240, 150, 150, 255)
-                : (slot.revealed ? new Color(200, 220, 240, 255) : new Color(255, 240, 180, 255));
-            this.createLabel(panel, text, slot.revealed ? 16 : 28, new Vec3(0, 0, 0), color);
+                : slot.revealed ? new Color(220, 230, 240, 255) : new Color(255, 240, 180, 255);
+            const markerNode = this.createPanel(this.slotContainer, 64, 64, x + 76, y + 160, new Color(marker.accent.r, marker.accent.g, marker.accent.b, 52));
+            markerNode.angle = 45;
+            const markerBackdropArt = this.createAssetSpriteNode(markerNode, 'MarkerBackdropArt', 64, 64, new Vec3(0, 0, 0));
+            markerBackdropArt.setSiblingIndex(0);
+            const markerArt = this.createAssetSpriteNode(markerNode, 'MarkerArt', 56, 56, new Vec3(0, 0, 0));
+            markerArt.angle = -45;
+            const markerArtSprite = markerArt.getComponent(Sprite);
+            if (markerArtSprite) markerArtSprite.color = new Color(255, 255, 255, 244);
+            this.setAssetSprite(markerArt, this.getExpeditionMarkerAsset(marker.kind));
+            const glyphNode = new Node('MarkerGlyph');
+            glyphNode.layer = Layers.Enum.UI_2D;
+            markerNode.addChild(glyphNode);
+            glyphNode.setPosition(0, 0, 0);
+            glyphNode.addComponent(UITransform).setContentSize(38, 38);
+            glyphNode.angle = -45;
+            this.drawExpeditionDirectionGlyph(glyphNode, marker.kind, marker.accent);
+            const glyphGraphics = glyphNode.getComponent(Graphics);
+            if (glyphGraphics) glyphGraphics.color = new Color(marker.accent.r, marker.accent.g, marker.accent.b, 72);
+            const badge = this.createPanel(panel, 112, 34, 0, 88, new Color(accent.r, accent.g, accent.b, slot.revealed ? 54 : 36));
+            const badgeArt = this.createAssetSpriteNode(badge, 'CardHeaderArt', 118, 38, new Vec3(0, 0, 0));
+            badgeArt.setSiblingIndex(0);
+            this.setAssetSprite(badgeArt, slot.revealed && hasRarity ? this.getRarityTopbarAsset(slot.rarity!) : null);
+            this.createLabel(badge, this.getExpeditionSlotTag(slot), 16, new Vec3(0, 0, 0), slot.revealed ? accent : new Color(220, 224, 228, 255), 96);
+            this.createLabel(panel, text, slot.revealed ? 20 : 22, new Vec3(0, 60, 0), color, 154);
+            const iconPlateArt = this.createAssetSpriteNode(panel, 'CardIconPlateArt', 134, 134, new Vec3(0, 24, 0));
+            iconPlateArt.setSiblingIndex(panel.children.length - 1);
+            this.setAssetSprite(iconPlateArt, this.getSlotTileStateAsset(slot.revealed));
+            const iconPlateSprite = iconPlateArt.getComponent(Sprite);
+            if (iconPlateSprite) iconPlateSprite.color = new Color(255, 255, 255, slot.revealed ? 244 : 228);
+            if (slot.revealed) {
+                const clueArt = this.createAssetSpriteNode(panel, 'TileClueArt', 104, 104, new Vec3(0, 26, 0));
+                clueArt.setSiblingIndex(panel.children.length - 1);
+                this.setAssetSprite(clueArt, this.getSlotTileClueAsset(slot));
+                const clueSprite = clueArt.getComponent(Sprite);
+                if (clueSprite) clueSprite.color = new Color(255, 255, 255, 190);
+                const cornerArt = this.createAssetSpriteNode(panel, 'RarityCorner', 38, 142, new Vec3(66, 32, 0));
+                cornerArt.setSiblingIndex(panel.children.length - 1);
+                this.setAssetSprite(cornerArt, hasRarity ? this.getRarityCornerAsset(slot.rarity!) : null);
+                const frameNode = this.createAssetSpriteNode(panel, 'RarityFrame', 170, 170, new Vec3(0, 16, 0));
+                const iconNode = this.createAssetSpriteNode(panel, 'TileIcon', 102, 102, new Vec3(0, 26, 0));
+                this.setAssetSprite(frameNode, hasRarity ? this.getRarityFrameAsset(slot.rarity!) : null);
+                this.setAssetSprite(iconNode, this.getSlotTileIconAsset(slot.type));
+            } else {
+                this.createLabel(panel, '？', 48, new Vec3(0, 22, 0), new Color(255, 240, 180, 255));
+            }
+            const infoPanel = this.createPanel(panel, 170, 74, 0, -76, new Color(22, 28, 34, 214));
+            const infoPanelArt = this.createAssetSpriteNode(infoPanel, 'CardInfoArt', 170, 74, new Vec3(0, 0, 0));
+            infoPanelArt.setSiblingIndex(0);
+            this.createLabel(infoPanel, this.getExpeditionSlotHint(slot), 14, new Vec3(0, 0, 0), slot.revealed ? new Color(224, 230, 236, 255) : new Color(210, 214, 220, 255), 146);
             const ring = panel.addComponent(Graphics);
-            const ringColor = hasRarity ? RARITY_COLORS[slot.rarity!]
-                : isBoss ? new Color(255, 60, 60, 220)
-                : isMonster ? new Color(220, 120, 120, 200)
-                : new Color(140, 130, 120, 200);
-            ring.strokeColor = ringColor;
-            ring.lineWidth = (hasRarity || isBoss) ? 3 : 2;
-            ring.circle(0, 0, 48);
+            ring.strokeColor = new Color(accent.r, accent.g, accent.b, slot.revealed ? 208 : 142);
+            ring.lineWidth = hasRarity || isBoss ? 3 : 2;
+            ring.roundRect(-cardWidth / 2, -cardHeight / 2, cardWidth, cardHeight, 20);
             ring.stroke();
+            const guide = markerNode.addComponent(Graphics);
+            guide.strokeColor = new Color(marker.accent.r, marker.accent.g, marker.accent.b, 140);
+            guide.lineWidth = 2;
+            guide.moveTo(-24, 24);
+            guide.lineTo(-64, -36);
+            guide.stroke();
             if (slot.revealed) {
                 panel.on(Node.EventType.TOUCH_END, () => this.onRevealedSlotTap(i), this);
             } else {
@@ -5752,13 +7371,30 @@ export class GrottoExpeditionDemo extends Component {
         const oldG = this.lotteryWheelNode.getComponent(Graphics);
         if (oldG) oldG.destroy();
 
-        const OUTER_R = 248;
-        const INNER_R = 112;
+        const OUTER_R = 252;
+        const INNER_R = 126;
         const SEG_COUNT = 8;
         const SEG_ANGLE = 360 / SEG_COUNT;
         const entries = this.lotteryWheelEntries;
         const toRad = (deg: number) => (deg * Math.PI) / 180;
         const TOP_OFFSET = 90;
+
+        const baseDisk = new Node('WheelBase');
+        baseDisk.layer = Layers.Enum.UI_2D;
+        this.lotteryWheelNode.addChild(baseDisk);
+        baseDisk.addComponent(UITransform).setContentSize(OUTER_R * 2 + 60, OUTER_R * 2 + 60);
+        const bg = baseDisk.addComponent(Graphics);
+        bg.fillColor = this.lotteryIsBuffContext ? new Color(14, 22, 24, 242) : new Color(26, 16, 22, 242);
+        bg.circle(0, 0, OUTER_R + 28);
+        bg.fill();
+        bg.strokeColor = this.lotteryIsBuffContext ? new Color(188, 168, 118, 108) : new Color(180, 92, 118, 104);
+        bg.lineWidth = 3;
+        bg.circle(0, 0, OUTER_R + 18);
+        bg.stroke();
+        bg.strokeColor = this.lotteryIsBuffContext ? new Color(100, 138, 132, 82) : new Color(126, 58, 84, 82);
+        bg.lineWidth = 2;
+        bg.circle(0, 0, OUTER_R + 4);
+        bg.stroke();
 
         const runeRing = new Node('RuneRing');
         runeRing.layer = Layers.Enum.UI_2D;
@@ -5846,9 +7482,13 @@ export class GrottoExpeditionDemo extends Component {
             const endDeg = startDeg + SEG_ANGLE;
             const startRad = toRad(startDeg);
             const endRad = toRad(endDeg);
+            const startLineDeg = TOP_OFFSET + i * SEG_ANGLE;
             const gfx = seg.addComponent(Graphics);
 
-            gfx.fillColor = this.lotteryIsBuffContext ? new Color(28, 42, 40, 242) : new Color(42, 24, 32, 242);
+            const baseFill = this.lotteryIsBuffContext
+                ? (i % 2 === 0 ? new Color(30, 46, 44, 246) : new Color(20, 34, 34, 246))
+                : (i % 2 === 0 ? new Color(50, 28, 38, 246) : new Color(34, 18, 26, 246));
+            gfx.fillColor = baseFill;
             gfx.moveTo(INNER_R * Math.cos(startRad), INNER_R * Math.sin(startRad));
             for (let step = 0; step <= ARC_STEPS; step++) {
                 const t = step / ARC_STEPS;
@@ -5864,8 +7504,8 @@ export class GrottoExpeditionDemo extends Component {
             gfx.fill();
 
             const levelColor = this.getLotteryLevelColor(entries[i].effect.value);
-            gfx.strokeColor = new Color(levelColor.r, levelColor.g, levelColor.b, 235);
-            gfx.lineWidth = 3;
+            gfx.strokeColor = new Color(levelColor.r, levelColor.g, levelColor.b, 224);
+            gfx.lineWidth = 2.2;
             gfx.moveTo(INNER_R * Math.cos(startRad), INNER_R * Math.sin(startRad));
             for (let step = 0; step <= ARC_STEPS; step++) {
                 const t = step / ARC_STEPS;
@@ -5880,7 +7520,7 @@ export class GrottoExpeditionDemo extends Component {
             gfx.close();
             gfx.stroke();
 
-            gfx.fillColor = new Color(levelColor.r, levelColor.g, levelColor.b, this.lotteryIsBuffContext ? 62 : 84);
+            gfx.fillColor = new Color(levelColor.r, levelColor.g, levelColor.b, this.lotteryIsBuffContext ? 74 : 92);
             gfx.moveTo((OUTER_R - 10) * Math.cos(startRad), (OUTER_R - 10) * Math.sin(startRad));
             for (let step = 0; step <= ARC_STEPS; step++) {
                 const t = step / ARC_STEPS;
@@ -5919,6 +7559,14 @@ export class GrottoExpeditionDemo extends Component {
                 gfx.close();
                 gfx.fill();
             }
+            const separatorInner = INNER_R - 10;
+            const separatorOuter = OUTER_R + 12;
+            const separatorRad = toRad(startLineDeg);
+            gfx.strokeColor = this.lotteryIsBuffContext ? new Color(214, 196, 148, 126) : new Color(210, 118, 144, 122);
+            gfx.lineWidth = 2;
+            gfx.moveTo(separatorInner * Math.cos(separatorRad), separatorInner * Math.sin(separatorRad));
+            gfx.lineTo(separatorOuter * Math.cos(separatorRad), separatorOuter * Math.sin(separatorRad));
+            gfx.stroke();
         }
 
         const center = new Node('CenterDisk');
@@ -5995,33 +7643,50 @@ export class GrottoExpeditionDemo extends Component {
             cg.circle(0, 0, 12);
             cg.stroke();
         }
+
         const centerLabel = this.createLabel(
             center,
             this.lotteryIsBuffContext ? '福兮\n祸所伏' : '祸兮\n福所倚',
-            24,
+            23,
             new Vec3(0, 0, 0),
             this.lotteryIsBuffContext ? new Color(228, 222, 198, 255) : new Color(230, 198, 206, 255),
-            150
+            146
         );
         centerLabel.lineHeight = 28;
 
         const labelParent = new Node('WheelLabels');
         labelParent.layer = Layers.Enum.UI_2D;
         this.lotteryWheelNode.addChild(labelParent);
-        const labelR = (OUTER_R + INNER_R) * 0.5;
+        const labelR = (OUTER_R + INNER_R) * 0.54;
         for (let i = 0; i < SEG_COUNT; i++) {
             const midDeg = TOP_OFFSET - SEG_ANGLE / 2 + (i + 0.5) * SEG_ANGLE;
             const midRad = toRad(midDeg);
-            const labelNode = new Node(`Lbl_${i}`);
-            labelNode.layer = Layers.Enum.UI_2D;
-            labelParent.addChild(labelNode);
-            labelNode.setPosition(labelR * Math.cos(midRad), labelR * Math.sin(midRad), 0);
-            labelNode.angle = midDeg;
-            labelNode.addComponent(UITransform).setContentSize(108, 42);
-            const lbl = labelNode.addComponent(Label);
+            const labelNode = this.createPanel(
+                labelParent,
+                102,
+                74,
+                labelR * Math.cos(midRad),
+                labelR * Math.sin(midRad),
+                this.lotteryIsBuffContext ? new Color(18, 28, 30, 188) : new Color(32, 18, 24, 188)
+            );
+            this.repaintPanel(
+                labelNode,
+                this.lotteryIsBuffContext ? new Color(18, 28, 30, 188) : new Color(32, 18, 24, 188),
+                this.lotteryIsBuffContext ? new Color(184, 168, 120, 74) : new Color(188, 106, 132, 72)
+            );
+            const iconNode = this.createAssetSpriteNode(labelNode, 'LotteryEffectIcon', 34, 34, new Vec3(0, 14, 0));
+            const iconSprite = iconNode.getComponent(Sprite);
+            if (iconSprite) iconSprite.color = this.getLotteryEntryIconTint(entries[i]);
+            this.setAssetSprite(iconNode, this.getLotteryEntryIconAsset(entries[i]));
+            const lblNode = new Node('LotteryLabel');
+            lblNode.layer = Layers.Enum.UI_2D;
+            labelNode.addChild(lblNode);
+            lblNode.setPosition(0, -18, 0);
+            lblNode.addComponent(UITransform).setContentSize(92, 38);
+            const lbl = lblNode.addComponent(Label);
             lbl.string = this.getLotteryShortName(entries[i]);
-            lbl.fontSize = 16;
-            lbl.lineHeight = 20;
+            lbl.fontSize = 15;
+            lbl.lineHeight = 18;
             lbl.color = this.lotteryIsBuffContext ? new Color(224, 230, 214, 255) : new Color(230, 210, 220, 255);
             lbl.horizontalAlign = HorizontalTextAlignment.CENTER;
             lbl.overflow = Label.Overflow.SHRINK;
@@ -6043,6 +7708,7 @@ export class GrottoExpeditionDemo extends Component {
         }
         this.lotteryResultLabel.string = isBuffSlot ? '灵机流转，且看天意落于何方' : '劫数已起，且看因果落于何方';
         this.lotteryResultLabel.color = isBuffSlot ? new Color(176, 206, 186, 255) : new Color(214, 186, 186, 255);
+        this.setLotteryResultIcon(null);
         this.drawLotteryPointer();
         this.lotteryWheelNode.angle = 0;
         this.drawLotteryWheelSegments();
@@ -6059,6 +7725,7 @@ export class GrottoExpeditionDemo extends Component {
             .call(() => {
                 const entry = this.lotteryWheelEntries[this.lotteryResultIndex];
                 this.applyLotteryEffect(entry);
+                this.setLotteryResultIcon(entry);
                 this.lotteryResultLabel.string = `天机所示：${entry.name}`;
                 this.lotteryResultLabel.color = entry.isBenefit ? new Color(184, 220, 196, 255) : new Color(226, 180, 180, 255);
                 this.scheduleOnce(() => this.closeLotteryAndResume(), 1.2);
@@ -6330,6 +7997,16 @@ export class GrottoExpeditionDemo extends Component {
         put.setContentSize(90, 100);
         put.setAnchorPoint(0.5, 0.5);
         this.playerRig = this.createCharacterRig(this.playerNode, new Color(90, 100, 120, 255), new Color(200, 210, 230, 255));
+        const portraitNode = this.createAssetSpriteNode(this.playerNode, 'CombatPlayerPortrait', 132, 156, new Vec3(0, 4, 0));
+        this.loadXianxiaTexture('portrait-protagonist-combat', (sf) => {
+            if (!sf || !portraitNode.isValid) return;
+            const sprite = portraitNode.getComponent(Sprite);
+            if (!sprite) return;
+            sprite.spriteFrame = sf;
+            this.applyAssetDisplayScale(portraitNode, 'portrait-protagonist-combat');
+            portraitNode.active = true;
+            if (this.playerRig?.root?.isValid) this.playerRig.root.active = false;
+        });
     }
 
     private spawnEnemies() {
@@ -6349,6 +8026,16 @@ export class GrottoExpeditionDemo extends Component {
             ut.setContentSize(90, 100);
             ut.setAnchorPoint(0.5, 0.5);
             const rig = this.createCharacterRig(en, isIntercept ? new Color(80, 50, 60, 255) : new Color(100, 60, 60, 255), isIntercept ? new Color(180, 80, 100, 255) : new Color(220, 120, 100, 255));
+            const portraitNode = this.createAssetSpriteNode(en, 'CombatEnemyPortrait', 132, 156, new Vec3(0, 4, 0));
+            this.loadXianxiaTexture('portrait-enemy-generic', (sf) => {
+                if (!sf || !portraitNode.isValid) return;
+                const sprite = portraitNode.getComponent(Sprite);
+                if (!sprite) return;
+                sprite.spriteFrame = sf;
+                this.applyAssetDisplayScale(portraitNode, 'portrait-enemy-generic');
+                portraitNode.active = true;
+                if (rig.root.isValid) rig.root.active = false;
+            });
             const hpBase = isIntercept ? 45 + layer * 3 : isBoss ? 130 + layer * 5 : 28 + this.realmLevel * 7 + Math.floor(layer / 4) * 4;
             const dmgBase = isIntercept ? 7 + Math.floor(layer / 5) : isBoss ? 9 + Math.floor(layer / 8) * 2 : 4 + this.realmLevel;
             const baseHp = Math.max(1, Math.floor(hpBase * (isIntercept ? dungeon.interceptHpMultiplier : isBoss ? dungeon.bossHpMultiplier : dungeon.enemyHpMultiplier)));
@@ -6799,14 +8486,10 @@ export class GrottoExpeditionDemo extends Component {
         parent.addChild(panel);
         panel.setPosition(x, y, 0);
         panel.addComponent(UITransform).setContentSize(w, h);
-        const g = panel.addComponent(Graphics);
-        g.fillColor = fill || new Color(32, 38, 48, 240);
-        g.roundRect(-w / 2, -h / 2, w, h, 16);
-        g.fill();
-        g.strokeColor = new Color(70, 85, 100, 200);
-        g.lineWidth = 2;
-        g.roundRect(-w / 2, -h / 2, w, h, 16);
-        g.stroke();
+        panel.addComponent(Graphics);
+        const panelFill = fill || new Color(32, 38, 48, 240);
+        this.repaintPanel(panel, panelFill, new Color(70, 85, 100, 200));
+        this.applyStandardPanelSkin(panel, w, h, panelFill);
         return panel;
     }
 
@@ -6817,14 +8500,7 @@ export class GrottoExpeditionDemo extends Component {
         const size = transform.contentSize;
         const w = size.width;
         const h = size.height;
-        g.clear();
-        g.fillColor = fill;
-        g.roundRect(-w / 2, -h / 2, w, h, 16);
-        g.fill();
-        g.strokeColor = stroke;
-        g.lineWidth = 2;
-        g.roundRect(-w / 2, -h / 2, w, h, 16);
-        g.stroke();
+        this.paintPanelGraphic(g, w, h, fill, stroke);
     }
 
     private createLabel(parent: Node, text: string, fontSize: number, pos: Vec3, color: Color, width = 0): Label {
