@@ -367,12 +367,17 @@ const HOME_LAYOUT = {
 type GameState = 'home' | 'expedition_path' | 'combat' | 'lottery' | 'result';
 
 type DungeonId = 'qi' | 'zhuji' | 'jindan' | 'yuanying';
+type ExpeditionMapMode = 'random' | 'fixed';
+type FixedBlueprintId = 'qi-fixed-100';
 
 interface DungeonConfig {
     id: DungeonId;
     label: string;
     unlockRealm: number;
     maxDepth: number;
+    mapMode: ExpeditionMapMode;
+    difficultyDepthOffset: number;
+    fixedBlueprintId?: FixedBlueprintId;
     accent: Color;
     slotWeights: Record<RandomSlotType, number>;
     rarityBias: number;
@@ -391,7 +396,7 @@ interface DungeonConfig {
 
 const DUNGEON_CONFIGS: DungeonConfig[] = [
     {
-        id: 'qi', label: '练气秘境', unlockRealm: 1, maxDepth: 30, accent: new Color(110, 170, 130, 255),
+        id: 'qi', label: '练气秘境', unlockRealm: 1, maxDepth: 100, mapMode: 'fixed', difficultyDepthOffset: 0, fixedBlueprintId: 'qi-fixed-100', accent: new Color(110, 170, 130, 255),
         slotWeights: { empty: 0, herb: 28, stone: 24, treasure: 8, monster: 8, trap: 4, buff: 18, intercept: 0 },
         rarityBias: -2,
         herbDropMultiplier: 1.35, stoneDropMultiplier: 1.2, treasureDropMultiplier: 0.9, combatRewardMultiplier: 1,
@@ -399,7 +404,7 @@ const DUNGEON_CONFIGS: DungeonConfig[] = [
         bossHpMultiplier: 0.88, bossDamageMultiplier: 0.85, interceptHpMultiplier: 0.9, interceptDamageMultiplier: 0.88,
     },
     {
-        id: 'zhuji', label: '筑基秘境', unlockRealm: 10, maxDepth: 60, accent: new Color(120, 150, 200, 255),
+        id: 'zhuji', label: '筑基秘境', unlockRealm: 10, maxDepth: 100, mapMode: 'random', difficultyDepthOffset: 10, accent: new Color(120, 150, 200, 255),
         slotWeights: { empty: 0, herb: 20, stone: 20, treasure: 14, monster: 12, trap: 6, buff: 16, intercept: 0 },
         rarityBias: 1,
         herbDropMultiplier: 1.15, stoneDropMultiplier: 1.2, treasureDropMultiplier: 1.15, combatRewardMultiplier: 1.2,
@@ -407,7 +412,7 @@ const DUNGEON_CONFIGS: DungeonConfig[] = [
         bossHpMultiplier: 1.05, bossDamageMultiplier: 1.05, interceptHpMultiplier: 1.05, interceptDamageMultiplier: 1.05,
     },
     {
-        id: 'jindan', label: '金丹秘境', unlockRealm: 20, maxDepth: 90, accent: new Color(190, 150, 80, 255),
+        id: 'jindan', label: '金丹秘境', unlockRealm: 20, maxDepth: 100, mapMode: 'random', difficultyDepthOffset: 20, accent: new Color(190, 150, 80, 255),
         slotWeights: { empty: 0, herb: 14, stone: 16, treasure: 20, monster: 18, trap: 8, buff: 12, intercept: 0 },
         rarityBias: 6,
         herbDropMultiplier: 1.05, stoneDropMultiplier: 1.3, treasureDropMultiplier: 1.45, combatRewardMultiplier: 1.45,
@@ -415,7 +420,7 @@ const DUNGEON_CONFIGS: DungeonConfig[] = [
         bossHpMultiplier: 1.35, bossDamageMultiplier: 1.22, interceptHpMultiplier: 1.2, interceptDamageMultiplier: 1.18,
     },
     {
-        id: 'yuanying', label: '元婴秘境', unlockRealm: 30, maxDepth: 100, accent: new Color(190, 110, 160, 255),
+        id: 'yuanying', label: '元婴秘境', unlockRealm: 30, maxDepth: 100, mapMode: 'random', difficultyDepthOffset: 30, accent: new Color(190, 110, 160, 255),
         slotWeights: { empty: 0, herb: 10, stone: 14, treasure: 22, monster: 24, trap: 10, buff: 10, intercept: 0 },
         rarityBias: 12,
         herbDropMultiplier: 1.1, stoneDropMultiplier: 1.4, treasureDropMultiplier: 1.7, combatRewardMultiplier: 1.75,
@@ -807,9 +812,16 @@ interface MapNode {
     triggered?: boolean;
     /** 从此节点可前往的子节点 id 列表（按需生成） */
     nextIds: string[];
+    /** 允许从当前节点回退到的父节点 id 列表，仅固定图谱使用 */
+    prevIds?: string[];
     /** 资源格子的品质（仅 herb/stone/treasure 有值） */
     rarity?: Rarity;
     materialId?: MaterialId;
+}
+
+interface PathStep {
+    nodeId: string;
+    canReturnToHere: boolean;
 }
 
 let _nextNodeId = 0;
@@ -819,6 +831,150 @@ function nextNodeId(): string {
 
 /** 生成下一跳时，概率合并到同深度已有节点（形成「有关联」） */
 const MERGE_PROB = 0.15;
+
+interface FixedMapLinkTemplate {
+    toKey: string;
+    bidirectional: boolean;
+}
+
+interface FixedMapNodeTemplate {
+    key: string;
+    depth: number;
+    lane: number;
+    type: SlotType;
+    nextLinks: FixedMapLinkTemplate[];
+    rarity?: Rarity;
+    materialId?: MaterialId;
+}
+
+interface FixedMapBlueprint {
+    id: FixedBlueprintId;
+    startKey: string;
+    nodes: FixedMapNodeTemplate[];
+}
+
+const FIXED_MAP_LANES = 5;
+const QI_FIXED_PHASE_TYPES: SlotType[][] = [
+    ['stone', 'herb', 'buff', 'herb', 'stone'],
+    ['herb', 'monster', 'stone', 'buff', 'empty'],
+    ['stone', 'trap', 'monster', 'herb', 'stone'],
+    ['buff', 'herb', 'stone', 'monster', 'treasure'],
+    ['intercept', 'herb', 'elite', 'stone', 'buff'],
+    ['herb', 'stone', 'monster', 'trap', 'herb'],
+    ['stone', 'buff', 'treasure', 'monster', 'herb'],
+    ['herb', 'monster', 'stone', 'buff', 'trap'],
+    ['treasure', 'herb', 'monster', 'stone', 'buff'],
+];
+
+function getFixedMapNodeKey(blueprintId: FixedBlueprintId, depth: number, lane: number): string {
+    return `${blueprintId}:${depth}:${lane}`;
+}
+
+function getQiFixedMapType(depth: number, lane: number): SlotType {
+    if (depth === 1) return lane === 2 ? 'herb' : 'empty';
+    if (depth % 10 === 0) return lane === 2 ? 'boss' : 'empty';
+    return QI_FIXED_PHASE_TYPES[(depth - 1) % QI_FIXED_PHASE_TYPES.length][lane];
+}
+
+function getQiFixedMapLinkOffsets(depth: number, lane: number): number[] {
+    const selector = (depth + lane * 2) % 6;
+    switch (selector) {
+        case 0:
+            return [0];
+        case 1:
+            return [0, 1];
+        case 2:
+            return [-1, 0];
+        case 3:
+            return [-1, 0, 1];
+        case 4:
+            return [0, 1, 2];
+        default:
+            return [-2, -1, 0];
+    }
+}
+
+function getDeterministicRarity(depth: number, lane: number, rarityBias = 0): Rarity {
+    const roll = Math.abs(depth * 37 + lane * 19 + rarityBias * 11 + 17) % 100;
+    const orangeChance = Math.max(1, Math.min(28, 2 + depth * 0.3 + rarityBias * 0.4));
+    const purpleChance = Math.max(6, Math.min(34, 8 + depth * 0.5 + rarityBias * 0.55));
+    const blueChance = Math.max(18, Math.min(46, 25 + depth * 0.3 + rarityBias * 0.65));
+    if (roll < orangeChance) return 'orange';
+    if (roll < orangeChance + purpleChance) return 'purple';
+    if (roll < orangeChance + purpleChance + blueChance) return 'blue';
+    return 'green';
+}
+
+function getDeterministicFixedMaterial(type: SlotType, depth: number, lane: number, rarity: Rarity): MaterialId | undefined {
+    if (type === 'herb') return HERB_MATERIAL_BY_RARITY[rarity];
+    if (type === 'stone') return STONE_MATERIAL_BY_RARITY[rarity];
+    if (type === 'treasure') {
+        return (depth + lane) % 2 === 0 ? HERB_MATERIAL_BY_RARITY[rarity] : STONE_MATERIAL_BY_RARITY[rarity];
+    }
+    return undefined;
+}
+
+function buildQiFixedMapBlueprint(maxDepth: number, rarityBias: number): FixedMapBlueprint {
+    const blueprintId: FixedBlueprintId = 'qi-fixed-100';
+    const nodes = new Map<string, FixedMapNodeTemplate>();
+    for (let depth = 1; depth <= maxDepth; depth++) {
+        const lanes = depth % 10 === 0 ? [2] : depth === 1 ? [2] : [0, 1, 2, 3, 4];
+        for (let i = 0; i < lanes.length; i++) {
+            const lane = lanes[i];
+            const type = getQiFixedMapType(depth, lane);
+            const key = getFixedMapNodeKey(blueprintId, depth, lane);
+            let rarity: Rarity | undefined;
+            let materialId: MaterialId | undefined;
+            if (slotNeedsRarity(type)) {
+                const baseDepth = depth;
+                rarity = getDeterministicRarity(baseDepth, lane, rarityBias);
+                if (type === 'treasure' && rarity === 'green') rarity = 'blue';
+                materialId = getDeterministicFixedMaterial(type, baseDepth, lane, rarity);
+            }
+            nodes.set(key, { key, depth, lane, type, nextLinks: [], rarity, materialId });
+        }
+    }
+    for (let depth = 1; depth < maxDepth; depth++) {
+        const nextDepth = depth + 1;
+        const fromLanes = depth % 10 === 0 ? [2] : depth === 1 ? [2] : [0, 1, 2, 3, 4];
+        const targetLanes = nextDepth % 10 === 0 ? [2] : [0, 1, 2, 3, 4];
+        for (let i = 0; i < fromLanes.length; i++) {
+            const lane = fromLanes[i];
+            const key = getFixedMapNodeKey(blueprintId, depth, lane);
+            const template = nodes.get(key);
+            if (!template) continue;
+            if (nextDepth % 10 === 0) {
+                template.nextLinks = [{ toKey: getFixedMapNodeKey(blueprintId, nextDepth, 2), bidirectional: false }];
+                continue;
+            }
+            const offsets = getQiFixedMapLinkOffsets(depth, lane);
+            const seen = new Set<number>();
+            const nextLinks: FixedMapLinkTemplate[] = [];
+            for (let j = 0; j < offsets.length; j++) {
+                const targetLane = Math.max(0, Math.min(FIXED_MAP_LANES - 1, lane + offsets[j]));
+                if (!targetLanes.includes(targetLane) || seen.has(targetLane)) continue;
+                seen.add(targetLane);
+                nextLinks.push({
+                    toKey: getFixedMapNodeKey(blueprintId, nextDepth, targetLane),
+                    bidirectional: (depth + lane + targetLane) % 2 === 0,
+                });
+            }
+            if (nextLinks.length === 0) {
+                const fallbackLane = Math.max(0, Math.min(FIXED_MAP_LANES - 1, lane));
+                nextLinks.push({
+                    toKey: getFixedMapNodeKey(blueprintId, nextDepth, fallbackLane),
+                    bidirectional: (depth + lane + fallbackLane) % 2 === 0,
+                });
+            }
+            template.nextLinks = nextLinks;
+        }
+    }
+    return {
+        id: blueprintId,
+        startKey: getFixedMapNodeKey(blueprintId, 1, 2),
+        nodes: [...nodes.values()],
+    };
+}
 
 interface BoneLimb {
     node: Node;
@@ -1082,8 +1238,8 @@ export class GrottoExpeditionDemo extends Component {
     private nodePool = new Map<string, MapNode>();
     /** 当前所在节点 id */
     private currentNodeId = '';
-    /** 返回用：来路节点 id 栈 */
-    private pathStack: string[] = [];
+    /** 返回用：来路节点栈；固定图谱里记录该步是否可逆行 */
+    private pathStack: PathStep[] = [];
     /** 探查后待选择：当前「下一跳」中的索引，-1 表示未在待选 */
     private pendingRevealedIndex = -1;
     private expeditionSpirit = 0;
@@ -6500,6 +6656,7 @@ export class GrottoExpeditionDemo extends Component {
 
     private startExpedition() {
         const artifactBonuses = this.getEquippedArtifactBonuses();
+        const dungeon = this.getDungeonConfig();
         this.state = 'expedition_path';
         this.homeLayer.active = false;
         this.expeditionLayer.active = true;
@@ -6510,16 +6667,25 @@ export class GrottoExpeditionDemo extends Component {
 
         _nextNodeId = 0;
         this.nodePool.clear();
-        const rootId = nextNodeId();
-        this.nodePool.set(rootId, {
-            id: rootId,
-            depth: 1,
-            type: 'herb',
-            materialId: 'ninglucao',
-            revealed: true,
-            nextIds: [],
-        });
-        this.currentNodeId = rootId;
+        this.currentNodeId = '';
+        if (dungeon.mapMode === 'fixed') {
+            const blueprint = this.buildFixedBlueprint(dungeon);
+            if (blueprint) {
+                this.instantiateFixedBlueprint(blueprint);
+            }
+        }
+        if (!this.currentNodeId) {
+            const rootId = nextNodeId();
+            this.nodePool.set(rootId, {
+                id: rootId,
+                depth: 1,
+                type: 'herb',
+                materialId: 'ninglucao',
+                revealed: true,
+                nextIds: [],
+            });
+            this.currentNodeId = rootId;
+        }
         this.pathStack = [];
         this.expeditionSpirit = 0;
         this.expeditionSpiritStoneInventory = createSpiritStoneInventoryRecord();
@@ -6543,6 +6709,71 @@ export class GrottoExpeditionDemo extends Component {
         return this.nodePool.get(this.currentNodeId) ?? null;
     }
 
+    private getScaledDungeonDepth(depth: number, dungeonId: DungeonId = this.selectedDungeonId): number {
+        const config = this.getDungeonConfig(dungeonId);
+        return depth + config.difficultyDepthOffset;
+    }
+
+    private getNodeStrengthDepth(node: Pick<MapNode, 'depth'> | null | undefined): number {
+        return this.getScaledDungeonDepth(node ? node.depth : this.getCurrentDepth());
+    }
+
+    private canReturnAlongCurrentPath(): boolean {
+        if (this.pathStack.length === 0) return false;
+        return this.pathStack[this.pathStack.length - 1].canReturnToHere;
+    }
+
+    private pushPathStep(nextNodeId: string, forceReturn = false) {
+        const config = this.getDungeonConfig();
+        const nextNode = this.nodePool.get(nextNodeId);
+        const canReturn = forceReturn || config.mapMode !== 'fixed'
+            || !!nextNode?.prevIds?.includes(this.currentNodeId);
+        this.pathStack.push({
+            nodeId: this.currentNodeId,
+            canReturnToHere: canReturn,
+        });
+    }
+
+    private instantiateFixedBlueprint(blueprint: FixedMapBlueprint) {
+        const reverseReturnMap = new Map<string, string[]>();
+        for (let i = 0; i < blueprint.nodes.length; i++) {
+            const template = blueprint.nodes[i];
+            this.nodePool.set(template.key, {
+                id: template.key,
+                depth: template.depth,
+                type: template.type,
+                revealed: template.depth === 1,
+                nextIds: template.nextLinks.map((link) => link.toKey),
+                prevIds: [],
+                rarity: template.rarity,
+                materialId: template.materialId,
+            });
+            for (let j = 0; j < template.nextLinks.length; j++) {
+                const link = template.nextLinks[j];
+                if (!link.bidirectional) continue;
+                const existing = reverseReturnMap.get(link.toKey);
+                if (existing) {
+                    existing.push(template.key);
+                } else {
+                    reverseReturnMap.set(link.toKey, [template.key]);
+                }
+            }
+        }
+        reverseReturnMap.forEach((prevIds, key) => {
+            const node = this.nodePool.get(key);
+            if (!node) return;
+            node.prevIds = prevIds;
+        });
+        this.currentNodeId = blueprint.startKey;
+    }
+
+    private buildFixedBlueprint(config: DungeonConfig): FixedMapBlueprint | null {
+        if (config.fixedBlueprintId === 'qi-fixed-100') {
+            return buildQiFixedMapBlueprint(config.maxDepth, config.rarityBias);
+        }
+        return null;
+    }
+
     private getCurrentDepth(): number {
         const n = this.getCurrentNode();
         return n ? n.depth : 1;
@@ -6561,6 +6792,7 @@ export class GrottoExpeditionDemo extends Component {
         if (!node || node.nextIds.length > 0) return;
         const nextDepth = node.depth + 1;
         const dungeon = this.getDungeonConfig();
+        if (dungeon.mapMode === 'fixed') return;
         const isBossDepth = nextDepth >= 10 && nextDepth % 10 === 0;
         if (isBossDepth) {
             const bossId = nextNodeId();
@@ -6597,7 +6829,7 @@ export class GrottoExpeditionDemo extends Component {
                 revealed: false,
                 nextIds: [],
             };
-            if (slotNeedsRarity(type)) node.rarity = pickRarity(nextDepth, dungeon.rarityBias);
+            if (slotNeedsRarity(type)) node.rarity = pickRarity(this.getScaledDungeonDepth(nextDepth), dungeon.rarityBias);
             if (type === 'herb' || type === 'stone' || type === 'treasure') {
                 const rarity = node.rarity ?? 'green';
                 if (type === 'herb') {
@@ -7239,9 +7471,13 @@ export class GrottoExpeditionDemo extends Component {
 
         const revealedCount = choices.filter((s) => s.revealed).length;
         const returnCost = 1 + Math.max(0, revealedCount - 1);
-        const canReturn = this.pathStack.length > 0 && this.actionPoints >= returnCost;
+        const canReturn = this.pathStack.length > 0 && this.canReturnAlongCurrentPath() && this.actionPoints >= returnCost;
         if (this.returnToPrevBtnLabel) {
-            this.returnToPrevBtnLabel.string = this.pathStack.length === 0 ? '已在起点' : `返回上一层(消耗${returnCost})`;
+            this.returnToPrevBtnLabel.string = this.pathStack.length === 0
+                ? '已在起点'
+                : this.canReturnAlongCurrentPath()
+                    ? `返回上一层(消耗${returnCost})`
+                    : '此路不可回退';
             this.returnToPrevBtnLabel.color = canReturn ? new Color(255, 220, 200, 255) : new Color(140, 140, 140, 255);
         }
 
@@ -7329,7 +7565,7 @@ export class GrottoExpeditionDemo extends Component {
             return;
         }
         if (slot.type === 'boss') {
-            this.pathStack.push(this.currentNodeId);
+            this.pushPathStep(slot.id);
             this.currentNodeId = slot.id;
             this.ensureNextNodes(slot.id);
             this.refreshLayerUI();
@@ -7417,9 +7653,9 @@ export class GrottoExpeditionDemo extends Component {
         const choices = this.getCurrentChoiceNodes();
         const revealedCount = choices.filter((s) => s.revealed).length;
         const returnCost = 1 + Math.max(0, revealedCount - 1);
-        if (this.pathStack.length === 0 || this.actionPoints < returnCost) return;
+        if (this.pathStack.length === 0 || !this.canReturnAlongCurrentPath() || this.actionPoints < returnCost) return;
         this.actionPoints = Math.max(0, this.actionPoints - returnCost);
-        this.currentNodeId = this.pathStack.pop()!;
+        this.currentNodeId = this.pathStack.pop()!.nodeId;
         this.choicePanel.active = false;
         this.pendingRevealedIndex = -1;
         this.refreshLayerUI();
@@ -7928,7 +8164,7 @@ export class GrottoExpeditionDemo extends Component {
     private resolveSlotAsNode(slot: MapNode) {
         if (slot.triggered) return;
         slot.triggered = true;
-        const depth = slot.depth;
+        const depth = this.getNodeStrengthDepth(slot);
         const rarityMul = slot.rarity ? RARITY_MULTIPLIER[slot.rarity] : 1;
         switch (slot.type) {
             case 'herb': {
@@ -7974,7 +8210,7 @@ export class GrottoExpeditionDemo extends Component {
 
     /** 移动到目标节点（压栈、设当前、生成其下一跳；深度>100 则结算） */
     private advanceToNode(nodeId: string) {
-        this.pathStack.push(this.currentNodeId);
+        this.pushPathStep(nodeId);
         this.currentNodeId = nodeId;
         this.pendingRevealedIndex = -1;
         const dungeon = this.getDungeonConfig();
@@ -8001,7 +8237,7 @@ export class GrottoExpeditionDemo extends Component {
             revealed: true,
             nextIds: [],
         });
-        this.pathStack.push(this.currentNodeId);
+        this.pushPathStep(jumpId, true);
         this.currentNodeId = jumpId;
         this.ensureNextNodes(jumpId);
         this.refreshLayerUI();
@@ -8149,7 +8385,7 @@ export class GrottoExpeditionDemo extends Component {
         const dungeon = this.getDungeonConfig();
         const count = 1;
         const slot = this.getCombatNode();
-        const layer = slot ? slot.depth : this.getCurrentDepth();
+        const layer = this.getNodeStrengthDepth(slot);
         for (let i = 0; i < count; i++) {
             const en = new Node(isIntercept ? '邪修' : isBoss ? 'Boss' : isElite ? 'Elite' : `Enemy_${i}`);
             en.layer = Layers.Enum.UI_2D;
@@ -8489,7 +8725,7 @@ export class GrottoExpeditionDemo extends Component {
                 slot.defeated = true;
                 if (this.combatIsIntercept) {
                     if (!slot.triggered) {
-                        const depth = slot.depth;
+                        const depth = this.getNodeStrengthDepth(slot);
                         this.addSpiritStoneValue(Math.max(1, Math.floor((16 + Math.floor(depth / 3)) * combatRewardMul)), 'expedition');
                         this.expeditionHerbs += Math.max(1, Math.floor(2 * combatRewardMul));
                         this.addExpeditionArtifactProgress(depth, Math.max(3, Math.floor(5 * combatRewardMul)), 1);
@@ -8499,7 +8735,7 @@ export class GrottoExpeditionDemo extends Component {
                     advanced = true;
                 } else if (this.combatIsBoss) {
                     if (!slot.triggered) {
-                        const depth = slot.depth;
+                        const depth = this.getNodeStrengthDepth(slot);
                         slot.triggered = true;
                         this.addTaskProgress('weekly_boss_defeat', 1);
                         this.addSpiritStoneValue(Math.max(1, Math.floor((36 + depth * 3) * combatRewardMul)), 'expedition');
@@ -8515,7 +8751,7 @@ export class GrottoExpeditionDemo extends Component {
                 } else if (this.combatIsElite) {
                     if (!slot.triggered) {
                         slot.triggered = true;
-                        const depth = slot.depth;
+                        const depth = this.getNodeStrengthDepth(slot);
                         this.addSpiritStoneValue(Math.max(1, Math.floor((22 + Math.floor(depth / 2)) * combatRewardMul)), 'expedition');
                         this.expeditionHerbs += Math.max(1, Math.floor((3 + Math.floor(depth / 16)) * combatRewardMul));
                         this.expeditionTreasure += Math.max(1, Math.floor(1 * combatRewardMul));
@@ -8528,7 +8764,7 @@ export class GrottoExpeditionDemo extends Component {
                     }
                 } else if (!slot.triggered) {
                     slot.triggered = true;
-                    const depth = slot.depth;
+                    const depth = this.getNodeStrengthDepth(slot);
                     this.addSpiritStoneValue(Math.max(1, Math.floor((12 + Math.floor(depth / 4)) * combatRewardMul)), 'expedition');
                     this.expeditionHerbs += Math.max(1, Math.floor(2 * combatRewardMul));
                     this.addExpeditionArtifactProgress(depth, Math.max(2, Math.floor(4 * combatRewardMul)), 0);
