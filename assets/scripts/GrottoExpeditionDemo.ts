@@ -163,6 +163,29 @@ interface SpiritPetBonuses {
     breakthroughRate: number;
 }
 
+interface FishingTargetDef {
+    id: string;
+    name: string;
+    title: string;
+    baseRealmLevel: number;
+    rebateRatio: number;
+    style: string;
+}
+
+interface FishingSlotWidget {
+    card: Node;
+    titleLabel: Label;
+    infoLabel: Label;
+    actionLabel: Label;
+}
+
+interface FishingTargetWidget {
+    card: Node;
+    titleLabel: Label;
+    infoLabel: Label;
+    stateLabel: Label;
+}
+
 type AlchemyTab = 'furnace' | 'formula' | 'storehouse' | 'forge';
 type AlchemyRecipeId = 'ningqi' | 'yangyuan' | 'cuiti' | 'shenxing';
 type ForgeRecipeId = 'xuanjian' | 'baojia' | 'linglu';
@@ -1228,6 +1251,15 @@ const SPIRIT_PET_DEFS: SpiritPetDef[] = [
     { id: 'yunhe', glyph: '鹤', name: '云翎鹤', title: '羽化乘云', summary: '偏灵韵型灵宠，提升法力流转并引天清气，稳固突破心神。', hpBonus: 0, manaBonus: 24, damageBonus: 3, breakthroughRateBonus: 0.06 },
 ];
 
+const FISHING_TARGET_DEFS: FishingTargetDef[] = [
+    { id: 'yezhou', name: '叶舟客', title: '寒江独棹', baseRealmLevel: 6, rebateRatio: 0.22, style: '偏稳，机缘触发后回馈更平滑。' },
+    { id: 'chensha', name: '陈沙', title: '逆流叩关', baseRealmLevel: 12, rebateRatio: 0.28, style: '偏猛，触发少但每次回馈更厚。' },
+    { id: 'suyue', name: '苏月汀', title: '月汀照影', baseRealmLevel: 18, rebateRatio: 0.24, style: '均衡，适合作为长期绑定位。' },
+    { id: 'hanlin', name: '韩临渊', title: '渊底听潮', baseRealmLevel: 24, rebateRatio: 0.3, style: '高境界修士，越后期越值钱。' },
+    { id: 'ningzhao', name: '宁昭', title: '浮木问天', baseRealmLevel: 9, rebateRatio: 0.2, style: '前期容易触发，适合补首轮收益。' },
+    { id: 'shiqiu', name: '石秋河', title: '钩沉古意', baseRealmLevel: 15, rebateRatio: 0.26, style: '善于厚积薄发，触发后常连续破境。' },
+];
+
 const DONGTIAN_BUILDINGS: BuildingDef[] = [
     {
         id: 'gather',
@@ -1441,13 +1473,14 @@ export class GrottoExpeditionDemo extends Component {
     private spiritPetInfoLabel: Label | null = null;
     private spiritPetEffectLabel: Label | null = null;
     private roleQuickFocus: 'general' | 'kungfu' | 'pet' = 'general';
-    private homeTab: 'dongtian' | 'mijing' | 'shop' | 'faqi' | 'role' = 'dongtian';
+    private homeTab: 'dongtian' | 'mijing' | 'shop' | 'faqi' | 'role' | 'fishing' = 'dongtian';
     private homeContentRoot!: Node;
     private homeDongtianView!: Node;
     private homeMijingView!: Node;
     private homeRoleView!: Node;
     private homeShopView!: Node;
     private homeFaqiView!: Node;
+    private homeFishingView!: Node;
     private homeAlchemyQuickButton: Node | null = null;
     private homeForgeQuickButton: Node | null = null;
     private homeKungfuQuickButton: Node | null = null;
@@ -1473,6 +1506,21 @@ export class GrottoExpeditionDemo extends Component {
     private spiritPetLevels: Record<SpiritPetId, number> = createSpiritPetLevelRecord();
     private selectedSpiritPetId: SpiritPetId = 'leihu';
     private equippedSpiritPetId: SpiritPetId | null = null;
+    private fishingBait = 6;
+    private fishingRodTier = 1;
+    private fishingSelectedSlotIndex = 0;
+    private fishingBoundTargetIds: Array<string | null> = [null, null, null, null];
+    private fishingTargetRealmLevels: Record<string, number> = FISHING_TARGET_DEFS.reduce((acc, def) => {
+        acc[def.id] = def.baseRealmLevel;
+        return acc;
+    }, {} as Record<string, number>);
+    private fishingSummaryLabel: Label | null = null;
+    private fishingResourceLabel: Label | null = null;
+    private fishingHintLabel: Label | null = null;
+    private fishingCastButton: Node | null = null;
+    private fishingCastButtonLabel: Label | null = null;
+    private fishingSlotWidgets: FishingSlotWidget[] = [];
+    private fishingTargetWidgets = new Map<string, FishingTargetWidget>();
     private materialInventory: Record<MaterialId, number> = createMaterialInventoryRecord();
     private alchemyInventory: Record<AlchemyRecipeId, number> = createAlchemyInventoryRecord();
     private forgeInventory: Record<ForgeRecipeId, number> = createForgeInventoryRecord();
@@ -1601,19 +1649,21 @@ export class GrottoExpeditionDemo extends Component {
         daily: null,
         weekly: null,
     };
-    private homeNavIcons: Record<'shop' | 'faqi' | 'role' | 'mijing' | 'dongtian', Node | null> = {
+    private homeNavIcons: Record<'shop' | 'faqi' | 'role' | 'mijing' | 'dongtian' | 'fishing', Node | null> = {
         shop: null,
         faqi: null,
         role: null,
         mijing: null,
         dongtian: null,
+        fishing: null,
     };
-    private homeNavButtons: Record<'shop' | 'faqi' | 'role' | 'mijing' | 'dongtian', Node | null> = {
+    private homeNavButtons: Record<'shop' | 'faqi' | 'role' | 'mijing' | 'dongtian' | 'fishing', Node | null> = {
         shop: null,
         faqi: null,
         role: null,
         mijing: null,
         dongtian: null,
+        fishing: null,
     };
     private combatHpLabel!: Label;
     private resultLabel!: Label;
@@ -1885,26 +1935,29 @@ export class GrottoExpeditionDemo extends Component {
         this.homeFaqiView = this.createHomeView('FaqiView');
         this.homeRoleView = this.createHomeView('RoleView');
         this.homeMijingView = this.createHomeView('MijingView');
+        this.homeFishingView = this.createHomeView('FishingView');
 
         this.buildHomeDongtianView();
         this.buildHomeShopView();
         this.buildHomeFaqiView();
         this.buildHomeRoleView();
         this.buildHomeMijingView();
+        this.buildHomeFishingView();
         this.buildHomeAlchemyPanel();
         this.buildHomeKungfuPanel();
         this.buildHomeSpiritPetPanel();
 
         const navBar = this.createPanel(this.homeLayer, HOME_LAYOUT.navBarWidth, HOME_LAYOUT.navBarHeight, 0, HOME_LAYOUT.navBarY, new Color(32, 38, 48, 250));
-        const tabs: Array<{ key: 'shop' | 'faqi' | 'role' | 'mijing' | 'dongtian'; label: string }> = [
+        const tabs: Array<{ key: 'shop' | 'faqi' | 'role' | 'mijing' | 'dongtian' | 'fishing'; label: string }> = [
             { key: 'shop', label: '商城' },
             { key: 'faqi', label: '法器' },
             { key: 'role', label: '角色' },
             { key: 'mijing', label: '秘境' },
             { key: 'dongtian', label: '洞天' },
+            { key: 'fishing', label: '独钓' },
         ];
         tabs.forEach((tab, index) => {
-            const x = -280 + index * 140;
+            const x = -350 + index * 140;
             const btn = this.createPanel(navBar, HOME_LAYOUT.navButtonWidth, HOME_LAYOUT.navButtonHeight, x, 0, new Color(45, 52, 62, 255));
             const iconNode = new Node(`${tab.key}Icon`);
             iconNode.layer = Layers.Enum.UI_2D;
@@ -3754,6 +3807,237 @@ export class GrottoExpeditionDemo extends Component {
         this.hintLabel = this.createLabel(this.homeMijingView, '前期建议先刷练气秘境，缺灵石去商城补给，缺战力先回角色、工坊与法器页整备。', 20, new Vec3(0, HOME_LAYOUT.hintY, 0), new Color(120, 140, 160, 255), 660);
     }
 
+    private buildHomeFishingView() {
+        this.createStandardHomeHeader(this.homeFishingView, '独钓万古', '以机缘鱼饵垂钓万古因果，绑定他人机缘位并截取一缕破境反哺。', new Color(36, 48, 62, 245), new Color(236, 232, 212, 255), new Color(166, 192, 214, 255));
+
+        const summaryPanel = this.createPanel(this.homeFishingView, 676, 126, 0, 220, new Color(34, 44, 58, 245));
+        this.createSectionHeader(summaryPanel, '钓台总览', '购买鱼饵与方杆，抛竿后让绑定对象触发机缘破境，并返哺你部分修为。', new Color(172, 214, 224, 255), '钓');
+        this.fishingSummaryLabel = this.createLabel(summaryPanel, '', 17, new Vec3(0, 10, 0), new Color(220, 228, 238, 255), 612);
+        this.fishingResourceLabel = this.createLabel(summaryPanel, '', 16, new Vec3(0, -24, 0), new Color(226, 210, 164, 255), 612);
+
+        const actionPanel = this.createPanel(this.homeFishingView, 676, 128, 0, 78, new Color(42, 50, 64, 245));
+        this.createSectionHeader(actionPanel, '钓具补给', '机缘鱼饵用于抛竿，方杆提升触发率与反哺系数。', new Color(210, 190, 132, 255), '具');
+        const baitBtn = this.createPanel(actionPanel, 162, 42, -176, -20, new Color(76, 84, 94, 255));
+        this.createLabel(baitBtn, '买鱼饵', 20, new Vec3(0, 0, 0), new Color(244, 242, 232, 255), 120);
+        baitBtn.on(Node.EventType.TOUCH_END, () => this.buyFishingBait(), this);
+        const rodBtn = this.createPanel(actionPanel, 162, 42, 0, -20, new Color(84, 78, 64, 255));
+        this.createLabel(rodBtn, '升方杆', 20, new Vec3(0, 0, 0), new Color(244, 236, 214, 255), 120);
+        rodBtn.on(Node.EventType.TOUCH_END, () => this.upgradeFishingRod(), this);
+        this.fishingCastButton = this.createPanel(actionPanel, 162, 42, 176, -20, new Color(56, 84, 74, 255));
+        this.fishingCastButtonLabel = this.createLabel(this.fishingCastButton, '抛竿', 20, new Vec3(0, 0, 0), new Color(228, 248, 236, 255), 120);
+        this.fishingCastButton.on(Node.EventType.TOUCH_END, () => this.castFishingLine(), this);
+
+        const slotPanel = this.createPanel(this.homeFishingView, 676, 216, 0, -120, new Color(36, 44, 56, 245));
+        this.createSectionHeader(slotPanel, '机缘绑定位', '自身境界越高，可同时观察的因果锚点越多。点槽位后再点下方修士即可替换绑定。', new Color(174, 214, 188, 255), '位');
+        const slotXs = [-246, -82, 82, 246];
+        for (let i = 0; i < 4; i++) {
+            const card = this.createPanel(slotPanel, 148, 118, slotXs[i], -16, new Color(48, 56, 68, 245));
+            const title = this.createLabel(card, '', 18, new Vec3(0, 30, 0), new Color(242, 238, 222, 255), 120);
+            const info = this.createLabel(card, '', 14, new Vec3(0, -2, 0), new Color(186, 202, 216, 255), 128);
+            info.lineHeight = 18;
+            const action = this.createLabel(card, '', 14, new Vec3(0, -38, 0), new Color(222, 208, 164, 255), 118);
+            card.on(Node.EventType.TOUCH_END, () => {
+                this.fishingSelectedSlotIndex = i;
+                this.refreshHomeStatus();
+            }, this);
+            this.fishingSlotWidgets.push({ card, titleLabel: title, infoLabel: info, actionLabel: action });
+        }
+
+        const targetPanel = this.createPanel(this.homeFishingView, 676, 226, 0, -364, new Color(38, 48, 58, 245));
+        this.createSectionHeader(targetPanel, '可钓机缘', '每位修士有不同的基础境界与反哺比例；绑定后可随时被替换。', new Color(196, 204, 232, 255), '缘');
+        const targetXs = [-214, 0, 214, -214, 0, 214];
+        const targetYs = [38, 38, 38, -68, -68, -68];
+        for (let i = 0; i < FISHING_TARGET_DEFS.length; i++) {
+            const def = FISHING_TARGET_DEFS[i];
+            const card = this.createPanel(targetPanel, 198, 92, targetXs[i], targetYs[i], new Color(46, 56, 70, 245));
+            const title = this.createLabel(card, '', 17, new Vec3(-10, 22, 0), new Color(242, 238, 224, 255), 164);
+            title.horizontalAlign = HorizontalTextAlignment.LEFT;
+            const info = this.createLabel(card, '', 13, new Vec3(-10, 0, 0), new Color(184, 200, 216, 255), 164);
+            info.horizontalAlign = HorizontalTextAlignment.LEFT;
+            info.lineHeight = 16;
+            const state = this.createLabel(card, '', 13, new Vec3(-10, -26, 0), new Color(224, 210, 168, 255), 164);
+            state.horizontalAlign = HorizontalTextAlignment.LEFT;
+            card.on(Node.EventType.TOUCH_END, () => this.bindFishingTargetToSelectedSlot(def.id), this);
+            this.fishingTargetWidgets.set(def.id, { card, titleLabel: title, infoLabel: info, stateLabel: state });
+        }
+
+        this.fishingHintLabel = this.createLabel(this.homeFishingView, '', 18, new Vec3(0, HOME_LAYOUT.hintY, 0), new Color(130, 150, 166, 255), 660);
+    }
+
+    private getFishingBindSlotCount() {
+        if (this.realmLevel >= 30) return 4;
+        if (this.realmLevel >= 20) return 3;
+        if (this.realmLevel >= 10) return 2;
+        return 1;
+    }
+
+    private getFishingBaitPurchaseCost() {
+        return 180 + this.fishingBait * 20;
+    }
+
+    private getFishingRodUpgradeCost() {
+        return 900 + this.fishingRodTier * 650;
+    }
+
+    private getFishingTargetDef(id: string) {
+        return FISHING_TARGET_DEFS.find((entry) => entry.id === id) || FISHING_TARGET_DEFS[0];
+    }
+
+    private getFishingTargetRealmLevel(id: string) {
+        return this.fishingTargetRealmLevels[id] ?? this.getFishingTargetDef(id).baseRealmLevel;
+    }
+
+    private formatFishingRealm(level: number) {
+        if (level >= 30) return `元婴 ${level}`;
+        if (level >= 20) return `金丹 ${level}`;
+        if (level >= 10) return `筑基 ${level}`;
+        return `练气 ${level}`;
+    }
+
+    private buyFishingBait() {
+        const cost = this.getFishingBaitPurchaseCost();
+        if (!this.consumeSpiritStoneValue(cost)) {
+            if (this.fishingHintLabel) this.fishingHintLabel.string = `购买机缘鱼饵需灵石折值 ${cost}，当前仅有 ${this.getSpiritStoneTotalValue(this.spiritStoneInventory)}。`;
+            return;
+        }
+        this.fishingBait += 5;
+        if (this.fishingHintLabel) this.fishingHintLabel.string = `购入机缘鱼饵 5 份，当前鱼饵 ${this.fishingBait}。`;
+        this.refreshHomeStatus();
+    }
+
+    private upgradeFishingRod() {
+        if (this.fishingRodTier >= 5) {
+            if (this.fishingHintLabel) this.fishingHintLabel.string = '方杆已升至上限，再往上需要后续版本开放。';
+            return;
+        }
+        const cost = this.getFishingRodUpgradeCost();
+        if (!this.consumeSpiritStoneValue(cost)) {
+            if (this.fishingHintLabel) this.fishingHintLabel.string = `升级方杆需灵石折值 ${cost}，当前仅有 ${this.getSpiritStoneTotalValue(this.spiritStoneInventory)}。`;
+            return;
+        }
+        this.fishingRodTier += 1;
+        if (this.fishingHintLabel) this.fishingHintLabel.string = `方杆升至 ${this.fishingRodTier} 阶，触发率与反哺系数同步提升。`;
+        this.refreshHomeStatus();
+    }
+
+    private bindFishingTargetToSelectedSlot(id: string) {
+        const unlocked = this.getFishingBindSlotCount();
+        const slotIndex = Math.max(0, Math.min(3, this.fishingSelectedSlotIndex));
+        if (slotIndex >= unlocked) {
+            if (this.fishingHintLabel) this.fishingHintLabel.string = `当前仅开放 ${unlocked} 个绑定位，请先提升自身境界。`;
+            return;
+        }
+        const oldId = this.fishingBoundTargetIds[slotIndex];
+        this.fishingBoundTargetIds[slotIndex] = id;
+        const def = this.getFishingTargetDef(id);
+        if (this.fishingHintLabel) {
+            this.fishingHintLabel.string = oldId && oldId !== id
+                ? `已将第 ${slotIndex + 1} 位机缘从 ${this.getFishingTargetDef(oldId).name} 替换为 ${def.name}。`
+                : `已将 ${def.name} 绑定到第 ${slotIndex + 1} 位机缘槽。`;
+        }
+        this.refreshHomeStatus();
+    }
+
+    private castFishingLine() {
+        if (this.fishingBait <= 0) {
+            if (this.fishingHintLabel) this.fishingHintLabel.string = '鱼饵不足，先去上方补给。';
+            return;
+        }
+        const boundIds = this.fishingBoundTargetIds.filter((id, index) => !!id && index < this.getFishingBindSlotCount()) as string[];
+        if (boundIds.length === 0) {
+            if (this.fishingHintLabel) this.fishingHintLabel.string = '当前没有已绑定的机缘位，先点上方槽位再点下方修士。';
+            return;
+        }
+
+        this.fishingBait -= 1;
+        const summaries: string[] = [];
+        let totalGain = 0;
+        for (let i = 0; i < boundIds.length; i++) {
+            const id = boundIds[i];
+            const def = this.getFishingTargetDef(id);
+            const triggerChance = Math.min(0.82, 0.22 + this.fishingRodTier * 0.08 + i * 0.03);
+            if (Math.random() >= triggerChance) continue;
+
+            const rise = Math.random() < 0.22 + this.fishingRodTier * 0.04 ? 2 : 1;
+            const nextRealmLevel = this.getFishingTargetRealmLevel(id) + rise;
+            this.fishingTargetRealmLevels[id] = nextRealmLevel;
+            const gain = Math.max(18, Math.round((32 + nextRealmLevel * 7) * def.rebateRatio * (1 + this.fishingRodTier * 0.12)));
+            totalGain += gain;
+            summaries.push(`${def.name} 破境 +${rise}，反哺修为 +${gain}`);
+        }
+
+        if (totalGain <= 0) {
+            const pity = 6 + this.fishingRodTier * 3;
+            this.realmExp += pity;
+            if (this.fishingHintLabel) this.fishingHintLabel.string = `这一竿只钓到残余气机，仍得修为 +${pity}。`;
+            this.refreshHomeStatus();
+            return;
+        }
+
+        this.realmExp += totalGain;
+        if (this.fishingHintLabel) this.fishingHintLabel.string = summaries.join('；');
+        this.refreshHomeStatus();
+    }
+
+    private refreshFishingPanel() {
+        if (!this.fishingSummaryLabel) return;
+
+        const unlocked = this.getFishingBindSlotCount();
+        const boundCount = this.fishingBoundTargetIds.slice(0, unlocked).filter((id) => !!id).length;
+        this.fishingSummaryLabel.string = `开放绑定位 ${unlocked}/4  |  已绑定 ${boundCount}/${unlocked}  |  方杆 ${this.fishingRodTier} 阶  |  当前境界 ${this.getRealmTitle()}`;
+
+        if (this.fishingResourceLabel) {
+            this.fishingResourceLabel.string = `鱼饵 ${this.fishingBait}  |  买鱼饵 ${this.getFishingBaitPurchaseCost()} 灵石  |  升杆 ${this.getFishingRodUpgradeCost()} 灵石  |  当前灵石折值 ${this.getSpiritStoneTotalValue(this.spiritStoneInventory)}`;
+        }
+
+        if (this.fishingCastButton && this.fishingCastButtonLabel) {
+            const canCast = this.fishingBait > 0 && boundCount > 0;
+            const button = this.fishingCastButton.getComponent(Button);
+            if (button) button.interactable = canCast;
+            this.fishingCastButtonLabel.string = canCast ? '抛竿' : this.fishingBait <= 0 ? '缺鱼饵' : '先绑定';
+            this.styleActionButton(this.fishingCastButton, canCast ? 'ready' : 'disabled', 'jade');
+        }
+
+        for (let i = 0; i < this.fishingSlotWidgets.length; i++) {
+            const widget = this.fishingSlotWidgets[i];
+            const unlockedSlot = i < unlocked;
+            const targetId = this.fishingBoundTargetIds[i];
+            const selected = i === this.fishingSelectedSlotIndex;
+            const accent = unlockedSlot ? new Color(168, 214, 200, 255) : new Color(120, 130, 142, 255);
+
+            this.styleCardPanel(widget.card, !unlockedSlot ? 'disabled' : selected ? 'accent' : 'neutral', accent);
+            widget.titleLabel.string = unlockedSlot ? `第 ${i + 1} 位` : `第 ${i + 1} 位未开`;
+            if (!unlockedSlot) {
+                widget.infoLabel.string = '提升自身境界后开放';
+                widget.actionLabel.string = '未解锁';
+                continue;
+            }
+            if (!targetId) {
+                widget.infoLabel.string = '点下方修士即可绑定';
+                widget.actionLabel.string = selected ? '当前待绑定' : '点击选中';
+                continue;
+            }
+
+            const def = this.getFishingTargetDef(targetId);
+            widget.infoLabel.string = `${def.name} · ${this.formatFishingRealm(this.getFishingTargetRealmLevel(targetId))}`;
+            widget.actionLabel.string = selected ? '点下方修士可替换' : '点击选中此槽';
+        }
+
+        this.fishingTargetWidgets.forEach((widget, id) => {
+            const def = this.getFishingTargetDef(id);
+            const realm = this.getFishingTargetRealmLevel(id);
+            const slotIndex = this.fishingBoundTargetIds.findIndex((targetId, index) => targetId === id && index < unlocked);
+            this.styleCardPanel(widget.card, slotIndex === this.fishingSelectedSlotIndex ? 'accent' : slotIndex >= 0 ? 'selected' : 'neutral', new Color(164, 194, 230, 255));
+            widget.titleLabel.string = `${def.name} · ${def.title}`;
+            widget.infoLabel.string = `${this.formatFishingRealm(realm)}  |  反哺 ${Math.round(def.rebateRatio * 100)}%`;
+            widget.stateLabel.string = slotIndex >= 0 ? `已绑在第 ${slotIndex + 1} 位，可点击替换` : '点击绑定到当前选中槽位';
+        });
+
+        if (this.fishingHintLabel && !this.fishingHintLabel.string) {
+            this.fishingHintLabel.string = '先选上方槽位，再点击下方修士；抛竿后若对方破境，你会获得一部分反哺修为。';
+        }
+    }
+
     private getPanelCornerRadius(w: number, h: number) {
         const minSide = Math.min(w, h);
         if (minSide <= 34) return 10;
@@ -4385,13 +4669,14 @@ export class GrottoExpeditionDemo extends Component {
         this.repaintPanel(card, new Color(42, 48, 58, 245), new Color(accent.r, accent.g, accent.b, 150));
     }
 
-    private switchHomeTab(tab: 'dongtian' | 'mijing' | 'shop' | 'faqi' | 'role') {
+    private switchHomeTab(tab: 'dongtian' | 'mijing' | 'shop' | 'faqi' | 'role' | 'fishing') {
         this.homeTab = tab;
         this.homeDongtianView.active = tab === 'dongtian';
         this.homeMijingView.active = tab === 'mijing';
         this.homeRoleView.active = tab === 'role';
         this.homeShopView.active = tab === 'shop';
         this.homeFaqiView.active = tab === 'faqi';
+        this.homeFishingView.active = tab === 'fishing';
         if (tab === 'shop' && this.shopScrollContent) this.shopScrollContent.setPosition(0, 270, 0);
 
         (Object.keys(this.homeNavButtons) as Array<keyof typeof this.homeNavButtons>).forEach((key) => {
@@ -5176,7 +5461,7 @@ export class GrottoExpeditionDemo extends Component {
         }
     }
 
-    private drawHomeNavIcon(node: Node, key: 'shop' | 'faqi' | 'role' | 'mijing' | 'dongtian', active: boolean) {
+    private drawHomeNavIcon(node: Node, key: 'shop' | 'faqi' | 'role' | 'mijing' | 'dongtian' | 'fishing', active: boolean) {
         const tint = active ? new Color(255, 243, 212, 255) : new Color(198, 210, 224, 236);
         const childName = key === 'faqi' ? 'FaqiSprite' : 'NavIconSprite';
         if (this.tryApplyInlineIconSprite(node, `icon-nav-${key}`, childName, 28, 24, tint)) return;
@@ -5275,6 +5560,20 @@ export class GrottoExpeditionDemo extends Component {
                 g.moveTo(-9, -12);
                 g.lineTo(-1, -12);
                 g.stroke();
+                break;
+            }
+            case 'fishing': {
+                g.moveTo(-8, 12);
+                g.quadraticCurveTo(2, 2, 2, -12);
+                g.stroke();
+                g.moveTo(2, -12);
+                g.lineTo(8, -8);
+                g.lineTo(2, -5);
+                g.stroke();
+                g.arc(-4, 8, 7, Math.PI * 0.1, Math.PI * 1.2, false);
+                g.stroke();
+                g.circle(8, 10, 2.4);
+                g.fill();
                 break;
             }
         }
@@ -6772,6 +7071,7 @@ export class GrottoExpeditionDemo extends Component {
         this.refreshTaskPanel();
         this.refreshKungfuPanel();
         this.refreshSpiritPetPanel();
+        this.refreshFishingPanel();
     }
 
     private tryRealmUp() {
