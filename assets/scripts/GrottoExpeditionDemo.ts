@@ -65,7 +65,7 @@ type TaskId =
 type TaskMetric = 'counter' | 'bestDepthQi' | 'bestDepthZhuji' | 'bestDepthJindan' | 'artifactUnlockCount' | 'artifactAdvancedUnlockCount' | 'artifactStarThree' | 'zhujiUnlocked';
 type TaskResetGroup = 'daily' | 'weekly' | 'permanent';
 type BuildingId = 'gather' | 'alchemy' | 'forge' | 'ward';
-type MeritTaskId = 'merit_expedition' | 'merit_alchemy' | 'merit_prepare';
+type MeritTaskId = 'merit_expedition' | 'merit_alchemy' | 'merit_kungfuStudy';
 type DongtianTab = 'cave' | 'merit';
 type SpiritPetId = 'leihu' | 'xuangui' | 'yunhe';
 
@@ -82,7 +82,7 @@ interface MeritShopItemDef {
     name: string;
     cost: number;
     rewardText: string;
-    effect: ShopRewardType | 'badge' | 'tribulationPrep';
+    effect: ShopRewardType | 'badge';
     effectValue: number;
     limit: number;
     refresh: ShopRefreshType;
@@ -121,8 +121,7 @@ interface DongtianBonuses {
     alchemyYield: number;
     forgeSuccess: number;
     forgeQuality: number;
-    tribulationGain: number;
-    tribulationShield: number;
+    breakthroughRate: number;
 }
 
 interface MeritShopItemWidget {
@@ -154,16 +153,14 @@ interface SpiritPetDef {
     hpBonus: number;
     manaBonus: number;
     damageBonus: number;
-    tribulationRateBonus: number;
-    thunderReduction: number;
+    breakthroughRateBonus: number;
 }
 
 interface SpiritPetBonuses {
     hp: number;
     mana: number;
     damage: number;
-    tribulationRate: number;
-    thunderReduction: number;
+    breakthroughRate: number;
 }
 
 type AlchemyTab = 'furnace' | 'formula' | 'storehouse' | 'forge';
@@ -368,7 +365,7 @@ type GameState = 'home' | 'expedition_path' | 'combat' | 'lottery' | 'result';
 
 type DungeonId = 'qi' | 'zhuji' | 'jindan' | 'yuanying';
 type ExpeditionMapMode = 'random' | 'fixed';
-type FixedBlueprintId = 'qi-fixed-100';
+type FixedBlueprintId = 'qi-fixed-100' | 'zhuji-fixed-100' | 'jindan-fixed-100' | 'yuanying-fixed-100';
 
 interface DungeonConfig {
     id: DungeonId;
@@ -378,6 +375,7 @@ interface DungeonConfig {
     mapMode: ExpeditionMapMode;
     difficultyDepthOffset: number;
     fixedBlueprintId?: FixedBlueprintId;
+    fixedLaneCount?: number;
     accent: Color;
     slotWeights: Record<RandomSlotType, number>;
     rarityBias: number;
@@ -396,7 +394,7 @@ interface DungeonConfig {
 
 const DUNGEON_CONFIGS: DungeonConfig[] = [
     {
-        id: 'qi', label: '练气秘境', unlockRealm: 1, maxDepth: 100, mapMode: 'fixed', difficultyDepthOffset: 0, fixedBlueprintId: 'qi-fixed-100', accent: new Color(110, 170, 130, 255),
+        id: 'qi', label: '练气秘境', unlockRealm: 1, maxDepth: 100, mapMode: 'fixed', difficultyDepthOffset: 0, fixedBlueprintId: 'qi-fixed-100', fixedLaneCount: 5, accent: new Color(110, 170, 130, 255),
         slotWeights: { empty: 0, herb: 28, stone: 24, treasure: 8, monster: 8, trap: 4, buff: 18, intercept: 0 },
         rarityBias: -2,
         herbDropMultiplier: 1.35, stoneDropMultiplier: 1.2, treasureDropMultiplier: 0.9, combatRewardMultiplier: 1,
@@ -404,7 +402,7 @@ const DUNGEON_CONFIGS: DungeonConfig[] = [
         bossHpMultiplier: 0.88, bossDamageMultiplier: 0.85, interceptHpMultiplier: 0.9, interceptDamageMultiplier: 0.88,
     },
     {
-        id: 'zhuji', label: '筑基秘境', unlockRealm: 10, maxDepth: 100, mapMode: 'random', difficultyDepthOffset: 10, accent: new Color(120, 150, 200, 255),
+        id: 'zhuji', label: '筑基秘境', unlockRealm: 10, maxDepth: 100, mapMode: 'fixed', difficultyDepthOffset: 15, fixedBlueprintId: 'zhuji-fixed-100', fixedLaneCount: 15, accent: new Color(120, 150, 200, 255),
         slotWeights: { empty: 0, herb: 20, stone: 20, treasure: 14, monster: 12, trap: 6, buff: 16, intercept: 0 },
         rarityBias: 1,
         herbDropMultiplier: 1.15, stoneDropMultiplier: 1.2, treasureDropMultiplier: 1.15, combatRewardMultiplier: 1.2,
@@ -412,7 +410,7 @@ const DUNGEON_CONFIGS: DungeonConfig[] = [
         bossHpMultiplier: 1.05, bossDamageMultiplier: 1.05, interceptHpMultiplier: 1.05, interceptDamageMultiplier: 1.05,
     },
     {
-        id: 'jindan', label: '金丹秘境', unlockRealm: 20, maxDepth: 100, mapMode: 'random', difficultyDepthOffset: 20, accent: new Color(190, 150, 80, 255),
+        id: 'jindan', label: '金丹秘境', unlockRealm: 20, maxDepth: 100, mapMode: 'fixed', difficultyDepthOffset: 30, fixedBlueprintId: 'jindan-fixed-100', fixedLaneCount: 20, accent: new Color(190, 150, 80, 255),
         slotWeights: { empty: 0, herb: 14, stone: 16, treasure: 20, monster: 18, trap: 8, buff: 12, intercept: 0 },
         rarityBias: 6,
         herbDropMultiplier: 1.05, stoneDropMultiplier: 1.3, treasureDropMultiplier: 1.45, combatRewardMultiplier: 1.45,
@@ -420,7 +418,7 @@ const DUNGEON_CONFIGS: DungeonConfig[] = [
         bossHpMultiplier: 1.35, bossDamageMultiplier: 1.22, interceptHpMultiplier: 1.2, interceptDamageMultiplier: 1.18,
     },
     {
-        id: 'yuanying', label: '元婴秘境', unlockRealm: 30, maxDepth: 100, mapMode: 'random', difficultyDepthOffset: 30, accent: new Color(190, 110, 160, 255),
+        id: 'yuanying', label: '元婴秘境', unlockRealm: 30, maxDepth: 100, mapMode: 'fixed', difficultyDepthOffset: 45, fixedBlueprintId: 'yuanying-fixed-100', fixedLaneCount: 25, accent: new Color(190, 110, 160, 255),
         slotWeights: { empty: 0, herb: 10, stone: 14, treasure: 22, monster: 24, trap: 10, buff: 10, intercept: 0 },
         rarityBias: 12,
         herbDropMultiplier: 1.1, stoneDropMultiplier: 1.4, treasureDropMultiplier: 1.7, combatRewardMultiplier: 1.75,
@@ -717,7 +715,7 @@ function createMeritTaskProgressRecord(): Record<MeritTaskId, number> {
     return {
         merit_expedition: 0,
         merit_alchemy: 0,
-        merit_prepare: 0,
+        merit_kungfuStudy: 0,
     };
 }
 
@@ -725,7 +723,7 @@ function createMeritTaskClaimRecord(): Record<MeritTaskId, boolean> {
     return {
         merit_expedition: false,
         merit_alchemy: false,
-        merit_prepare: false,
+        merit_kungfuStudy: false,
     };
 }
 
@@ -862,7 +860,6 @@ interface FixedMapBlueprint {
     nodes: FixedMapNodeTemplate[];
 }
 
-const FIXED_MAP_LANES = 5;
 const QI_FIXED_PHASE_TYPES: SlotType[][] = [
     ['stone', 'herb', 'buff', 'herb', 'stone'],
     ['herb', 'monster', 'stone', 'buff', 'empty'],
@@ -900,6 +897,73 @@ function getQiFixedMapLinkOffsets(depth: number, lane: number): number[] {
             return [0, 1, 2];
         default:
             return [-2, -1, 0];
+    }
+}
+
+function getFixedTierByBlueprint(blueprintId: FixedBlueprintId): number {
+    switch (blueprintId) {
+        case 'qi-fixed-100':
+            return 0;
+        case 'zhuji-fixed-100':
+            return 1;
+        case 'jindan-fixed-100':
+            return 2;
+        case 'yuanying-fixed-100':
+            return 3;
+        default:
+            return 0;
+    }
+}
+
+function pickGenericFixedSlotType(depth: number, lane: number, laneCount: number, tier: number): SlotType {
+    const depthBand = depth % 10;
+    const weights: Array<{ type: SlotType; weight: number }> = [
+        { type: 'herb', weight: Math.max(6, 28 - tier * 4 - (depthBand >= 7 ? 4 : 0)) },
+        { type: 'stone', weight: Math.max(6, 26 - tier * 3) },
+        { type: 'treasure', weight: 8 + tier * 3 + (depthBand >= 8 ? 4 : 0) },
+        { type: 'monster', weight: 18 + tier * 8 + (depthBand >= 6 ? 8 : 0) },
+        { type: 'trap', weight: 5 + tier * 4 + (depthBand >= 7 ? 3 : 0) },
+        { type: 'buff', weight: Math.max(4, 18 - tier * 4) },
+        { type: 'intercept', weight: 2 + tier * 3 + (depthBand === 5 ? 4 : 0) },
+    ];
+    if (depth % 5 === 0) weights.push({ type: 'elite', weight: 8 + tier * 6 });
+    const sum = weights.reduce((acc, item) => acc + item.weight, 0);
+    let roll = Math.abs(depth * 61 + lane * 97 + laneCount * 17 + tier * 131 + 19) % sum;
+    for (let i = 0; i < weights.length; i++) {
+        roll -= weights[i].weight;
+        if (roll < 0) return weights[i].type;
+    }
+    return tier >= 2 ? 'monster' : 'herb';
+}
+
+function getGenericFixedMapType(blueprintId: FixedBlueprintId, depth: number, lane: number, laneCount: number): SlotType {
+    const centerLane = Math.floor(laneCount / 2);
+    if (depth === 1) return lane === centerLane ? 'herb' : pickGenericFixedSlotType(depth, lane, laneCount, getFixedTierByBlueprint(blueprintId));
+    if (depth % 10 === 0) return lane === centerLane ? 'boss' : 'empty';
+    if (blueprintId === 'qi-fixed-100' && laneCount === 5) return getQiFixedMapType(depth, lane);
+    return pickGenericFixedSlotType(depth, lane, laneCount, getFixedTierByBlueprint(blueprintId));
+}
+
+function getGenericFixedMapLinkOffsets(depth: number, lane: number, laneCount: number, tier: number): number[] {
+    if (laneCount === 5 && tier === 0) return getQiFixedMapLinkOffsets(depth, lane);
+    const selector = Math.abs(depth * 13 + lane * 7 + laneCount * 5 + tier * 11) % 8;
+    switch (selector) {
+        case 0:
+            return [0];
+        case 1:
+            return [0, 1];
+        case 2:
+            return [-1, 0];
+        case 3:
+            return [-1, 0, 1];
+        case 4:
+            return [0, 1, 2];
+        case 5:
+            return [-2, -1, 0];
+        case 6:
+            return [-1, 1];
+        default:
+            return [0, 2];
     }
 }
 
@@ -960,7 +1024,7 @@ function buildQiFixedMapBlueprint(maxDepth: number, rarityBias: number): FixedMa
             const seen = new Set<number>();
             const nextLinks: FixedMapLinkTemplate[] = [];
             for (let j = 0; j < offsets.length; j++) {
-                const targetLane = Math.max(0, Math.min(FIXED_MAP_LANES - 1, lane + offsets[j]));
+                const targetLane = Math.max(0, Math.min(4, lane + offsets[j]));
                 if (!targetLanes.includes(targetLane) || seen.has(targetLane)) continue;
                 seen.add(targetLane);
                 nextLinks.push({
@@ -969,7 +1033,7 @@ function buildQiFixedMapBlueprint(maxDepth: number, rarityBias: number): FixedMa
                 });
             }
             if (nextLinks.length === 0) {
-                const fallbackLane = Math.max(0, Math.min(FIXED_MAP_LANES - 1, lane));
+                const fallbackLane = Math.max(0, Math.min(4, lane));
                 nextLinks.push({
                     toKey: getFixedMapNodeKey(blueprintId, nextDepth, fallbackLane),
                     bidirectional: (depth + lane + fallbackLane) % 2 === 0,
@@ -981,6 +1045,68 @@ function buildQiFixedMapBlueprint(maxDepth: number, rarityBias: number): FixedMa
     return {
         id: blueprintId,
         startKey: getFixedMapNodeKey(blueprintId, 1, 2),
+        nodes: [...nodes.values()],
+    };
+}
+
+function buildGenericFixedMapBlueprint(blueprintId: FixedBlueprintId, maxDepth: number, laneCount: number, rarityBias: number): FixedMapBlueprint {
+    if (blueprintId === 'qi-fixed-100' && laneCount === 5) return buildQiFixedMapBlueprint(maxDepth, rarityBias);
+    const tier = getFixedTierByBlueprint(blueprintId);
+    const centerLane = Math.floor(laneCount / 2);
+    const nodes = new Map<string, FixedMapNodeTemplate>();
+    for (let depth = 1; depth <= maxDepth; depth++) {
+        const lanes = depth % 10 === 0 ? [centerLane] : depth === 1 ? [centerLane] : Array.from({ length: laneCount }, (_, index) => index);
+        for (let i = 0; i < lanes.length; i++) {
+            const lane = lanes[i];
+            const type = getGenericFixedMapType(blueprintId, depth, lane, laneCount);
+            const key = getFixedMapNodeKey(blueprintId, depth, lane);
+            let rarity: Rarity | undefined;
+            let materialId: MaterialId | undefined;
+            if (slotNeedsRarity(type)) {
+                rarity = getDeterministicRarity(depth + tier * 10, lane, rarityBias + tier * 3);
+                if (type === 'treasure' && rarity === 'green') rarity = 'blue';
+                materialId = getDeterministicFixedMaterial(type, depth + tier * 10, lane, rarity);
+            }
+            nodes.set(key, { key, depth, lane, type, nextLinks: [], rarity, materialId });
+        }
+    }
+    for (let depth = 1; depth < maxDepth; depth++) {
+        const nextDepth = depth + 1;
+        const fromLanes = depth % 10 === 0 ? [centerLane] : depth === 1 ? [centerLane] : Array.from({ length: laneCount }, (_, index) => index);
+        const targetLanes = nextDepth % 10 === 0 ? [centerLane] : Array.from({ length: laneCount }, (_, index) => index);
+        for (let i = 0; i < fromLanes.length; i++) {
+            const lane = fromLanes[i];
+            const key = getFixedMapNodeKey(blueprintId, depth, lane);
+            const template = nodes.get(key);
+            if (!template) continue;
+            if (nextDepth % 10 === 0) {
+                template.nextLinks = [{ toKey: getFixedMapNodeKey(blueprintId, nextDepth, centerLane), bidirectional: false }];
+                continue;
+            }
+            const offsets = getGenericFixedMapLinkOffsets(depth, lane, laneCount, tier);
+            const seen = new Set<number>();
+            const nextLinks: FixedMapLinkTemplate[] = [];
+            for (let j = 0; j < offsets.length; j++) {
+                const targetLane = Math.max(0, Math.min(laneCount - 1, lane + offsets[j]));
+                if (!targetLanes.includes(targetLane) || seen.has(targetLane)) continue;
+                seen.add(targetLane);
+                nextLinks.push({
+                    toKey: getFixedMapNodeKey(blueprintId, nextDepth, targetLane),
+                    bidirectional: (depth + lane + targetLane + tier) % 3 !== 0,
+                });
+            }
+            if (nextLinks.length === 0) {
+                nextLinks.push({
+                    toKey: getFixedMapNodeKey(blueprintId, nextDepth, Math.max(0, Math.min(laneCount - 1, lane))),
+                    bidirectional: (depth + lane + tier) % 2 === 0,
+                });
+            }
+            template.nextLinks = nextLinks;
+        }
+    }
+    return {
+        id: blueprintId,
+        startKey: getFixedMapNodeKey(blueprintId, 1, centerLane),
         nodes: [...nodes.values()],
     };
 }
@@ -1087,28 +1213,28 @@ const NATURAL_CULTIVATION_INTERVAL = 1;
 const MERIT_TASKS: MeritTaskDef[] = [
     { id: 'merit_expedition', title: '完成 1 次秘境历练', target: 1, rewardMerit: 12, refresh: 'daily' },
     { id: 'merit_alchemy', title: '成功炼成 3 炉丹药', target: 3, rewardMerit: 16, refresh: 'daily' },
-    { id: 'merit_prepare', title: '完成 1 次渡劫准备', target: 1, rewardMerit: 24, refresh: 'weekly' },
+    { id: 'merit_kungfuStudy', title: '完成 1 次功法参悟', target: 1, rewardMerit: 24, refresh: 'weekly' },
 ];
 
 const MERIT_SHOP_ITEMS: MeritShopItemDef[] = [
     { id: 'merit_spirit', name: '洞天灵石匣', cost: 10, rewardText: '灵石 +2000', effect: 'spiritStone', effectValue: 2000, limit: 3, refresh: 'weekly' },
     { id: 'merit_badge', name: '巡天令', cost: 12, rewardText: '秘境徽记 +10', effect: 'badge', effectValue: 10, limit: 2, refresh: 'weekly' },
-    { id: 'merit_prep', name: '护劫符', cost: 18, rewardText: '渡劫准备 +28', effect: 'tribulationPrep', effectValue: 28, limit: 2, refresh: 'weekly' },
+    { id: 'merit_wudao', name: '悟道香', cost: 18, rewardText: '修为 +80', effect: 'exp', effectValue: 80, limit: 2, refresh: 'weekly' },
 ];
 
 const SPIRIT_PET_DEFS: SpiritPetDef[] = [
-    { id: 'leihu', glyph: '雷', name: '裂霆虎', title: '雷爪裂阵', summary: '偏战斗型灵宠，随主出战可撕开雷幕与敌阵。', hpBonus: 0, manaBonus: 0, damageBonus: 8, tribulationRateBonus: 0.03, thunderReduction: 4 },
-    { id: 'xuangui', glyph: '龟', name: '玄甲龟', title: '龟息镇岳', summary: '偏护体型灵宠，以龟甲灵息为主人分担雷劫冲击。', hpBonus: 48, manaBonus: 0, damageBonus: 0, tribulationRateBonus: 0.02, thunderReduction: 14 },
-    { id: 'yunhe', glyph: '鹤', name: '云翎鹤', title: '羽化乘云', summary: '偏灵韵型灵宠，提升法力流转并引天清气，稳固突破心神。', hpBonus: 0, manaBonus: 24, damageBonus: 3, tribulationRateBonus: 0.06, thunderReduction: 6 },
+    { id: 'leihu', glyph: '雷', name: '裂霆虎', title: '雷爪裂阵', summary: '偏战斗型灵宠，随主出战可撕开敌阵并催动破关气势。', hpBonus: 0, manaBonus: 0, damageBonus: 8, breakthroughRateBonus: 0.03 },
+    { id: 'xuangui', glyph: '龟', name: '玄甲龟', title: '龟息镇岳', summary: '偏护体型灵宠，以龟甲灵息稳住根基，提升破境把握。', hpBonus: 48, manaBonus: 0, damageBonus: 0, breakthroughRateBonus: 0.02 },
+    { id: 'yunhe', glyph: '鹤', name: '云翎鹤', title: '羽化乘云', summary: '偏灵韵型灵宠，提升法力流转并引天清气，稳固突破心神。', hpBonus: 0, manaBonus: 24, damageBonus: 3, breakthroughRateBonus: 0.06 },
 ];
 
 const DONGTIAN_BUILDINGS: BuildingDef[] = [
     {
         id: 'gather',
-        name: '洞府灵脉',
-        glyph: '聚',
-        title: '汇灵归府',
-        summary: '稳固洞府灵脉，提升自然吐纳和渡劫准备时的灵机汇聚。',
+        name: '清心台',
+        glyph: '心',
+        title: '澄心定念',
+        summary: '借静室清辉安定心神，提升自然吐纳与境界突破成功率。',
         stoneBaseCost: 900,
         badgeBaseCost: 2,
         materialCost: { ninglucao: 4, qingwenshi: 3 },
@@ -1118,7 +1244,7 @@ const DONGTIAN_BUILDINGS: BuildingDef[] = [
         name: '丹火室',
         glyph: '丹',
         title: '炉火恒明',
-        summary: '温养丹火，提升成丹稳定性与出丹数，兼顾渡劫药力调和。',
+        summary: '温养丹火，提升成丹稳定性与出丹数，并为局外整备提供药力支撑。',
         stoneBaseCost: 1300,
         badgeBaseCost: 4,
         materialCost: { yusuizhi: 3, xuanshuangjing: 2 },
@@ -1128,7 +1254,7 @@ const DONGTIAN_BUILDINGS: BuildingDef[] = [
         name: '百炼台',
         glyph: '器',
         title: '百炼归真',
-        summary: '稳固器火与锻台，提升炼器成功率和品质，也能强化护劫法器。',
+        summary: '稳固器火与锻台，提升炼器成功率和品质，并强化常用法器胚体。',
         stoneBaseCost: 1500,
         badgeBaseCost: 6,
         materialCost: { ziyanshen: 2, zipoyu: 2 },
@@ -1136,9 +1262,9 @@ const DONGTIAN_BUILDINGS: BuildingDef[] = [
     {
         id: 'ward',
         name: '护山大阵',
-        glyph: '劫',
-        title: '镇府护劫',
-        summary: '构筑护山法阵，提升渡劫准备效率并在突破时提供护劫余裕。',
+        glyph: '阵',
+        title: '镇府护脉',
+        summary: '构筑护山法阵，稳固洞府气场并进一步提升突破成功率。',
         stoneBaseCost: 1800,
         badgeBaseCost: 8,
         materialCost: { jinwuteng: 1, yaojinsui: 1 },
@@ -1967,7 +2093,7 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private buildHomeDongtianView() {
-        const header = this.createStandardHomeHeader(this.homeDongtianView, '青岚洞天', '借洞天灵机经营府内诸阵，并承接功勋差事与护劫筹备。', new Color(36, 44, 56, 245));
+        const header = this.createStandardHomeHeader(this.homeDongtianView, '青岚洞天', '借洞天灵机经营府内诸阵，并承接功勋差事与局外整备。', new Color(36, 44, 56, 245));
         this.dongtianMountLabel = this.createLabel(header, '', 18, new Vec3(0, -34, 0), new Color(214, 224, 236, 255), 612);
         this.dongtianMeritLabel = this.createLabel(header, '', 17, new Vec3(0, -64, 0), new Color(222, 208, 164, 255), 612);
 
@@ -2036,11 +2162,11 @@ export class GrottoExpeditionDemo extends Component {
         }
 
         const tribulationPanel = this.createPanel(this.dongtianCavePage, 676, 212, 0, -206, new Color(38, 46, 58, 245));
-        this.createSectionHeader(tribulationPanel, '护劫概览', '洞府灵脉与护山大阵会提供渡劫加成，实际筹备入口已收口到角色界面。', new Color(176, 214, 200, 255), '劫');
+        this.createSectionHeader(tribulationPanel, '洞天调息', '清心台与护山大阵共同稳固破境气机，角色页可直接进行突破与参悟。', new Color(176, 214, 200, 255), '心');
         this.dongtianSummaryLabel = this.createLabel(tribulationPanel, '', 17, new Vec3(0, 30, 0), new Color(214, 224, 236, 255), 612);
         this.dongtianSpiritLabel = this.createLabel(tribulationPanel, '', 16, new Vec3(0, -2, 0), new Color(222, 208, 164, 255), 612);
         this.dongtianTribulationLabel = this.createLabel(tribulationPanel, '', 16, new Vec3(0, -34, 0), new Color(196, 220, 200, 255), 612);
-        this.createLabel(tribulationPanel, '前往角色界面进行渡劫准备', 18, new Vec3(0, -70, 0), new Color(228, 236, 208, 255), 260);
+        this.createLabel(tribulationPanel, '角色页可直接消耗灵石参悟当前功法', 18, new Vec3(0, -70, 0), new Color(228, 236, 208, 255), 360);
 
         this.dongtianMeritPage = new Node('DongtianMeritPage');
         this.dongtianMeritPage.layer = Layers.Enum.UI_2D;
@@ -2049,7 +2175,7 @@ export class GrottoExpeditionDemo extends Component {
         this.dongtianMeritPage.setPosition(0, HOME_LAYOUT.subPageY, 0);
 
         const meritTaskPanel = this.createPanel(this.dongtianMeritPage, 676, 284, 0, 130, new Color(38, 46, 58, 245));
-        this.createSectionHeader(meritTaskPanel, '功勋任务', '承接洞天差事换取功勋，可用于换取护劫资源与洞天专供。', new Color(222, 208, 164, 255), '勋');
+        this.createSectionHeader(meritTaskPanel, '功勋任务', '承接洞天差事换取功勋，可用于换取整备资源与洞天专供。', new Color(222, 208, 164, 255), '勋');
         for (let i = 0; i < MERIT_TASKS.length; i++) {
             const row = this.createPanel(meritTaskPanel, 628, 60, 0, 40 - i * 72, new Color(44, 52, 64, 245));
             const title = this.createLabel(row, '', 18, new Vec3(-148, 12, 0), new Color(242, 238, 226, 255), 270);
@@ -2068,7 +2194,7 @@ export class GrottoExpeditionDemo extends Component {
         }
 
         const meritShopPanel = this.createPanel(this.dongtianMeritPage, 676, 272, 0, -176, new Color(38, 46, 58, 245));
-        this.createSectionHeader(meritShopPanel, '功勋商店', '洞天巡守、护劫符令与灵石供给皆可由功勋换取。', new Color(196, 220, 200, 255), '赏');
+        this.createSectionHeader(meritShopPanel, '功勋商店', '洞天巡守、悟道补给与灵石供给皆可由功勋换取。', new Color(196, 220, 200, 255), '赏');
         const xs = [-204, 0, 204];
         for (let i = 0; i < MERIT_SHOP_ITEMS.length; i++) {
             const item = MERIT_SHOP_ITEMS[i];
@@ -2619,6 +2745,31 @@ export class GrottoExpeditionDemo extends Component {
             const deltaY = event.getScrollY ? event.getScrollY() : 0;
             const nextY = Math.max(-maxOffset, Math.min(maxOffset, contentNode.position.y - deltaY * 0.18));
             contentNode.setPosition(0, nextY, 0);
+        };
+        viewNode.on(Node.EventType.TOUCH_MOVE, onMove, this);
+        contentNode.on(Node.EventType.TOUCH_MOVE, onMove, this);
+        viewNode.on(Node.EventType.MOUSE_WHEEL, onWheel, this);
+    }
+
+    private attachPanDragScroll(viewNode: Node, contentNode: Node, onScroll?: () => void) {
+        const viewTransform = viewNode.getComponent(UITransform);
+        const contentTransform = contentNode.getComponent(UITransform);
+        if (!viewTransform || !contentTransform) return;
+        const maxOffsetX = Math.max(0, (contentTransform.contentSize.width - viewTransform.contentSize.width) * 0.5);
+        const maxOffsetY = Math.max(0, (contentTransform.contentSize.height - viewTransform.contentSize.height) * 0.5);
+        const onMove = (event: any) => {
+            const delta = typeof event.getUIDelta === 'function' ? event.getUIDelta() : { x: 0, y: 0 };
+            const nextX = Math.max(-maxOffsetX, Math.min(maxOffsetX, contentNode.position.x + delta.x));
+            const nextY = Math.max(-maxOffsetY, Math.min(maxOffsetY, contentNode.position.y + delta.y));
+            contentNode.setPosition(nextX, nextY, 0);
+            onScroll?.();
+            if (typeof event.propagationStopped !== 'undefined') event.propagationStopped = true;
+        };
+        const onWheel = (event: any) => {
+            const deltaY = event.getScrollY ? event.getScrollY() : 0;
+            const nextY = Math.max(-maxOffsetY, Math.min(maxOffsetY, contentNode.position.y - deltaY * 0.18));
+            contentNode.setPosition(contentNode.position.x, nextY, 0);
+            onScroll?.();
         };
         viewNode.on(Node.EventType.TOUCH_MOVE, onMove, this);
         contentNode.on(Node.EventType.TOUCH_MOVE, onMove, this);
@@ -3321,7 +3472,7 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private buildHomeRoleView() {
-        this.createStandardHomeHeader(this.homeRoleView, '角色总览', '顶部展示角色核心形象与法器槽位，中段展示属性分区，底部固定放置修炼与渡劫操作。', new Color(38, 46, 56, 245));
+        this.createStandardHomeHeader(this.homeRoleView, '角色总览', '顶部展示角色核心形象与法器槽位，中段展示属性分区，底部固定放置修炼与参悟操作。', new Color(38, 46, 56, 245));
         const upperPanel = this.createPanel(this.homeRoleView, 648, 278, 0, 146, new Color(38, 46, 56, 245));
         this.createLabel(upperPanel, '角色形象', 20, new Vec3(108, 108, 0), new Color(180, 205, 225, 255));
         this.buildHomeAnimatedPortrait(upperPanel, 108, -18);
@@ -3375,8 +3526,8 @@ export class GrottoExpeditionDemo extends Component {
 
         this.rolePrepareButton = this.createPanel(this.homeRoleView, 206, 62, 116, HOME_LAYOUT.actionRowY, new Color(64, 74, 58, 255));
         this.rolePrepareButton.addComponent(Button).transition = Button.Transition.NONE;
-        this.rolePrepareButtonLabel = this.createLabel(this.rolePrepareButton, '渡劫准备', 24, new Vec3(0, 0, 0), new Color(220, 242, 214, 255));
-        this.rolePrepareButton.on(Node.EventType.TOUCH_END, () => this.tryPrepareTribulation(), this);
+        this.rolePrepareButtonLabel = this.createLabel(this.rolePrepareButton, '参悟功法', 24, new Vec3(0, 0, 0), new Color(220, 242, 214, 255));
+        this.rolePrepareButton.on(Node.EventType.TOUCH_END, () => this.tryStudyEquippedKungfu(), this);
     }
 
     private createRoleStatRow(parent: Node, y: number, accent: Color, icon: 'hp' | 'mana' | 'atk' | 'exp' | 'ap' | 'break' | 'dungeon' | 'progress') {
@@ -4530,7 +4681,7 @@ export class GrottoExpeditionDemo extends Component {
         if (this.alchemyHintLabel && this.homeAlchemyPanel.active) {
             this.alchemyHintLabel.string = this.alchemyTab === 'forge'
                 ? `炼器师 Lv.${this.forgeMasteryLevel} ${this.forgeMasteryExp}/${this.getForgeMasteryNeed()}  |  已成 ${this.forgeInventory[forgeRecipe.id]} 件  |  选中器胚后点击上方按钮开炉炼器`
-                : `丹师 Lv.${this.alchemyMasteryLevel} ${this.alchemyMasteryExp}/${this.getAlchemyMasteryNeed()}  |  库存 ${this.alchemyInventory[recipe.id]} 枚  |  炼成后可手动服用或留作渡劫准备`;
+                : `丹师 Lv.${this.alchemyMasteryLevel} ${this.alchemyMasteryExp}/${this.getAlchemyMasteryNeed()}  |  库存 ${this.alchemyInventory[recipe.id]} 枚  |  炼成后可手动服用或留作局外整备`;
         }
         for (let i = 0; i < ALCHEMY_RECIPES.length; i++) {
             const def = ALCHEMY_RECIPES[i];
@@ -5669,14 +5820,13 @@ export class GrottoExpeditionDemo extends Component {
             hp: Math.round(def.hpBonus * scale),
             mana: Math.round(def.manaBonus * scale),
             damage: Math.round(def.damageBonus * scale),
-            tribulationRate: def.tribulationRateBonus * scale,
-            thunderReduction: Math.round(def.thunderReduction * scale),
+            breakthroughRate: def.breakthroughRateBonus * scale,
         };
     }
 
     private getEquippedSpiritPetBonuses(): SpiritPetBonuses {
         if (!this.equippedSpiritPetId || !this.spiritPetUnlocked[this.equippedSpiritPetId]) {
-            return { hp: 0, mana: 0, damage: 0, tribulationRate: 0, thunderReduction: 0 };
+            return { hp: 0, mana: 0, damage: 0, breakthroughRate: 0 };
         }
         return this.getSpiritPetBonusesById(this.equippedSpiritPetId);
     }
@@ -5720,8 +5870,7 @@ export class GrottoExpeditionDemo extends Component {
         if (bonus.hp > 0) parts.push(`气血 +${bonus.hp}`);
         if (bonus.mana > 0) parts.push(`法力 +${bonus.mana}`);
         if (bonus.damage > 0) parts.push(`术攻 +${bonus.damage}`);
-        parts.push(`渡劫 +${Math.round(bonus.tribulationRate * 100)}%`);
-        parts.push(`雷伤 -${bonus.thunderReduction}`);
+        parts.push(`突破 +${Math.round(bonus.breakthroughRate * 100)}%`);
         return parts.join(' | ');
     }
 
@@ -5780,8 +5929,7 @@ export class GrottoExpeditionDemo extends Component {
             alchemyYield: Math.max(0, (alchemyLevel - 1) * 0.45),
             forgeSuccess: Math.max(0, (forgeLevel - 1) * 0.03),
             forgeQuality: Math.max(0, (forgeLevel - 1) * 0.05),
-            tribulationGain: Math.max(0, (gatherLevel - 1) * 0.08 + (wardLevel - 1) * 0.12),
-            tribulationShield: Math.max(0, (wardLevel - 1) * 6 + (forgeLevel - 1) * 2),
+            breakthroughRate: Math.max(0, (gatherLevel - 1) * 0.035 + (wardLevel - 1) * 0.05),
         };
     }
 
@@ -5840,18 +5988,14 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private getTribulationSuccessRate(): number {
-        const needPrep = this.getTribulationPrepNeed();
-        const prepRatio = Math.max(0, Math.min(1.2, this.tribulationPrep / Math.max(1, needPrep)));
         const petBonus = this.getEquippedSpiritPetBonuses();
-        const wardBonus = Math.max(0, (this.getBuildingLevel('ward') - 1) * 0.04);
-        return Math.min(0.97, 0.52 + prepRatio * 0.22 + wardBonus + petBonus.tribulationRate);
+        const bonus = this.getDongtianBonuses();
+        const realmPenalty = Math.min(0.12, Math.max(0, this.realmLevel - 1) * 0.006);
+        return Math.min(0.96, 0.66 - realmPenalty + bonus.breakthroughRate + petBonus.breakthroughRate);
     }
 
     private getThunderDamageAfterFormation(): number {
-        const baseDamage = 42 + this.realmLevel * 16;
-        const guardReduction = 0.12 + (this.getBuildingLevel('ward') - 1) * 0.08;
-        const petBonus = this.getEquippedSpiritPetBonuses();
-        return Math.max(1, Math.floor(baseDamage * Math.max(0.2, 1 - guardReduction)) - petBonus.thunderReduction);
+        return 0;
     }
 
     private switchDongtianTab(tab: DongtianTab) {
@@ -5919,10 +6063,6 @@ export class GrottoExpeditionDemo extends Component {
             this.dungeonBadge += item.effectValue;
             return;
         }
-        if (item.effect === 'tribulationPrep') {
-            this.tribulationPrep += item.effectValue;
-            return;
-        }
         this.applyShopItemReward({ effect: item.effect, effectValue: item.effectValue });
     }
 
@@ -5971,22 +6111,17 @@ export class GrottoExpeditionDemo extends Component {
         }
     }
 
-    private tryPrepareTribulation() {
-        const recipe = this.getTribulationSupportRecipe();
-        const stoneCost = this.getTribulationPrepareStoneCost();
-        if (!this.consumeSpiritStoneValue(stoneCost)) {
-            this.hintLabel.string = `渡劫准备需灵石折值 ${stoneCost}，当前仅有 ${this.getSpiritStoneTotalValue(this.spiritStoneInventory)}。`;
+    private tryStudyEquippedKungfu() {
+        const def = this.getEquippedKungfuDef();
+        const cost = this.getKungfuUpgradeCost(def.id);
+        if (!this.consumeSpiritStoneValue(cost)) {
+            this.hintLabel.string = `参悟 ${def.name} 需灵石折值 ${cost}，当前仅有 ${this.getSpiritStoneTotalValue(this.spiritStoneInventory)}。`;
             return;
         }
-        const bonuses = this.getDongtianBonuses();
-        const baseGain = recipe ? this.getTribulationRecipePrepValue(recipe.id) : 10 + this.getBuildingLevel('gather') * 2;
-        const gain = Math.max(8, Math.round(baseGain * (1 + bonuses.tribulationGain)));
-        if (recipe) this.alchemyInventory[recipe.id] -= 1;
-        this.tribulationPrep += gain;
-        this.addMeritTaskProgress('merit_prepare', 1);
-        this.hintLabel.string = recipe
-            ? `消耗灵石并调用 ${recipe.name} 调和气机，准备度 +${gain}。`
-            : `消耗灵石稳固气机，借洞府灵脉蓄势，准备度 +${gain}。`;
+        this.kungfuLevels[def.id] += 1;
+        this.selectedKungfuId = def.id;
+        this.addMeritTaskProgress('merit_kungfuStudy', 1);
+        this.hintLabel.string = `消耗灵石参悟 ${def.name}，当前已提升至 Lv.${this.getKungfuLevel(def.id)}。`;
         this.refreshHomeStatus();
     }
 
@@ -6003,13 +6138,13 @@ export class GrottoExpeditionDemo extends Component {
             this.styleTabButton(btn, active, tab === 'merit' ? 'gold' : 'jade');
         }
         if (this.dongtianMountLabel) this.dongtianMountLabel.string = `洞府挂载：青岚洞天·内府灵域  |  洞天灵机与洞府阵枢已连通`;
-        if (this.dongtianMeritLabel) this.dongtianMeritLabel.string = `功勋 ${this.meritPoint}  |  洞府灵脉 Lv.${this.getBuildingLevel('gather')}  |  护山大阵 Lv.${this.getBuildingLevel('ward')}`;
+        if (this.dongtianMeritLabel) this.dongtianMeritLabel.string = `功勋 ${this.meritPoint}  |  清心台 Lv.${this.getBuildingLevel('gather')}  |  护山大阵 Lv.${this.getBuildingLevel('ward')}`;
         if (this.dongtianSummaryLabel) {
             const bonus = this.getDongtianBonuses();
             this.dongtianSummaryLabel.string = `洞府灵脉 +${Math.round(bonus.cultivationRate * 100)}%  |  丹火室 +${Math.round(bonus.alchemySuccess * 100)}%  |  百炼台 +${Math.round(bonus.forgeSuccess * 100)}%`;
         }
         if (this.dongtianSpiritLabel) {
-            this.dongtianSpiritLabel.string = `灵石 ${this.getSpiritStoneSummary(this.spiritStoneInventory, 3)}  |  徽记 ${this.dungeonBadge}  |  雷劫伤害 ${this.getThunderDamageAfterFormation()}`;
+            this.dongtianSpiritLabel.string = `灵石 ${this.getSpiritStoneSummary(this.spiritStoneInventory, 3)}  |  徽记 ${this.dungeonBadge}  |  当前功法 ${this.getEquippedKungfuDef().name} Lv.${this.getKungfuLevel(this.getEquippedKungfuDef().id)}`;
         }
         for (let i = 0; i < DONGTIAN_BUILDINGS.length; i++) {
             const def = DONGTIAN_BUILDINGS[i];
@@ -6035,7 +6170,7 @@ export class GrottoExpeditionDemo extends Component {
             }
         }
         if (this.dongtianTribulationLabel) {
-            this.dongtianTribulationLabel.string = `准备效率 +${Math.round(this.getDongtianBonuses().tribulationGain * 100)}%  |  护劫余裕 ${this.getDongtianBonuses().tribulationShield}  |  角色界面可执行渡劫准备`;
+            this.dongtianTribulationLabel.string = `突破成功率额外 +${Math.round(this.getDongtianBonuses().breakthroughRate * 100)}%  |  清心台与护山大阵已并入角色页突破结算`;
         }
         for (let i = 0; i < MERIT_TASKS.length; i++) {
             const task = MERIT_TASKS[i];
@@ -6209,10 +6344,12 @@ export class GrottoExpeditionDemo extends Component {
     private returnToPrevBtnLabel!: Label;
     private fixedMapFrame: Node | null = null;
     private fixedMapContent: Node | null = null;
+    private fixedMapContentWidth = 0;
     private fixedMapContentHeight = 0;
+    private fixedMapNodeLayer: Node | null = null;
+    private fixedMapStaticPathGraphics: Graphics | null = null;
     private fixedMapNodeWidgets = new Map<string, FixedMapNodeWidget>();
     private fixedMapNodePositions = new Map<string, { x: number; y: number }>();
-    private fixedMapOverviewGraphics: Graphics | null = null;
     private fixedMapPathOverlayGraphics: Graphics | null = null;
     private fixedMapTipTitleLabel: Label | null = null;
     private fixedMapTipInfoLabel: Label | null = null;
@@ -6533,8 +6670,6 @@ export class GrottoExpeditionDemo extends Component {
         const spiritPetBonuses = this.getEquippedSpiritPetBonuses();
         const kungfu = this.getEquippedKungfuDef();
         const selectedKungfu = this.getKungfuDef(this.selectedKungfuId);
-        const needPrep = this.getTribulationPrepNeed();
-        const prepareStoneCost = this.getTribulationPrepareStoneCost();
         this.playerMaxHp = 100 + this.realmLevel * 30 + this.shopBonusHp + artifactBonuses.hp + spiritPetBonuses.hp;
         this.playerMaxMana = 70 + this.realmLevel * 18 + this.shopBonusMana + artifactBonuses.mana + spiritPetBonuses.mana;
         this.playerDamage = 16 + this.realmLevel * 7 + this.shopBonusDamage + artifactBonuses.damage + spiritPetBonuses.damage;
@@ -6555,23 +6690,23 @@ export class GrottoExpeditionDemo extends Component {
         if (this.roleApLabel) this.roleApLabel.string = `丹师 Lv.${this.alchemyMasteryLevel} ${this.alchemyMasteryExp}/${this.getAlchemyMasteryNeed()}`;
         if (this.roleBreakLabel) this.roleBreakLabel.string = `炼器 Lv.${this.forgeMasteryLevel} ${this.forgeMasteryExp}/${this.getForgeMasteryNeed()}`;
         if (this.roleDungeonLabel) {
-            this.roleDungeonLabel.string = `渡劫成功率 ${(this.getTribulationSuccessRate() * 100).toFixed(0)}%  |  雷劫伤害 ${this.getThunderDamageAfterFormation()}`;
+            this.roleDungeonLabel.string = `突破成功率 ${(this.getTribulationSuccessRate() * 100).toFixed(0)}%  |  清心台 Lv.${this.getBuildingLevel('gather')}  |  护山大阵 Lv.${this.getBuildingLevel('ward')}`;
         }
-        if (this.roleDungeonProgressLabel) this.roleDungeonProgressLabel.string = `渡劫准备 ${this.tribulationPrep}/${needPrep}  |  每次消耗灵石 ${prepareStoneCost}  |  自动调用库存丹药`;
+        if (this.roleDungeonProgressLabel) this.roleDungeonProgressLabel.string = `当前功法 ${kungfu.name} Lv.${this.getKungfuLevel(kungfu.id)}  |  参悟需灵石 ${this.getKungfuUpgradeCost(kungfu.id)}  |  灵宠 ${expeditionPetText}`;
         if (this.roleRealmButton && this.roleRealmButtonLabel) {
-            const canBreakthrough = this.realmExp >= this.realmExpNeed && this.tribulationPrep >= needPrep;
+            const canBreakthrough = this.realmExp >= this.realmExpNeed;
             const button = this.roleRealmButton.getComponent(Button);
             if (button) button.interactable = canBreakthrough;
-            this.roleRealmButtonLabel.string = canBreakthrough ? '修炼突破' : this.realmExp < this.realmExpNeed ? '修为不足' : '准备不足';
+            this.roleRealmButtonLabel.string = canBreakthrough ? '修炼突破' : '修为不足';
             this.styleActionButton(this.roleRealmButton, canBreakthrough ? 'ready' : 'disabled', 'azure');
         }
         if (this.rolePrepareButton && this.rolePrepareButtonLabel) {
-            const prepReady = this.tribulationPrep >= needPrep;
-            const canPrepare = !prepReady && this.getSpiritStoneTotalValue(this.spiritStoneInventory) >= prepareStoneCost;
+            const kungfuCost = this.getKungfuUpgradeCost(kungfu.id);
+            const canPrepare = this.getSpiritStoneTotalValue(this.spiritStoneInventory) >= kungfuCost;
             const button = this.rolePrepareButton.getComponent(Button);
             if (button) button.interactable = canPrepare;
-            this.rolePrepareButtonLabel.string = prepReady ? '已备足' : canPrepare ? '渡劫准备' : '灵石不足';
-            this.styleActionButton(this.rolePrepareButton, prepReady ? 'active' : canPrepare ? 'ready' : 'disabled', 'jade');
+            this.rolePrepareButtonLabel.string = canPrepare ? '参悟功法' : '灵石不足';
+            this.styleActionButton(this.rolePrepareButton, canPrepare ? 'ready' : 'disabled', 'jade');
         }
         if (this.kungfuNameLabel) this.kungfuNameLabel.string = `${selectedKungfu.name} Lv.${this.getKungfuLevel(selectedKungfu.id)}${selectedKungfu.id === kungfu.id ? ' · 运转中' : ''}`;
         if (this.kungfuInfoLabel) this.kungfuInfoLabel.string = `${selectedKungfu.title} | 吐纳 ${selectedKungfu.cultivationQiPerSecond}灵气/秒\n${selectedKungfu.summary}`;
@@ -6644,31 +6779,22 @@ export class GrottoExpeditionDemo extends Component {
             this.hintLabel.string = `修为不足，需 ${this.realmExpNeed}。可通过功法自然增长、洞天灵机加持或秘境历练获取修为。`;
             return;
         }
-        const needPrep = this.getTribulationPrepNeed();
-        if (this.tribulationPrep < needPrep) {
-            this.hintLabel.string = `渡劫准备不足，需 ${needPrep}，当前仅有 ${this.tribulationPrep}。请前往角色界面点击“渡劫准备”，消耗灵石并自动调用库存丹药。`;
-            return;
-        }
         const successRate = this.getTribulationSuccessRate();
-        const thunderDamage = this.getThunderDamageAfterFormation();
-        this.playerHp = Math.max(1, this.playerHp - thunderDamage);
-        const shield = this.getDongtianBonuses().tribulationShield;
         this.realmExp -= this.realmExpNeed;
-        this.tribulationPrep = Math.max(0, this.tribulationPrep - Math.max(0, needPrep - shield));
         if (Math.random() < successRate) {
             const previousRealmLevel = this.realmLevel;
             this.realmLevel += 1;
             this.realmExpNeed = 30 + this.realmLevel * 15;
             const unlockedDungeons = this.getNewlyUnlockedDungeons(previousRealmLevel, this.realmLevel);
             const unlockText = unlockedDungeons.length > 0 ? ` 已解锁${unlockedDungeons.map((config) => config.label).join('、')}。` : '';
-            this.hintLabel.string = `雷劫已渡，成功率 ${(successRate * 100).toFixed(0)}%，承受雷劫伤害 ${thunderDamage}。护山大阵抵消余裕 ${shield}，境界突破成功。${unlockText}`;
+            this.hintLabel.string = `气机圆满，突破成功率 ${(successRate * 100).toFixed(0)}%，境界突破成功。${unlockText}`;
             this.refreshHomeStatus();
             this.playerHp = this.playerMaxHp;
             this.playerMana = this.playerMaxMana;
             return;
         }
-        this.realmExp += Math.floor(this.realmExpNeed * 0.45);
-        this.hintLabel.string = `雷劫未稳，成功率 ${(successRate * 100).toFixed(0)}%，承受雷劫伤害 ${thunderDamage}。护山大阵已削减部分天雷，本次未能突破。`;
+        this.realmExp += Math.floor(this.realmExpNeed * 0.55);
+        this.hintLabel.string = `心神未稳，突破成功率 ${(successRate * 100).toFixed(0)}%，本次未能破境，但保留了部分感悟。`;
         this.refreshHomeStatus();
     }
 
@@ -6788,8 +6914,8 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private buildFixedBlueprint(config: DungeonConfig): FixedMapBlueprint | null {
-        if (config.fixedBlueprintId === 'qi-fixed-100') {
-            return buildQiFixedMapBlueprint(config.maxDepth, config.rarityBias);
+        if (config.fixedBlueprintId && config.fixedLaneCount) {
+            return buildGenericFixedMapBlueprint(config.fixedBlueprintId, config.maxDepth, config.fixedLaneCount, config.rarityBias);
         }
         return null;
     }
@@ -7260,8 +7386,31 @@ export class GrottoExpeditionDemo extends Component {
         }
     }
 
-    private getFixedMapLaneX(lane: number) {
-        return -236 + lane * 118;
+    private getFixedMapLaneCount(id: DungeonId = this.selectedDungeonId) {
+        return this.getDungeonConfig(id).fixedLaneCount ?? 5;
+    }
+
+    private getFixedMapLaneGap(laneCount: number) {
+        if (laneCount >= 25) return 46;
+        if (laneCount >= 20) return 50;
+        if (laneCount >= 15) return 58;
+        return 118;
+    }
+
+    private getFixedMapContentWidth(laneCount: number) {
+        return Math.max(620, laneCount * this.getFixedMapLaneGap(laneCount) + 180);
+    }
+
+    private getFixedMapNodeScale(laneCount: number) {
+        if (laneCount >= 25) return 0.5;
+        if (laneCount >= 20) return 0.58;
+        if (laneCount >= 15) return 0.7;
+        return 1;
+    }
+
+    private getFixedMapLaneX(lane: number, laneCount: number = this.getFixedMapLaneCount()) {
+        const gap = this.getFixedMapLaneGap(laneCount);
+        return -((laneCount - 1) * gap) * 0.5 + lane * gap;
     }
 
     private getFixedMapNodeY(depth: number, contentHeight: number) {
@@ -7324,28 +7473,108 @@ export class GrottoExpeditionDemo extends Component {
         return Math.max(-maxOffset, Math.min(maxOffset, -this.getFixedMapNodeY(depth, contentHeight) + 40));
     }
 
+    private getFixedMapScrollTargetX(lane: number, contentWidth: number, viewportWidth = 656) {
+        const maxOffset = Math.max(0, (contentWidth - viewportWidth) * 0.5);
+        return Math.max(-maxOffset, Math.min(maxOffset, -this.getFixedMapLaneX(lane, this.getFixedMapLaneCount()) ));
+    }
+
     private resetFixedFullMapCache() {
         this.fixedMapFrame = null;
         this.fixedMapContent = null;
+        this.fixedMapContentWidth = 0;
         this.fixedMapContentHeight = 0;
+        this.fixedMapNodeLayer = null;
+        this.fixedMapStaticPathGraphics = null;
         this.fixedMapNodeWidgets.clear();
         this.fixedMapNodePositions.clear();
-        this.fixedMapOverviewGraphics = null;
         this.fixedMapPathOverlayGraphics = null;
         this.fixedMapTipTitleLabel = null;
         this.fixedMapTipInfoLabel = null;
     }
 
+    private getFixedMapVisibleRect(paddingX = 120, paddingY = 140) {
+        if (!this.fixedMapContent?.isValid) return null;
+        const centerX = -this.fixedMapContent.position.x;
+        const centerY = -this.fixedMapContent.position.y;
+        const halfWidth = 656 * 0.5 + paddingX;
+        const halfHeight = 520 * 0.5 + paddingY;
+        return {
+            left: centerX - halfWidth,
+            right: centerX + halfWidth,
+            bottom: centerY - halfHeight,
+            top: centerY + halfHeight,
+        };
+    }
+
+    private isFixedMapPointVisible(x: number, y: number, rect: { left: number; right: number; bottom: number; top: number }) {
+        return x >= rect.left && x <= rect.right && y >= rect.bottom && y <= rect.top;
+    }
+
+    private updateFixedFullMapVisibleContent() {
+        if (!this.fixedMapNodeLayer?.isValid) return;
+        const rect = this.getFixedMapVisibleRect();
+        if (!rect) return;
+        const currentChoices = this.getCurrentChoiceNodes();
+        const currentChoiceIndexMap = new Map<string, number>();
+        for (let i = 0; i < currentChoices.length; i++) currentChoiceIndexMap.set(currentChoices[i].id, i);
+        const visitedIds = new Set<string>(this.pathStack.map((step) => step.nodeId));
+        visitedIds.add(this.currentNodeId);
+        const nodes = [...this.nodePool.values()];
+        for (let i = 0; i < nodes.length; i++) {
+            const node = nodes[i];
+            const pos = this.fixedMapNodePositions.get(node.id);
+            if (!pos) continue;
+            const visible = this.isFixedMapPointVisible(pos.x, pos.y, rect);
+            const existing = this.fixedMapNodeWidgets.get(node.id);
+            let state: 'current' | 'reachable' | 'visited' | 'future' = 'future';
+            if (node.id === this.currentNodeId) state = 'current';
+            else if (currentChoiceIndexMap.has(node.id)) state = 'reachable';
+            else if (visitedIds.has(node.id)) state = 'visited';
+            if (visible && !existing) {
+                this.createFixedMapNodeChip(this.fixedMapNodeLayer, node, pos.x, pos.y, state, -1);
+                continue;
+            }
+            if (visible && existing) {
+                this.paintFixedMapNodeWidget(existing, node, state);
+            }
+            if (!visible && existing) {
+                if (existing.chip?.isValid) existing.chip.destroy();
+                this.fixedMapNodeWidgets.delete(node.id);
+            }
+        }
+
+        if (this.fixedMapStaticPathGraphics) {
+            const staticG = this.fixedMapStaticPathGraphics;
+            staticG.clear();
+            for (let i = 0; i < nodes.length; i++) {
+                const node = nodes[i];
+                const from = this.fixedMapNodePositions.get(node.id);
+                if (!from) continue;
+                const fromVisible = this.isFixedMapPointVisible(from.x, from.y, rect);
+                for (let j = 0; j < node.nextIds.length; j++) {
+                    const nextId = node.nextIds[j];
+                    const toNode = this.nodePool.get(nextId);
+                    const to = this.fixedMapNodePositions.get(nextId);
+                    if (!toNode || !to) continue;
+                    const toVisible = this.isFixedMapPointVisible(to.x, to.y, rect);
+                    if (!fromVisible && !toVisible) continue;
+                    this.drawFixedMapLink(staticG, from.x, from.y + 10, to.x, to.y - 10, !!toNode.prevIds?.includes(node.id), new Color(82, 86, 94, 34));
+                }
+            }
+        }
+    }
+
     private paintFixedMapNodeWidget(widget: FixedMapNodeWidget, slot: MapNode, state: 'current' | 'reachable' | 'visited' | 'future') {
         const currentDepth = this.getCurrentDepth();
-        const width = slot.type === 'boss' ? 82 : 74;
-        const height = slot.type === 'boss' ? 54 : 46;
+        const scale = this.getFixedMapNodeScale(this.getFixedMapLaneCount());
+        const width = (slot.type === 'boss' ? 82 : 74) * scale;
+        const height = (slot.type === 'boss' ? 54 : 46) * scale;
         const transform = widget.chip.getComponent(UITransform);
         if (transform) transform.setContentSize(width, height);
         const palette = this.getFixedMapNodeColors(slot);
         const alpha = state === 'future' ? 62 : state === 'visited' ? 122 : state === 'reachable' ? 252 : 236;
         widget.graphics.clear();
-        const markerRadius = slot.type === 'boss' ? 16 : 13;
+        const markerRadius = (slot.type === 'boss' ? 16 : 13) * scale;
         widget.graphics.fillColor = new Color(palette.fill.r, palette.fill.g, palette.fill.b, alpha);
         widget.graphics.strokeColor = state === 'current'
             ? new Color(255, 248, 220, 255)
@@ -7358,50 +7587,52 @@ export class GrottoExpeditionDemo extends Component {
         widget.graphics.stroke();
         if (state === 'current') {
             widget.graphics.strokeColor = new Color(255, 244, 186, 122);
-            widget.graphics.lineWidth = 5;
+            widget.graphics.lineWidth = 5 * scale;
             widget.graphics.circle(0, 6, markerRadius + 6);
             widget.graphics.stroke();
         }
-        widget.iconBack.setPosition(0, 6, 0);
+        widget.iconBack.setPosition(0, 6 * scale, 0);
         const iconBackTransform = widget.iconBack.getComponent(UITransform);
-        if (iconBackTransform) iconBackTransform.setContentSize(slot.type === 'boss' ? 28 : 24, slot.type === 'boss' ? 28 : 24);
+        const glyphSize = (slot.type === 'boss' ? 28 : 24) * scale;
+        if (iconBackTransform) iconBackTransform.setContentSize(glyphSize, glyphSize);
         const backG = widget.iconBack.getComponent(Graphics);
         if (backG) {
             backG.clear();
             backG.fillColor = new Color(0, 0, 0, state === 'future' ? 18 : state === 'visited' ? 40 : 72);
-            backG.circle(0, 0, slot.type === 'boss' ? 14 : 12);
+            backG.circle(0, 0, (slot.type === 'boss' ? 14 : 12) * scale);
             backG.fill();
         }
         widget.glyphLabel.string = this.getFixedMapNodeGlyph(slot);
-        widget.glyphLabel.fontSize = slot.type === 'boss' ? 15 : 13;
+        widget.glyphLabel.fontSize = Math.max(8, Math.round((slot.type === 'boss' ? 15 : 13) * scale));
         widget.glyphLabel.color = state === 'reachable'
             ? new Color(255, 241, 188, 255)
             : new Color(palette.text.r, palette.text.g, palette.text.b, state === 'future' ? 88 : state === 'visited' ? 172 : 255);
         widget.label.string = this.getFixedMapDisplayLabel(slot, state, currentDepth);
         const compact = widget.label.string.length <= 1;
-        widget.label.fontSize = compact ? 11 : slot.type === 'boss' ? 13 : 12;
+        widget.label.fontSize = Math.max(7, Math.round((compact ? 11 : slot.type === 'boss' ? 13 : 12) * scale));
         widget.label.color = state === 'reachable'
             ? new Color(255, 236, 176, 255)
             : new Color(palette.text.r, palette.text.g, palette.text.b, state === 'future' ? 84 : state === 'visited' ? 158 : 255);
-        widget.label.node.setPosition(0, -19, 0);
+        widget.label.node.setPosition(0, -19 * scale, 0);
         widget.label.overflow = Label.Overflow.SHRINK;
     }
 
     private createFixedMapNodeChip(parent: Node, slot: MapNode, x: number, y: number, state: 'current' | 'reachable' | 'visited' | 'future', choiceIndex: number) {
+        const scale = this.getFixedMapNodeScale(this.getFixedMapLaneCount());
         const chip = new Node('FixedMapNode');
         chip.layer = Layers.Enum.UI_2D;
         parent.addChild(chip);
         chip.setPosition(x, y, 0);
-        chip.addComponent(UITransform).setContentSize(82, 54);
+        chip.addComponent(UITransform).setContentSize(82 * scale, 54 * scale);
         const graphics = chip.addComponent(Graphics);
         const iconBack = new Node('FixedMapGlyphBack');
         iconBack.layer = Layers.Enum.UI_2D;
         chip.addChild(iconBack);
-        iconBack.setPosition(0, 6, 0);
-        iconBack.addComponent(UITransform).setContentSize(28, 28);
+        iconBack.setPosition(0, 6 * scale, 0);
+        iconBack.addComponent(UITransform).setContentSize(28 * scale, 28 * scale);
         iconBack.addComponent(Graphics);
-        const glyphLabel = this.createLabel(iconBack, this.getFixedMapNodeGlyph(slot), 13, new Vec3(0, 0, 0), new Color(255, 255, 255, 255), 24);
-        const label = this.createLabel(chip, this.getFixedMapCompactLabel(slot), 12, new Vec3(0, -19, 0), new Color(255, 255, 255, 255), 78);
+        const glyphLabel = this.createLabel(iconBack, this.getFixedMapNodeGlyph(slot), Math.max(8, Math.round(13 * scale)), new Vec3(0, 0, 0), new Color(255, 255, 255, 255), 24 * scale);
+        const label = this.createLabel(chip, this.getFixedMapCompactLabel(slot), Math.max(7, Math.round(12 * scale)), new Vec3(0, -19 * scale, 0), new Color(255, 255, 255, 255), 78 * scale);
         label.overflow = Label.Overflow.SHRINK;
         const widget: FixedMapNodeWidget = { chip, iconBack, glyphLabel, label, graphics, slotId: slot.id };
         this.paintFixedMapNodeWidget(widget, slot, state);
@@ -7421,6 +7652,7 @@ export class GrottoExpeditionDemo extends Component {
     private updateFixedFullMapState() {
         const current = this.getCurrentNode();
         if (!current || !this.fixedMapContent?.isValid) return;
+        this.updateFixedFullMapVisibleContent();
         const currentChoices = this.getCurrentChoiceNodes();
         const currentChoiceIndexMap = new Map<string, number>();
         for (let i = 0; i < currentChoices.length; i++) currentChoiceIndexMap.set(currentChoices[i].id, i);
@@ -7439,47 +7671,6 @@ export class GrottoExpeditionDemo extends Component {
 
         if (this.fixedMapTipTitleLabel) this.fixedMapTipTitleLabel.string = `当前 ${current.depth} 层`;
         if (this.fixedMapTipInfoLabel) this.fixedMapTipInfoLabel.string = `可点亮前路 ${currentChoices.length} 条`;
-
-        if (this.fixedMapOverviewGraphics) {
-            const dungeon = this.getDungeonConfig();
-            const overviewG = this.fixedMapOverviewGraphics;
-            overviewG.clear();
-            const overviewHeight = 92;
-            const overviewBottom = -44;
-            const nodes = [...this.nodePool.values()].sort((a, b) => a.depth - b.depth || this.getFixedMapNodeLane(a) - this.getFixedMapNodeLane(b));
-            for (let i = 0; i < nodes.length; i++) {
-                const node = nodes[i];
-                const laneX = -24 + this.getFixedMapNodeLane(node) * 12;
-                const nodeY = overviewBottom + ((node.depth - 1) / Math.max(1, dungeon.maxDepth - 1)) * overviewHeight;
-                for (let j = 0; j < node.nextIds.length; j++) {
-                    const nextNode = this.nodePool.get(node.nextIds[j]);
-                    if (!nextNode) continue;
-                    const nextX = -24 + this.getFixedMapNodeLane(nextNode) * 12;
-                    const nextY = overviewBottom + ((nextNode.depth - 1) / Math.max(1, dungeon.maxDepth - 1)) * overviewHeight;
-                    const isReachablePath = node.id === this.currentNodeId;
-                    const isVisitedPath = visitedIds.has(node.id) && visitedIds.has(nextNode.id);
-                    overviewG.strokeColor = isReachablePath
-                        ? new Color(255, 224, 146, 176)
-                        : isVisitedPath
-                            ? new Color(164, 182, 198, 96)
-                            : new Color(92, 98, 108, 34);
-                    overviewG.lineWidth = isReachablePath ? 2 : nextNode.prevIds?.includes(node.id) ? 1.2 : 0.8;
-                    overviewG.moveTo(laneX, nodeY);
-                    overviewG.lineTo(nextX, nextY);
-                    overviewG.stroke();
-                }
-                const dotColor = node.id === this.currentNodeId
-                    ? new Color(255, 238, 162, 255)
-                    : currentChoiceIndexMap.has(node.id)
-                        ? new Color(255, 228, 158, 236)
-                        : visitedIds.has(node.id)
-                            ? new Color(164, 180, 196, 136)
-                            : new Color(98, 102, 110, 64);
-                overviewG.fillColor = dotColor;
-                overviewG.circle(laneX, nodeY, node.type === 'boss' ? 3.3 : 2.2);
-                overviewG.fill();
-            }
-        }
 
         if (this.fixedMapPathOverlayGraphics) {
             const overlayG = this.fixedMapPathOverlayGraphics;
@@ -7536,19 +7727,22 @@ export class GrottoExpeditionDemo extends Component {
         const content = new Node('FixedMapContent');
         content.layer = Layers.Enum.UI_2D;
         viewport.addChild(content);
+        const laneCount = this.getFixedMapLaneCount();
+        const contentWidth = this.getFixedMapContentWidth(laneCount);
         const contentHeight = Math.max(620, dungeon.maxDepth * 74 + 220);
-        content.addComponent(UITransform).setContentSize(620, contentHeight);
+        content.addComponent(UITransform).setContentSize(contentWidth, contentHeight);
         this.fixedMapContent = content;
+        this.fixedMapContentWidth = contentWidth;
         this.fixedMapContentHeight = contentHeight;
 
         const backdrop = new Node('FixedMapBackdrop');
         backdrop.layer = Layers.Enum.UI_2D;
         content.addChild(backdrop);
         backdrop.setPosition(0, 0, 0);
-        backdrop.addComponent(UITransform).setContentSize(620, contentHeight);
+        backdrop.addComponent(UITransform).setContentSize(contentWidth, contentHeight);
         const backdropG = backdrop.addComponent(Graphics);
         backdropG.fillColor = new Color(242, 236, 214, 34);
-        backdropG.roundRect(-310, -contentHeight * 0.5, 620, contentHeight, 26);
+        backdropG.roundRect(-contentWidth * 0.5, -contentHeight * 0.5, contentWidth, contentHeight, 26);
         backdropG.fill();
 
         const nodes = [...this.nodePool.values()].sort((a, b) => a.depth - b.depth || this.getFixedMapNodeLane(a) - this.getFixedMapNodeLane(b));
@@ -7556,6 +7750,7 @@ export class GrottoExpeditionDemo extends Component {
         staticPathLayer.layer = Layers.Enum.UI_2D;
         content.addChild(staticPathLayer);
         const staticPathG = staticPathLayer.addComponent(Graphics);
+        this.fixedMapStaticPathGraphics = staticPathG;
         const pathOverlayLayer = new Node('FixedMapPathOverlay');
         pathOverlayLayer.layer = Layers.Enum.UI_2D;
         content.addChild(pathOverlayLayer);
@@ -7565,7 +7760,7 @@ export class GrottoExpeditionDemo extends Component {
         for (let i = 0; i < nodes.length; i++) {
             const node = nodes[i];
             nodePos.set(node.id, {
-                x: this.getFixedMapLaneX(this.getFixedMapNodeLane(node)),
+                x: this.getFixedMapLaneX(this.getFixedMapNodeLane(node), laneCount),
                 y: this.getFixedMapNodeY(node.depth, contentHeight),
             });
         }
@@ -7577,39 +7772,21 @@ export class GrottoExpeditionDemo extends Component {
             band.layer = Layers.Enum.UI_2D;
             content.addChild(band);
             band.setPosition(0, y, 0);
-            band.addComponent(UITransform).setContentSize(600, 22);
+            band.addComponent(UITransform).setContentSize(contentWidth - 40, 22);
             const bandG = band.addComponent(Graphics);
             bandG.strokeColor = new Color(210, 196, 154, 60);
             bandG.lineWidth = 1;
-            bandG.moveTo(-286, 0);
-            bandG.lineTo(286, 0);
+            bandG.moveTo(-(contentWidth - 48) * 0.5, 0);
+            bandG.lineTo((contentWidth - 48) * 0.5, 0);
             bandG.stroke();
-            const label = this.createLabel(band, `${depth}层`, 14, new Vec3(268, 0, 0), new Color(210, 198, 170, 180));
+            const label = this.createLabel(band, `${depth}层`, 14, new Vec3((contentWidth - 78) * 0.5, 0, 0), new Color(210, 198, 170, 180));
             label.horizontalAlign = HorizontalTextAlignment.CENTER;
-        }
-
-        for (let i = 0; i < nodes.length; i++) {
-            const node = nodes[i];
-            const from = nodePos.get(node.id);
-            if (!from) continue;
-            for (let j = 0; j < node.nextIds.length; j++) {
-                const nextId = node.nextIds[j];
-                const toNode = this.nodePool.get(nextId);
-                const to = nodePos.get(nextId);
-                if (!toNode || !to) continue;
-                this.drawFixedMapLink(staticPathG, from.x, from.y + 10, to.x, to.y - 10, !!toNode.prevIds?.includes(node.id), new Color(82, 86, 94, 34));
-            }
         }
 
         const nodeLayer = new Node('FixedMapNodes');
         nodeLayer.layer = Layers.Enum.UI_2D;
         content.addChild(nodeLayer);
-        for (let i = 0; i < nodes.length; i++) {
-            const node = nodes[i];
-            const pos = nodePos.get(node.id);
-            if (!pos) continue;
-            this.createFixedMapNodeChip(nodeLayer, node, pos.x, pos.y, 'future', -1);
-        }
+        this.fixedMapNodeLayer = nodeLayer;
 
         const tipPanel = this.createPanel(mapFrame, 186, 62, -220, 188, new Color(22, 28, 34, 214));
         this.fixedMapTipTitleLabel = this.createLabel(tipPanel, `当前 ${current.depth} 层`, 18, new Vec3(0, 12, 0), new Color(255, 244, 214, 255), 150);
@@ -7617,26 +7794,10 @@ export class GrottoExpeditionDemo extends Component {
         this.fixedMapTipInfoLabel = this.createLabel(tipPanel, '', 13, new Vec3(0, -12, 0), new Color(190, 206, 220, 255), 158);
         this.fixedMapTipInfoLabel.horizontalAlign = HorizontalTextAlignment.CENTER;
 
-        const overviewPanel = this.createPanel(mapFrame, 112, 158, 266, 146, new Color(20, 24, 30, 214));
-        const overviewTitle = this.createLabel(overviewPanel, '总览', 15, new Vec3(0, 60, 0), new Color(238, 230, 204, 255), 78);
-        overviewTitle.horizontalAlign = HorizontalTextAlignment.CENTER;
-        const overview = new Node('FixedMapOverview');
-        overview.layer = Layers.Enum.UI_2D;
-        overviewPanel.addChild(overview);
-        overview.setPosition(0, -4, 0);
-        overview.addComponent(UITransform).setContentSize(82, 108);
-        this.fixedMapOverviewGraphics = overview.addComponent(Graphics);
-        const locateBtn = this.createPanel(overviewPanel, 82, 26, 0, -58, new Color(62, 72, 84, 236));
-        const locateLabel = this.createLabel(locateBtn, '定位', 14, new Vec3(0, 0, 0), new Color(236, 244, 252, 255), 68);
-        locateLabel.horizontalAlign = HorizontalTextAlignment.CENTER;
-
+        const targetX = this.getFixedMapScrollTargetX(this.getFixedMapNodeLane(current), contentWidth);
         const targetY = this.getFixedMapScrollTargetY(current.depth, contentHeight);
-        content.setPosition(0, targetY, 0);
-        this.attachVerticalDragScroll(viewport, content);
-        locateBtn.on(Node.EventType.TOUCH_END, () => {
-            if (!content.isValid) return;
-            content.setPosition(0, this.getFixedMapScrollTargetY(this.getCurrentDepth(), contentHeight), 0);
-        }, this);
+        content.setPosition(targetX, targetY, 0);
+        this.attachPanDragScroll(viewport, content, () => this.updateFixedFullMapVisibleContent());
         this.updateFixedFullMapState();
     }
 
@@ -7815,7 +7976,9 @@ export class GrottoExpeditionDemo extends Component {
             } else {
                 this.updateFixedFullMapState();
                 if (this.fixedMapContent?.isValid) {
-                    this.fixedMapContent.setPosition(0, this.getFixedMapScrollTargetY(this.getCurrentDepth(), this.fixedMapContentHeight), 0);
+                    const focus = this.getCurrentNode();
+                    const lane = focus ? this.getFixedMapNodeLane(focus) : Math.floor(this.getFixedMapLaneCount() / 2);
+                    this.fixedMapContent.setPosition(this.getFixedMapScrollTargetX(lane, this.fixedMapContentWidth), this.getFixedMapScrollTargetY(this.getCurrentDepth(), this.fixedMapContentHeight), 0);
                 }
             }
 
