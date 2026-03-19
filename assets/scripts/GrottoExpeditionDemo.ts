@@ -824,6 +824,15 @@ interface PathStep {
     canReturnToHere: boolean;
 }
 
+interface FixedMapNodeWidget {
+    chip: Node;
+    iconBack: Node;
+    glyphLabel: Label;
+    label: Label;
+    graphics: Graphics;
+    slotId: string;
+}
+
 let _nextNodeId = 0;
 function nextNodeId(): string {
     return `n${++_nextNodeId}`;
@@ -6198,11 +6207,20 @@ export class GrottoExpeditionDemo extends Component {
     private withdrawBtnLabel!: Label;
     private returnToPrevBtn!: Node;
     private returnToPrevBtnLabel!: Label;
+    private fixedMapFrame: Node | null = null;
+    private fixedMapContent: Node | null = null;
+    private fixedMapContentHeight = 0;
+    private fixedMapNodeWidgets = new Map<string, FixedMapNodeWidget>();
+    private fixedMapNodePositions = new Map<string, { x: number; y: number }>();
+    private fixedMapOverviewGraphics: Graphics | null = null;
+    private fixedMapPathOverlayGraphics: Graphics | null = null;
+    private fixedMapTipTitleLabel: Label | null = null;
+    private fixedMapTipInfoLabel: Label | null = null;
 
     private buildExpeditionUI() {
         const top = this.createPanel(this.expeditionLayer, 684, 138, 0, 542);
         top.name = 'Top';
-        this.expeditionLayerLabel = this.createLabel(top, '练气秘境 1/30层', 31, new Vec3(-214, 40, 0), new Color(255, 248, 230, 255), 240);
+        this.expeditionLayerLabel = this.createLabel(top, '练气秘境 1/100层', 31, new Vec3(-214, 40, 0), new Color(255, 248, 230, 255), 240);
         this.expeditionHpLabel = this.createLabel(top, '生命 100/100', 22, new Vec3(42, 42, 0), new Color(255, 200, 180, 255), 150);
         this.expeditionManaLabel = this.createLabel(top, '法力 100/100', 22, new Vec3(214, 42, 0), new Color(180, 220, 255, 255), 150);
         this.expeditionApLabel = this.createLabel(top, '行动力 100/100', 21, new Vec3(-220, 4, 0), new Color(200, 220, 180, 255), 190);
@@ -6657,6 +6675,8 @@ export class GrottoExpeditionDemo extends Component {
     private startExpedition() {
         const artifactBonuses = this.getEquippedArtifactBonuses();
         const dungeon = this.getDungeonConfig();
+        this.resetFixedFullMapCache();
+        this.slotContainer.removeAllChildren();
         this.state = 'expedition_path';
         this.homeLayer.active = false;
         this.expeditionLayer.active = true;
@@ -7118,12 +7138,506 @@ export class GrottoExpeditionDemo extends Component {
             stone: '灵石',
             treasure: '宝箱',
             monster: '妖兽',
+            elite: '精英',
             trap: '？',
             buff: '？',
             intercept: '截道',
             boss: 'Boss',
         };
         return icons[type];
+    }
+
+    private shouldUseFullMapView() {
+        return this.getDungeonConfig().mapMode === 'fixed';
+    }
+
+    private getFixedMapNodeLane(node: MapNode) {
+        const parts = node.id.split(':');
+        const lane = Number(parts[parts.length - 1]);
+        return Number.isFinite(lane) ? lane : 2;
+    }
+
+    private getFixedMapTypeLabel(slot: MapNode) {
+        switch (slot.type) {
+            case 'monster':
+                return '小怪';
+            case 'elite':
+                return '精英';
+            case 'boss':
+                return 'Boss';
+            case 'herb':
+            case 'stone':
+            case 'treasure':
+                return '资源';
+            case 'trap':
+            case 'buff':
+                return '问号';
+            case 'intercept':
+                return '邪修';
+            case 'empty':
+                return '空路';
+            default:
+                return this.getSlotMapIcon(slot.type, slot.materialId);
+        }
+    }
+
+    private getFixedMapCompactLabel(slot: MapNode) {
+        switch (slot.type) {
+            case 'monster':
+                return '怪';
+            case 'elite':
+                return '精';
+            case 'boss':
+                return '王';
+            case 'herb':
+            case 'stone':
+            case 'treasure':
+                return '资';
+            case 'trap':
+            case 'buff':
+                return '？';
+            case 'intercept':
+                return '邪';
+            case 'empty':
+                return '空';
+            default:
+                return this.getFixedMapNodeGlyph(slot);
+        }
+    }
+
+    private getFixedMapDisplayLabel(slot: MapNode, state: 'current' | 'reachable' | 'visited' | 'future', currentDepth: number) {
+        const nearCurrent = Math.abs(slot.depth - currentDepth) <= 1;
+        if (state === 'current' || state === 'reachable' || nearCurrent) return this.getFixedMapTypeLabel(slot);
+        return this.getFixedMapCompactLabel(slot);
+    }
+
+    private getFixedMapNodeColors(slot: MapNode) {
+        switch (slot.type) {
+            case 'monster':
+                return { fill: new Color(86, 52, 54, 224), stroke: new Color(212, 148, 148, 255), text: new Color(255, 226, 220, 255) };
+            case 'elite':
+                return { fill: new Color(88, 64, 34, 228), stroke: new Color(242, 194, 120, 255), text: new Color(255, 240, 208, 255) };
+            case 'boss':
+                return { fill: new Color(100, 36, 42, 234), stroke: new Color(246, 120, 120, 255), text: new Color(255, 232, 228, 255) };
+            case 'herb':
+                return { fill: new Color(42, 72, 58, 224), stroke: new Color(152, 214, 168, 255), text: new Color(228, 246, 230, 255) };
+            case 'stone':
+                return { fill: new Color(40, 56, 76, 224), stroke: new Color(162, 196, 232, 255), text: new Color(228, 238, 250, 255) };
+            case 'treasure':
+                return { fill: new Color(84, 68, 34, 228), stroke: new Color(238, 204, 118, 255), text: new Color(255, 246, 216, 255) };
+            case 'trap':
+                return { fill: new Color(72, 44, 34, 220), stroke: new Color(222, 154, 118, 255), text: new Color(252, 232, 212, 255) };
+            case 'buff':
+                return { fill: new Color(36, 68, 72, 220), stroke: new Color(150, 212, 206, 255), text: new Color(224, 248, 246, 255) };
+            case 'intercept':
+                return { fill: new Color(74, 40, 56, 228), stroke: new Color(212, 134, 162, 255), text: new Color(254, 228, 236, 255) };
+            default:
+                return { fill: new Color(56, 60, 68, 220), stroke: new Color(186, 194, 206, 255), text: new Color(230, 236, 244, 255) };
+        }
+    }
+
+    private getFixedMapNodeGlyph(slot: MapNode) {
+        switch (slot.type) {
+            case 'monster':
+                return '兽';
+            case 'elite':
+                return '精';
+            case 'boss':
+                return '王';
+            case 'herb':
+                return '药';
+            case 'stone':
+                return '矿';
+            case 'treasure':
+                return '宝';
+            case 'trap':
+            case 'buff':
+                return '?';
+            case 'intercept':
+                return '邪';
+            default:
+                return '路';
+        }
+    }
+
+    private getFixedMapLaneX(lane: number) {
+        return -236 + lane * 118;
+    }
+
+    private getFixedMapNodeY(depth: number, contentHeight: number) {
+        const bottomPadding = 108;
+        const stepY = 74;
+        return -contentHeight * 0.5 + bottomPadding + (depth - 1) * stepY;
+    }
+
+    private drawFixedMapLink(g: Graphics, fromX: number, fromY: number, toX: number, toY: number, bidirectional: boolean, color: Color) {
+        const dx = toX - fromX;
+        const dy = toY - fromY;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len <= 1) return;
+        const curve = Math.max(12, Math.min(28, Math.abs(dx) * 0.18 + 10));
+        const midX = (fromX + toX) * 0.5 + (dx >= 0 ? curve : -curve);
+        const midY = (fromY + toY) * 0.5;
+        g.strokeColor = color;
+        g.lineWidth = bidirectional ? 2.4 : 1.7;
+        if (bidirectional) {
+            g.moveTo(fromX, fromY);
+            g.quadraticCurveTo(midX, midY, toX, toY);
+            g.stroke();
+            return;
+        }
+        const dash = 12;
+        const gap = 12;
+        const pointAt = (t: number) => {
+            const inv = 1 - t;
+            return {
+                x: inv * inv * fromX + 2 * inv * t * midX + t * t * toX,
+                y: inv * inv * fromY + 2 * inv * t * midY + t * t * toY,
+            };
+        };
+        let progress = 0;
+        while (progress < len) {
+            const startRatio = progress / len;
+            const endRatio = Math.min(len, progress + dash) / len;
+            const start = pointAt(startRatio);
+            const end = pointAt(endRatio);
+            g.moveTo(start.x, start.y);
+            g.lineTo(end.x, end.y);
+            g.stroke();
+            progress += dash + gap;
+        }
+        const tail = pointAt(0.92);
+        const ux = (toX - tail.x) / Math.max(1, Math.sqrt((toX - tail.x) * (toX - tail.x) + (toY - tail.y) * (toY - tail.y)));
+        const uy = (toY - tail.y) / Math.max(1, Math.sqrt((toX - tail.x) * (toX - tail.x) + (toY - tail.y) * (toY - tail.y)));
+        const arrow = 8;
+        const baseX = toX - ux * 12;
+        const baseY = toY - uy * 12;
+        g.moveTo(toX, toY);
+        g.lineTo(baseX - uy * arrow * 0.6, baseY + ux * arrow * 0.6);
+        g.moveTo(toX, toY);
+        g.lineTo(baseX + uy * arrow * 0.6, baseY - ux * arrow * 0.6);
+        g.stroke();
+    }
+
+    private getFixedMapScrollTargetY(depth: number, contentHeight: number, viewportHeight = 520) {
+        const maxOffset = Math.max(0, (contentHeight - viewportHeight) * 0.5);
+        return Math.max(-maxOffset, Math.min(maxOffset, -this.getFixedMapNodeY(depth, contentHeight) + 40));
+    }
+
+    private resetFixedFullMapCache() {
+        this.fixedMapFrame = null;
+        this.fixedMapContent = null;
+        this.fixedMapContentHeight = 0;
+        this.fixedMapNodeWidgets.clear();
+        this.fixedMapNodePositions.clear();
+        this.fixedMapOverviewGraphics = null;
+        this.fixedMapPathOverlayGraphics = null;
+        this.fixedMapTipTitleLabel = null;
+        this.fixedMapTipInfoLabel = null;
+    }
+
+    private paintFixedMapNodeWidget(widget: FixedMapNodeWidget, slot: MapNode, state: 'current' | 'reachable' | 'visited' | 'future') {
+        const currentDepth = this.getCurrentDepth();
+        const width = slot.type === 'boss' ? 82 : 74;
+        const height = slot.type === 'boss' ? 54 : 46;
+        const transform = widget.chip.getComponent(UITransform);
+        if (transform) transform.setContentSize(width, height);
+        const palette = this.getFixedMapNodeColors(slot);
+        const alpha = state === 'future' ? 62 : state === 'visited' ? 122 : state === 'reachable' ? 252 : 236;
+        widget.graphics.clear();
+        const markerRadius = slot.type === 'boss' ? 16 : 13;
+        widget.graphics.fillColor = new Color(palette.fill.r, palette.fill.g, palette.fill.b, alpha);
+        widget.graphics.strokeColor = state === 'current'
+            ? new Color(255, 248, 220, 255)
+            : state === 'reachable'
+                ? new Color(255, 226, 146, 255)
+                : new Color(palette.stroke.r, palette.stroke.g, palette.stroke.b, state === 'future' ? 72 : 144);
+        widget.graphics.lineWidth = state === 'current' ? 3.8 : state === 'reachable' ? 3.2 : state === 'visited' ? 1.8 : 1.1;
+        widget.graphics.circle(0, 6, markerRadius);
+        widget.graphics.fill();
+        widget.graphics.stroke();
+        if (state === 'current') {
+            widget.graphics.strokeColor = new Color(255, 244, 186, 122);
+            widget.graphics.lineWidth = 5;
+            widget.graphics.circle(0, 6, markerRadius + 6);
+            widget.graphics.stroke();
+        }
+        widget.iconBack.setPosition(0, 6, 0);
+        const iconBackTransform = widget.iconBack.getComponent(UITransform);
+        if (iconBackTransform) iconBackTransform.setContentSize(slot.type === 'boss' ? 28 : 24, slot.type === 'boss' ? 28 : 24);
+        const backG = widget.iconBack.getComponent(Graphics);
+        if (backG) {
+            backG.clear();
+            backG.fillColor = new Color(0, 0, 0, state === 'future' ? 18 : state === 'visited' ? 40 : 72);
+            backG.circle(0, 0, slot.type === 'boss' ? 14 : 12);
+            backG.fill();
+        }
+        widget.glyphLabel.string = this.getFixedMapNodeGlyph(slot);
+        widget.glyphLabel.fontSize = slot.type === 'boss' ? 15 : 13;
+        widget.glyphLabel.color = state === 'reachable'
+            ? new Color(255, 241, 188, 255)
+            : new Color(palette.text.r, palette.text.g, palette.text.b, state === 'future' ? 88 : state === 'visited' ? 172 : 255);
+        widget.label.string = this.getFixedMapDisplayLabel(slot, state, currentDepth);
+        const compact = widget.label.string.length <= 1;
+        widget.label.fontSize = compact ? 11 : slot.type === 'boss' ? 13 : 12;
+        widget.label.color = state === 'reachable'
+            ? new Color(255, 236, 176, 255)
+            : new Color(palette.text.r, palette.text.g, palette.text.b, state === 'future' ? 84 : state === 'visited' ? 158 : 255);
+        widget.label.node.setPosition(0, -19, 0);
+        widget.label.overflow = Label.Overflow.SHRINK;
+    }
+
+    private createFixedMapNodeChip(parent: Node, slot: MapNode, x: number, y: number, state: 'current' | 'reachable' | 'visited' | 'future', choiceIndex: number) {
+        const chip = new Node('FixedMapNode');
+        chip.layer = Layers.Enum.UI_2D;
+        parent.addChild(chip);
+        chip.setPosition(x, y, 0);
+        chip.addComponent(UITransform).setContentSize(82, 54);
+        const graphics = chip.addComponent(Graphics);
+        const iconBack = new Node('FixedMapGlyphBack');
+        iconBack.layer = Layers.Enum.UI_2D;
+        chip.addChild(iconBack);
+        iconBack.setPosition(0, 6, 0);
+        iconBack.addComponent(UITransform).setContentSize(28, 28);
+        iconBack.addComponent(Graphics);
+        const glyphLabel = this.createLabel(iconBack, this.getFixedMapNodeGlyph(slot), 13, new Vec3(0, 0, 0), new Color(255, 255, 255, 255), 24);
+        const label = this.createLabel(chip, this.getFixedMapCompactLabel(slot), 12, new Vec3(0, -19, 0), new Color(255, 255, 255, 255), 78);
+        label.overflow = Label.Overflow.SHRINK;
+        const widget: FixedMapNodeWidget = { chip, iconBack, glyphLabel, label, graphics, slotId: slot.id };
+        this.paintFixedMapNodeWidget(widget, slot, state);
+        chip.on(Node.EventType.TOUCH_END, () => {
+            const choices = this.getCurrentChoiceNodes();
+            const index = choices.findIndex((target) => target.id === slot.id);
+            if (index < 0) return;
+            if (choices[index].revealed) {
+                this.onRevealedSlotTap(index);
+            } else {
+                this.onSlotTap(index);
+            }
+        }, this);
+        this.fixedMapNodeWidgets.set(slot.id, widget);
+    }
+
+    private updateFixedFullMapState() {
+        const current = this.getCurrentNode();
+        if (!current || !this.fixedMapContent?.isValid) return;
+        const currentChoices = this.getCurrentChoiceNodes();
+        const currentChoiceIndexMap = new Map<string, number>();
+        for (let i = 0; i < currentChoices.length; i++) currentChoiceIndexMap.set(currentChoices[i].id, i);
+        const visitedIds = new Set<string>(this.pathStack.map((step) => step.nodeId));
+        visitedIds.add(this.currentNodeId);
+
+        this.fixedMapNodeWidgets.forEach((widget, nodeId) => {
+            const slot = this.nodePool.get(nodeId);
+            if (!slot) return;
+            let state: 'current' | 'reachable' | 'visited' | 'future' = 'future';
+            if (nodeId === this.currentNodeId) state = 'current';
+            else if (currentChoiceIndexMap.has(nodeId)) state = 'reachable';
+            else if (visitedIds.has(nodeId)) state = 'visited';
+            this.paintFixedMapNodeWidget(widget, slot, state);
+        });
+
+        if (this.fixedMapTipTitleLabel) this.fixedMapTipTitleLabel.string = `当前 ${current.depth} 层`;
+        if (this.fixedMapTipInfoLabel) this.fixedMapTipInfoLabel.string = `可点亮前路 ${currentChoices.length} 条`;
+
+        if (this.fixedMapOverviewGraphics) {
+            const dungeon = this.getDungeonConfig();
+            const overviewG = this.fixedMapOverviewGraphics;
+            overviewG.clear();
+            const overviewHeight = 92;
+            const overviewBottom = -44;
+            const nodes = [...this.nodePool.values()].sort((a, b) => a.depth - b.depth || this.getFixedMapNodeLane(a) - this.getFixedMapNodeLane(b));
+            for (let i = 0; i < nodes.length; i++) {
+                const node = nodes[i];
+                const laneX = -24 + this.getFixedMapNodeLane(node) * 12;
+                const nodeY = overviewBottom + ((node.depth - 1) / Math.max(1, dungeon.maxDepth - 1)) * overviewHeight;
+                for (let j = 0; j < node.nextIds.length; j++) {
+                    const nextNode = this.nodePool.get(node.nextIds[j]);
+                    if (!nextNode) continue;
+                    const nextX = -24 + this.getFixedMapNodeLane(nextNode) * 12;
+                    const nextY = overviewBottom + ((nextNode.depth - 1) / Math.max(1, dungeon.maxDepth - 1)) * overviewHeight;
+                    const isReachablePath = node.id === this.currentNodeId;
+                    const isVisitedPath = visitedIds.has(node.id) && visitedIds.has(nextNode.id);
+                    overviewG.strokeColor = isReachablePath
+                        ? new Color(255, 224, 146, 176)
+                        : isVisitedPath
+                            ? new Color(164, 182, 198, 96)
+                            : new Color(92, 98, 108, 34);
+                    overviewG.lineWidth = isReachablePath ? 2 : nextNode.prevIds?.includes(node.id) ? 1.2 : 0.8;
+                    overviewG.moveTo(laneX, nodeY);
+                    overviewG.lineTo(nextX, nextY);
+                    overviewG.stroke();
+                }
+                const dotColor = node.id === this.currentNodeId
+                    ? new Color(255, 238, 162, 255)
+                    : currentChoiceIndexMap.has(node.id)
+                        ? new Color(255, 228, 158, 236)
+                        : visitedIds.has(node.id)
+                            ? new Color(164, 180, 196, 136)
+                            : new Color(98, 102, 110, 64);
+                overviewG.fillColor = dotColor;
+                overviewG.circle(laneX, nodeY, node.type === 'boss' ? 3.3 : 2.2);
+                overviewG.fill();
+            }
+        }
+
+        if (this.fixedMapPathOverlayGraphics) {
+            const overlayG = this.fixedMapPathOverlayGraphics;
+            overlayG.clear();
+            const nodes = [...this.nodePool.values()].sort((a, b) => a.depth - b.depth || this.getFixedMapNodeLane(a) - this.getFixedMapNodeLane(b));
+            for (let i = 0; i < nodes.length; i++) {
+                const node = nodes[i];
+                const from = this.fixedMapNodePositions.get(node.id);
+                if (!from) continue;
+                for (let j = 0; j < node.nextIds.length; j++) {
+                    const nextId = node.nextIds[j];
+                    const toNode = this.nodePool.get(nextId);
+                    const to = this.fixedMapNodePositions.get(nextId);
+                    if (!toNode || !to) continue;
+                    const isReachable = node.id === this.currentNodeId;
+                    const isVisitedRoute = visitedIds.has(node.id) && visitedIds.has(nextId);
+                    const linkColor = isReachable
+                        ? new Color(255, 224, 142, 255)
+                        : isVisitedRoute
+                            ? new Color(156, 176, 196, 116)
+                            : new Color(0, 0, 0, 0);
+                    if (linkColor.a > 0) this.drawFixedMapLink(overlayG, from.x, from.y + 10, to.x, to.y - 10, !!toNode.prevIds?.includes(node.id), linkColor);
+                }
+            }
+        }
+    }
+
+    private renderFixedFullMap() {
+        const dungeon = this.getDungeonConfig();
+        const current = this.getCurrentNode();
+        if (!current) return;
+        this.fixedMapNodeWidgets.clear();
+        this.fixedMapNodePositions.clear();
+
+        const mapFrame = this.createPanel(this.slotContainer, 676, 540, 0, 10, new Color(14, 18, 24, 196));
+        this.fixedMapFrame = mapFrame;
+        const mapBoardArt = this.createAssetSpriteNode(mapFrame, 'MapBoardArt', 676, 540, new Vec3(0, 0, 0));
+        mapBoardArt.setSiblingIndex(0);
+        this.setAssetSprite(mapBoardArt, this.getExpeditionMapBoardAsset());
+        const mapShade = this.createPanel(mapFrame, 668, 532, 0, 0, new Color(10, 14, 20, 104));
+        mapShade.setSiblingIndex(mapFrame.children.length - 1);
+
+        const viewport = new Node('FixedMapViewport');
+        viewport.layer = Layers.Enum.UI_2D;
+        mapFrame.addChild(viewport);
+        viewport.setPosition(0, 0, 0);
+        viewport.addComponent(UITransform).setContentSize(656, 520);
+        viewport.addComponent(Mask);
+
+        const legend = this.createPanel(mapFrame, 628, 42, 0, 228, new Color(24, 30, 36, 196));
+        const legendLabel = this.createLabel(legend, '节点：小怪 / 精英 / Boss / 资源 / 问号 / 邪修    连线：实线可回退，虚线单向前进', 15, new Vec3(0, 0, 0), new Color(214, 224, 232, 255), 604);
+        legendLabel.horizontalAlign = HorizontalTextAlignment.CENTER;
+
+        const content = new Node('FixedMapContent');
+        content.layer = Layers.Enum.UI_2D;
+        viewport.addChild(content);
+        const contentHeight = Math.max(620, dungeon.maxDepth * 74 + 220);
+        content.addComponent(UITransform).setContentSize(620, contentHeight);
+        this.fixedMapContent = content;
+        this.fixedMapContentHeight = contentHeight;
+
+        const backdrop = new Node('FixedMapBackdrop');
+        backdrop.layer = Layers.Enum.UI_2D;
+        content.addChild(backdrop);
+        backdrop.setPosition(0, 0, 0);
+        backdrop.addComponent(UITransform).setContentSize(620, contentHeight);
+        const backdropG = backdrop.addComponent(Graphics);
+        backdropG.fillColor = new Color(242, 236, 214, 34);
+        backdropG.roundRect(-310, -contentHeight * 0.5, 620, contentHeight, 26);
+        backdropG.fill();
+
+        const nodes = [...this.nodePool.values()].sort((a, b) => a.depth - b.depth || this.getFixedMapNodeLane(a) - this.getFixedMapNodeLane(b));
+        const staticPathLayer = new Node('FixedMapStaticPaths');
+        staticPathLayer.layer = Layers.Enum.UI_2D;
+        content.addChild(staticPathLayer);
+        const staticPathG = staticPathLayer.addComponent(Graphics);
+        const pathOverlayLayer = new Node('FixedMapPathOverlay');
+        pathOverlayLayer.layer = Layers.Enum.UI_2D;
+        content.addChild(pathOverlayLayer);
+        this.fixedMapPathOverlayGraphics = pathOverlayLayer.addComponent(Graphics);
+
+        const nodePos = new Map<string, { x: number; y: number }>();
+        for (let i = 0; i < nodes.length; i++) {
+            const node = nodes[i];
+            nodePos.set(node.id, {
+                x: this.getFixedMapLaneX(this.getFixedMapNodeLane(node)),
+                y: this.getFixedMapNodeY(node.depth, contentHeight),
+            });
+        }
+        this.fixedMapNodePositions = nodePos;
+
+        for (let depth = 10; depth <= dungeon.maxDepth; depth += 10) {
+            const y = this.getFixedMapNodeY(depth, contentHeight);
+            const band = new Node(`DepthBand_${depth}`);
+            band.layer = Layers.Enum.UI_2D;
+            content.addChild(band);
+            band.setPosition(0, y, 0);
+            band.addComponent(UITransform).setContentSize(600, 22);
+            const bandG = band.addComponent(Graphics);
+            bandG.strokeColor = new Color(210, 196, 154, 60);
+            bandG.lineWidth = 1;
+            bandG.moveTo(-286, 0);
+            bandG.lineTo(286, 0);
+            bandG.stroke();
+            const label = this.createLabel(band, `${depth}层`, 14, new Vec3(268, 0, 0), new Color(210, 198, 170, 180));
+            label.horizontalAlign = HorizontalTextAlignment.CENTER;
+        }
+
+        for (let i = 0; i < nodes.length; i++) {
+            const node = nodes[i];
+            const from = nodePos.get(node.id);
+            if (!from) continue;
+            for (let j = 0; j < node.nextIds.length; j++) {
+                const nextId = node.nextIds[j];
+                const toNode = this.nodePool.get(nextId);
+                const to = nodePos.get(nextId);
+                if (!toNode || !to) continue;
+                this.drawFixedMapLink(staticPathG, from.x, from.y + 10, to.x, to.y - 10, !!toNode.prevIds?.includes(node.id), new Color(82, 86, 94, 34));
+            }
+        }
+
+        const nodeLayer = new Node('FixedMapNodes');
+        nodeLayer.layer = Layers.Enum.UI_2D;
+        content.addChild(nodeLayer);
+        for (let i = 0; i < nodes.length; i++) {
+            const node = nodes[i];
+            const pos = nodePos.get(node.id);
+            if (!pos) continue;
+            this.createFixedMapNodeChip(nodeLayer, node, pos.x, pos.y, 'future', -1);
+        }
+
+        const tipPanel = this.createPanel(mapFrame, 186, 62, -220, 188, new Color(22, 28, 34, 214));
+        this.fixedMapTipTitleLabel = this.createLabel(tipPanel, `当前 ${current.depth} 层`, 18, new Vec3(0, 12, 0), new Color(255, 244, 214, 255), 150);
+        this.fixedMapTipTitleLabel.horizontalAlign = HorizontalTextAlignment.CENTER;
+        this.fixedMapTipInfoLabel = this.createLabel(tipPanel, '', 13, new Vec3(0, -12, 0), new Color(190, 206, 220, 255), 158);
+        this.fixedMapTipInfoLabel.horizontalAlign = HorizontalTextAlignment.CENTER;
+
+        const overviewPanel = this.createPanel(mapFrame, 112, 158, 266, 146, new Color(20, 24, 30, 214));
+        const overviewTitle = this.createLabel(overviewPanel, '总览', 15, new Vec3(0, 60, 0), new Color(238, 230, 204, 255), 78);
+        overviewTitle.horizontalAlign = HorizontalTextAlignment.CENTER;
+        const overview = new Node('FixedMapOverview');
+        overview.layer = Layers.Enum.UI_2D;
+        overviewPanel.addChild(overview);
+        overview.setPosition(0, -4, 0);
+        overview.addComponent(UITransform).setContentSize(82, 108);
+        this.fixedMapOverviewGraphics = overview.addComponent(Graphics);
+        const locateBtn = this.createPanel(overviewPanel, 82, 26, 0, -58, new Color(62, 72, 84, 236));
+        const locateLabel = this.createLabel(locateBtn, '定位', 14, new Vec3(0, 0, 0), new Color(236, 244, 252, 255), 68);
+        locateLabel.horizontalAlign = HorizontalTextAlignment.CENTER;
+
+        const targetY = this.getFixedMapScrollTargetY(current.depth, contentHeight);
+        content.setPosition(0, targetY, 0);
+        this.attachVerticalDragScroll(viewport, content);
+        locateBtn.on(Node.EventType.TOUCH_END, () => {
+            if (!content.isValid) return;
+            content.setPosition(0, this.getFixedMapScrollTargetY(this.getCurrentDepth(), contentHeight), 0);
+        }, this);
+        this.updateFixedFullMapState();
     }
 
     private getMaterialSummary(record: Record<MaterialId, number>, maxItems = 3): string {
@@ -7288,8 +7802,63 @@ export class GrottoExpeditionDemo extends Component {
             this.expeditionManaLabel.string = `法力 ${Math.ceil(this.playerMana)}/${this.playerMaxMana}`;
         this.expeditionResLabel.string = `灵石 ${this.getSpiritStoneSummary(this.expeditionSpiritStoneInventory, 2)} · 材料 ${this.getMaterialSummary(this.expeditionMaterials, 2)} · 器经验 ${this.expeditionArtifactExp}${this.buffAtkPercent > 0 ? ' · 攻+' + Math.round(this.buffAtkPercent * 100) + '%' : ''}`;
         if (this.expeditionApLabel) this.expeditionApLabel.string = `行动力 ${this.actionPoints}/${this.actionPointMax}`;
-        if (this.expeditionRatioLabel) this.expeditionRatioLabel.string = `${dungeon.label} · 下一层卡牌预览 · ${this.getSlotRatioText()} · 历史最高 ${this.dungeonBestDepth[dungeon.id]}/${dungeon.maxDepth} · ${this.getWithdrawAssessmentText()}`;
+        if (this.expeditionRatioLabel) {
+            this.expeditionRatioLabel.string = this.shouldUseFullMapView()
+                ? `${dungeon.label} · 完整纵向地图 · 标签含小怪/精英/Boss/资源/问号/邪修 · 历史最高 ${this.dungeonBestDepth[dungeon.id]}/${dungeon.maxDepth} · ${this.getWithdrawAssessmentText()}`
+                : `${dungeon.label} · 下一层卡牌预览 · ${this.getSlotRatioText()} · 历史最高 ${this.dungeonBestDepth[dungeon.id]}/${dungeon.maxDepth} · ${this.getWithdrawAssessmentText()}`;
+        }
 
+        if (this.shouldUseFullMapView()) {
+            if (!this.fixedMapFrame?.isValid || !this.fixedMapFrame.parent) {
+                this.slotContainer.removeAllChildren();
+                this.renderFixedFullMap();
+            } else {
+                this.updateFixedFullMapState();
+                if (this.fixedMapContent?.isValid) {
+                    this.fixedMapContent.setPosition(0, this.getFixedMapScrollTargetY(this.getCurrentDepth(), this.fixedMapContentHeight), 0);
+                }
+            }
+
+            if (this.nextLayerBtn) this.nextLayerBtn.active = false;
+
+            this.withdrawBtn.active = true;
+            if (this.withdrawBtnLabel) {
+                if (this.canWithdrawSafelyAtCurrentNode()) {
+                    this.withdrawBtnLabel.string = '稳妥撤离(100%)';
+                    this.withdrawBtnLabel.color = new Color(180, 255, 180, 255);
+                } else {
+                    const ratioPct = 50 + (this.getCurrentDepth() - 1) * 0.5;
+                    this.withdrawBtnLabel.string = `冒险撤离(${ratioPct.toFixed(0)}%)`;
+                    this.withdrawBtnLabel.color = new Color(255, 220, 200, 255);
+                }
+            }
+
+            const choices = this.getCurrentChoiceNodes();
+            const revealedCount = choices.filter((s) => s.revealed).length;
+            const returnCost = 1 + Math.max(0, revealedCount - 1);
+            const canReturn = this.pathStack.length > 0 && this.canReturnAlongCurrentPath() && this.actionPoints >= returnCost;
+            if (this.returnToPrevBtnLabel) {
+                this.returnToPrevBtnLabel.string = this.pathStack.length === 0
+                    ? '已在起点'
+                    : this.canReturnAlongCurrentPath()
+                        ? `返回上一层(消耗${returnCost})`
+                        : '此路不可回退';
+                this.returnToPrevBtnLabel.color = canReturn ? new Color(255, 220, 200, 255) : new Color(140, 140, 140, 255);
+            }
+
+            if (this.interceptPanelVisible) {
+                this.slotContainer.active = false;
+                this.returnToPrevBtn.active = false;
+                this.withdrawBtn.active = false;
+                if (this.interceptOverlay) {
+                    this.interceptOverlay.active = true;
+                    this.interceptOverlay.setSiblingIndex(this.expeditionLayer.children.length - 1);
+                }
+                this.interceptPanel.active = true;
+                this.interceptPanel.setSiblingIndex(this.expeditionLayer.children.length - 1);
+            }
+            return;
+        }
         this.slotContainer.removeAllChildren();
         const pathFromY = 222;
         const choices = this.getCurrentChoiceNodes();
