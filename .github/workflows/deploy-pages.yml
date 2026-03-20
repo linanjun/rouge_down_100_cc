@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths:
+      - build/build-bundle/web-mobile/**
       - build/web-mobile/**
       - .github/workflows/deploy-pages.yml
       - README.md
@@ -34,6 +35,11 @@ jobs:
 
       - name: Ensure .nojekyll exists
         run: touch build/web-mobile/.nojekyll
+
+      - name: Merge build bundle resources
+        run: |
+          mkdir -p build/web-mobile/assets/resources
+          cp -r build/build-bundle/web-mobile/resources/. build/web-mobile/assets/resources/
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
