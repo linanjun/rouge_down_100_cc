@@ -387,8 +387,10 @@ const HOME_LAYOUT = {
 type GameState = 'home' | 'expedition_path' | 'combat' | 'lottery' | 'result';
 
 type DungeonId = 'qi' | 'zhuji' | 'jindan' | 'yuanying';
+type DungeonMode = 'normal' | 'elite';
 type ExpeditionMapMode = 'random' | 'fixed';
 type FixedBlueprintId = 'qi-fixed-100' | 'zhuji-fixed-100' | 'jindan-fixed-100' | 'yuanying-fixed-100';
+type EliteMoodTier = '蛰伏' | '苏醒' | '激荡' | '狂鸣' | '暴走';
 
 interface DungeonConfig {
     id: DungeonId;
@@ -449,6 +451,16 @@ const DUNGEON_CONFIGS: DungeonConfig[] = [
         bossHpMultiplier: 1.75, bossDamageMultiplier: 1.5, interceptHpMultiplier: 1.4, interceptDamageMultiplier: 1.3,
     },
 ];
+
+const ELITE_BASELINE_MOOD = 30;
+const ELITE_MAX_DEPTHS: Record<DungeonId, number> = {
+    qi: 20,
+    zhuji: 30,
+    jindan: 40,
+    yuanying: 50,
+};
+const ELITE_MOOD_THRESHOLDS = [20, 40, 60, 80];
+const ELITE_MOOD_LABELS: EliteMoodTier[] = ['蛰伏', '苏醒', '激荡', '狂鸣', '暴走'];
 
 const MAX_PROGRESS_CHESTS = 10;
 
@@ -1669,13 +1681,25 @@ export class GrottoExpeditionDemo extends Component {
     private selectedDungeonInfoLabel!: Label;
     private progressChestTitleLabel!: Label;
     private progressChestInfoLabel!: Label;
+    private dungeonModeButtonNodes: Record<DungeonMode, Node | null> = { normal: null, elite: null };
+    private dungeonModeButtonLabels: Record<DungeonMode, Label | null> = { normal: null, elite: null };
     private dungeonButtonNodes: Record<DungeonId, Node | null> = { qi: null, zhuji: null, jindan: null, yuanying: null };
     private dungeonButtonLabels: Record<DungeonId, Label | null> = { qi: null, zhuji: null, jindan: null, yuanying: null };
     private progressChestNodes: Node[] = [];
     private progressChestLabels: Label[] = [];
+    private selectedDungeonMode: DungeonMode = 'normal';
     private selectedDungeonId: DungeonId = 'qi';
     private dungeonBestDepth: Record<DungeonId, number> = { qi: 0, zhuji: 0, jindan: 0, yuanying: 0 };
+    private eliteDungeonBestDepth: Record<DungeonId, number> = { qi: 0, zhuji: 0, jindan: 0, yuanying: 0 };
     private claimedProgressChests: Record<string, boolean> = {};
+    private eliteDungeonMoodValues: Record<DungeonId, number> = { qi: ELITE_BASELINE_MOOD, zhuji: ELITE_BASELINE_MOOD, jindan: ELITE_BASELINE_MOOD, yuanying: ELITE_BASELINE_MOOD };
+    private eliteDungeonFirstDeathKeys: Record<DungeonId, string> = { qi: '', zhuji: '', jindan: '', yuanying: '' };
+    private eliteDungeonResetKey = '';
+    private activeDungeonMode: DungeonMode = 'normal';
+    private activeDungeonRuntimeConfig: DungeonConfig | null = null;
+    private activeDungeonId: DungeonId = 'qi';
+    private activeEliteMoodValue = ELITE_BASELINE_MOOD;
+    private activeEliteMoodTier: EliteMoodTier = '苏醒';
 
     /** 抽奖转盘：当前 8 个选项与预选结果索引（用于动画落点） */
     private lotteryWheelEntries: LotteryWheelEntry[] = [];
@@ -3764,13 +3788,26 @@ export class GrottoExpeditionDemo extends Component {
         this.createStandardHomeHeader(this.homeMijingView, '秘境历练', '选择目标秘境，累计深度宝箱并在合适时机入场推进。', new Color(40, 48, 58, 245), new Color(236, 228, 208, 255), new Color(164, 184, 202, 255));
 
         const dungeonPanel = this.createPanel(this.homeMijingView, 676, 248, 0, 160, new Color(40, 48, 58, 245));
-        this.createSectionHeader(dungeonPanel, '选择秘境', '四类秘境按成长阶段分层开放，建议根据当前缺口选择推进路线。', new Color(196, 214, 232, 255), '境');
-        this.selectedDungeonInfoLabel = this.createLabel(dungeonPanel, '', 18, new Vec3(0, 56, 0), new Color(150, 175, 195, 255), 620);
+        this.createSectionHeader(dungeonPanel, '选择秘境', '普通秘境走稳态资源，精英秘境走高压挑战；两者都只开放当前境界对应秘境。', new Color(196, 214, 232, 255), '境');
+        this.selectedDungeonInfoLabel = this.createLabel(dungeonPanel, '', 16, new Vec3(0, 86, 0), new Color(150, 175, 195, 255), 620);
+
+        const normalModeBtn = this.createPanel(dungeonPanel, 154, 40, -92, 36, new Color(54, 60, 70, 255));
+        const normalModeLabel = this.createLabel(normalModeBtn, '普通秘境', 20, new Vec3(0, 0, 0), new Color(224, 232, 240, 255), 120);
+        normalModeBtn.on(Node.EventType.TOUCH_END, () => this.selectDungeonMode('normal'), this);
+        this.dungeonModeButtonNodes.normal = normalModeBtn;
+        this.dungeonModeButtonLabels.normal = normalModeLabel;
+
+        const eliteModeBtn = this.createPanel(dungeonPanel, 154, 40, 92, 36, new Color(66, 54, 58, 255));
+        const eliteModeLabel = this.createLabel(eliteModeBtn, '精英秘境', 20, new Vec3(0, 0, 0), new Color(236, 224, 216, 255), 120);
+        eliteModeBtn.on(Node.EventType.TOUCH_END, () => this.selectDungeonMode('elite'), this);
+        this.dungeonModeButtonNodes.elite = eliteModeBtn;
+        this.dungeonModeButtonLabels.elite = eliteModeLabel;
+
         DUNGEON_CONFIGS.forEach((config, index) => {
             const col = index % 2;
             const row = Math.floor(index / 2);
             const x = col === 0 ? -145 : 145;
-            const y = row === 0 ? 6 : -66;
+            const y = row === 0 ? -20 : -92;
             const btn = this.createPanel(dungeonPanel, 250, 54, x, y, new Color(54, 60, 70, 255));
             const label = this.createLabel(btn, config.label, 22, new Vec3(0, 0, 0), new Color(220, 230, 240, 255), 220);
             btn.on(Node.EventType.TOUCH_END, () => this.selectDungeon(config.id), this);
@@ -5481,11 +5518,17 @@ export class GrottoExpeditionDemo extends Component {
     private getExpeditionEncounterText(slot: MapNode) {
         switch (slot.type) {
             case 'monster':
-                return '妖气翻涌，可强攻夺路。';
+                return this.isEliteDungeonActive()
+                    ? '灵性回潮翻涌，这一层的前哨已被活秘境催醒。'
+                    : '妖气翻涌，可强攻夺路。';
             case 'elite':
-                return '前方妖煞成团，像是盘踞此层的精英异种。';
+                return this.isEliteDungeonActive()
+                    ? '前方异种被秘境灵性拧成一体，像是本阶段的试锋口。'
+                    : '前方妖煞成团，像是盘踞此层的精英异种。';
             case 'boss':
-                return '前方威压陡增，已逼近本层镇守。';
+                return this.isEliteDungeonActive()
+                    ? '前方封门威压骤起，镇住它才能继续压秘境的气焰。'
+                    : '前方威压陡增，已逼近本层镇守。';
             case 'trap':
                 return '阵纹晦暗不明，贸然触发多半要吃亏。';
             case 'buff':
@@ -5509,11 +5552,17 @@ export class GrottoExpeditionDemo extends Component {
         const costText = `耗 ${cost} 点行动力`;
         switch (slot.type) {
             case 'monster':
-                return `${costText}，正面破局，胜则开路并拿战利。`;
+                return this.isEliteDungeonActive()
+                    ? `${costText}，强闯精英层前哨。当前灵性会放大伤害与掉落。`
+                    : `${costText}，正面破局，胜则开路并拿战利。`;
             case 'elite':
-                return `${costText}，强压精英妖兽，收益更高但战损更重。`;
+                return this.isEliteDungeonActive()
+                    ? `${costText}，强压阶段精英，收益更高但战损更重。${this.getEliteBossPrompt(this.getCurrentDepth(), this.getDungeonConfig().maxDepth)}`
+                    : `${costText}，强压精英妖兽，收益更高但战损更重。`;
             case 'boss':
-                return `${costText}，压上状态强闯镇守，赢下即可稳妥撤离。`;
+                return this.isEliteDungeonActive()
+                    ? `${costText}，压上状态强闯封门者，赢下即可镇压撤出并压低共享灵性。`
+                    : `${costText}，压上状态强闯镇守，赢下即可稳妥撤离。`;
             case 'trap':
                 return `${costText}，强行试探陷阱，可能立刻折损状态。`;
             case 'buff':
@@ -6222,6 +6271,124 @@ export class GrottoExpeditionDemo extends Component {
         if (level <= 18) return `筑基${level - 9}重`;
         if (level <= 27) return `金丹${level - 18}转`;
         return `元婴${level - 27}变`;
+    }
+
+    private getCurrentRealmDungeonId(): DungeonId {
+        if (this.realmLevel <= 9) return 'qi';
+        if (this.realmLevel <= 18) return 'zhuji';
+        if (this.realmLevel <= 27) return 'jindan';
+        return 'yuanying';
+    }
+
+    private isCurrentRealmDungeon(id: DungeonId) {
+        return this.getCurrentRealmDungeonId() === id;
+    }
+
+    private getTodayKey() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = `${now.getMonth() + 1}`.padStart(2, '0');
+        const day = `${now.getDate()}`.padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    private ensureEliteDungeonDailyState() {
+        const today = this.getTodayKey();
+        if (this.eliteDungeonResetKey === today) return;
+        this.eliteDungeonResetKey = today;
+        this.eliteDungeonMoodValues = {
+            qi: ELITE_BASELINE_MOOD,
+            zhuji: ELITE_BASELINE_MOOD,
+            jindan: ELITE_BASELINE_MOOD,
+            yuanying: ELITE_BASELINE_MOOD,
+        };
+        this.eliteDungeonFirstDeathKeys = { qi: '', zhuji: '', jindan: '', yuanying: '' };
+    }
+
+    private getEliteMoodTier(value: number): EliteMoodTier {
+        if (value < ELITE_MOOD_THRESHOLDS[0]) return ELITE_MOOD_LABELS[0];
+        if (value < ELITE_MOOD_THRESHOLDS[1]) return ELITE_MOOD_LABELS[1];
+        if (value < ELITE_MOOD_THRESHOLDS[2]) return ELITE_MOOD_LABELS[2];
+        if (value < ELITE_MOOD_THRESHOLDS[3]) return ELITE_MOOD_LABELS[3];
+        return ELITE_MOOD_LABELS[4];
+    }
+
+    private getEliteMoodTierIndex(value: number) {
+        const tier = this.getEliteMoodTier(value);
+        return ELITE_MOOD_LABELS.indexOf(tier);
+    }
+
+    private getEliteMaxDepth(id: DungeonId) {
+        return ELITE_MAX_DEPTHS[id];
+    }
+
+    private clampEliteMood(value: number) {
+        return Math.max(0, Math.min(100, Math.floor(value)));
+    }
+
+    private adjustEliteMoodValue(id: DungeonId, delta: number) {
+        this.ensureEliteDungeonDailyState();
+        this.eliteDungeonMoodValues[id] = this.clampEliteMood((this.eliteDungeonMoodValues[id] ?? ELITE_BASELINE_MOOD) + delta);
+        return this.eliteDungeonMoodValues[id];
+    }
+
+    private getEliteMoodSummary(id: DungeonId = this.selectedDungeonId) {
+        this.ensureEliteDungeonDailyState();
+        const value = this.eliteDungeonMoodValues[id] ?? ELITE_BASELINE_MOOD;
+        const tier = this.getEliteMoodTier(value);
+        const counted = this.eliteDungeonFirstDeathKeys[id] === this.getTodayKey();
+        return `${tier} ${value}/100 · 今日首次死亡${counted ? '已计入' : '未计入'} · 每日重置到苏醒`;
+    }
+
+    private getDungeonPreviewConfig(id: DungeonId = this.selectedDungeonId, mode: DungeonMode = this.selectedDungeonMode): DungeonConfig {
+        const base = DUNGEON_CONFIGS.find((config) => config.id === id) || DUNGEON_CONFIGS[0];
+        if (mode === 'normal') return base;
+        this.ensureEliteDungeonDailyState();
+        const moodValue = this.eliteDungeonMoodValues[id] ?? ELITE_BASELINE_MOOD;
+        const moodTierIndex = this.getEliteMoodTierIndex(moodValue);
+        const rewardScale = 1.28 + moodTierIndex * 0.12;
+        const enemyScale = 1.2 + moodTierIndex * 0.08;
+        const bossScale = 1.35 + moodTierIndex * 0.12;
+        return {
+            ...base,
+            label: `${base.label}·精英`,
+            maxDepth: this.getEliteMaxDepth(id),
+            mapMode: 'random',
+            difficultyDepthOffset: base.difficultyDepthOffset + 6 + moodTierIndex * 4,
+            slotWeights: {
+                empty: 0,
+                herb: Math.max(6, base.slotWeights.herb - 10),
+                stone: Math.max(8, base.slotWeights.stone - 6),
+                treasure: base.slotWeights.treasure + 8,
+                monster: base.slotWeights.monster + 18,
+                trap: base.slotWeights.trap + 8,
+                buff: Math.max(6, base.slotWeights.buff - 4),
+                intercept: 0,
+            },
+            rarityBias: base.rarityBias + 6 + moodTierIndex * 2,
+            herbDropMultiplier: base.herbDropMultiplier * rewardScale,
+            stoneDropMultiplier: base.stoneDropMultiplier * rewardScale,
+            treasureDropMultiplier: base.treasureDropMultiplier * (rewardScale + 0.1),
+            combatRewardMultiplier: base.combatRewardMultiplier * (rewardScale + 0.12),
+            enemyHpMultiplier: base.enemyHpMultiplier * enemyScale,
+            enemyDamageMultiplier: base.enemyDamageMultiplier * (1.16 + moodTierIndex * 0.08),
+            enemySpeedMultiplier: base.enemySpeedMultiplier * (1.04 + moodTierIndex * 0.03),
+            bossHpMultiplier: base.bossHpMultiplier * bossScale,
+            bossDamageMultiplier: base.bossDamageMultiplier * (1.24 + moodTierIndex * 0.1),
+            interceptHpMultiplier: base.interceptHpMultiplier * enemyScale,
+            interceptDamageMultiplier: base.interceptDamageMultiplier * (1.18 + moodTierIndex * 0.08),
+        };
+    }
+
+    private selectDungeonMode(mode: DungeonMode) {
+        this.ensureEliteDungeonDailyState();
+        this.selectedDungeonMode = mode;
+        this.selectedDungeonId = this.getCurrentRealmDungeonId();
+        const preview = this.getDungeonPreviewConfig(this.selectedDungeonId, mode);
+        this.hintLabel.string = mode === 'elite'
+            ? `已切换至精英秘境。当前共享状态 ${this.getEliteMoodSummary(this.selectedDungeonId)}。`
+            : `已切换至普通秘境。当前仅可进入与你境界相符的 ${preview.label}。`;
+        this.refreshHomeStatus();
     }
 
     private getKungfuDef(id: KungfuId): KungfuDef {
@@ -6978,6 +7145,7 @@ export class GrottoExpeditionDemo extends Component {
 
     private enterHome() {
         this.state = 'home';
+        this.activeDungeonRuntimeConfig = null;
         this.homeLayer.active = true;
         this.expeditionLayer.active = false;
         this.combatLayer.active = false;
@@ -6987,13 +7155,15 @@ export class GrottoExpeditionDemo extends Component {
         this.setBgTexture('grotto-bg');
     }
 
-    private getDungeonConfig(id: DungeonId = this.selectedDungeonId): DungeonConfig {
-        return DUNGEON_CONFIGS.find((config) => config.id === id) || DUNGEON_CONFIGS[0];
+    private getDungeonConfig(id?: DungeonId): DungeonConfig {
+        if (id) return DUNGEON_CONFIGS.find((config) => config.id === id) || DUNGEON_CONFIGS[0];
+        if (this.state !== 'home' && this.activeDungeonRuntimeConfig) return this.activeDungeonRuntimeConfig;
+        return DUNGEON_CONFIGS.find((config) => config.id === this.selectedDungeonId) || DUNGEON_CONFIGS[0];
     }
 
     private getProgressMilestones(id: DungeonId): number[] {
         const milestones: number[] = [];
-        const maxDepth = this.getDungeonConfig(id).maxDepth;
+        const maxDepth = (DUNGEON_CONFIGS.find((config) => config.id === id) || DUNGEON_CONFIGS[0]).maxDepth;
         for (let floor = 10; floor <= maxDepth; floor += 10) milestones.push(floor);
         return milestones;
     }
@@ -7008,22 +7178,35 @@ export class GrottoExpeditionDemo extends Component {
             this.hintLabel.string = `${config.label} 需修为 ${config.unlockRealm} 层解锁。`;
             return;
         }
+        if (!this.isCurrentRealmDungeon(id)) {
+            this.hintLabel.string = `${config.label} 非当前境界入口。当前仅可进入 ${this.getDungeonConfig(this.getCurrentRealmDungeonId()).label}${this.selectedDungeonMode === 'elite' ? '·精英' : ''}。`;
+            return;
+        }
         this.selectedDungeonId = id;
-        this.hintLabel.string = `已选择 ${config.label}，共 ${config.maxDepth} 层。${this.getCurrentMainlineGoalHint()}`;
+        const preview = this.getDungeonPreviewConfig(id, this.selectedDungeonMode);
+        this.hintLabel.string = this.selectedDungeonMode === 'elite'
+            ? `已选择 ${preview.label}，共 ${preview.maxDepth} 层。当前共享状态 ${this.getEliteMoodSummary(id)}。`
+            : `已选择 ${preview.label}，共 ${preview.maxDepth} 层。${this.getCurrentMainlineGoalHint()}`;
         this.refreshHomeStatus();
     }
 
     private tryStartExpedition() {
-        const config = this.getDungeonConfig();
+        const config = this.getDungeonPreviewConfig();
         if (!this.isDungeonUnlocked(config.id)) {
             this.hintLabel.string = `${config.label} 需修为 ${config.unlockRealm} 层解锁。`;
+            return;
+        }
+        if (!this.isCurrentRealmDungeon(this.selectedDungeonId)) {
+            this.hintLabel.string = `当前境界仅可进入 ${this.getDungeonConfig(this.getCurrentRealmDungeonId()).label}${this.selectedDungeonMode === 'elite' ? '·精英' : ''}。`;
             return;
         }
         const equippedKungfu = this.getEquippedKungfuDef();
         const petText = this.equippedSpiritPetId && this.spiritPetUnlocked[this.equippedSpiritPetId]
             ? this.getSpiritPetDef(this.equippedSpiritPetId).name
             : '未出战';
-        this.hintLabel.string = `进入 ${config.label}。当前运转功法 ${equippedKungfu.name}，灵宠 ${petText}。${this.getCurrentMainlineGoalHint()}`;
+        this.hintLabel.string = this.selectedDungeonMode === 'elite'
+            ? `进入 ${config.label}。当前共享状态 ${this.getEliteMoodSummary(this.selectedDungeonId)}，本局锁定 ${this.getEliteMoodTier(this.eliteDungeonMoodValues[this.selectedDungeonId] ?? ELITE_BASELINE_MOOD)}。`
+            : `进入 ${config.label}。当前运转功法 ${equippedKungfu.name}，灵宠 ${petText}。${this.getCurrentMainlineGoalHint()}`;
         this.startExpedition();
     }
 
@@ -7061,6 +7244,10 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private claimProgressChest(index: number) {
+        if (this.selectedDungeonMode === 'elite') {
+            this.hintLabel.string = '精英秘境不产出进度宝箱，请查看共享状态与历史最深记录。';
+            return;
+        }
         const config = this.getDungeonConfig();
         const milestones = this.getProgressMilestones(config.id);
         if (index >= milestones.length) return;
@@ -7087,6 +7274,10 @@ export class GrottoExpeditionDemo extends Component {
 
     private recordDungeonProgress(depth: number = this.getCurrentDepth()) {
         const config = this.getDungeonConfig();
+        if (this.activeDungeonMode === 'elite') {
+            this.eliteDungeonBestDepth[config.id] = Math.max(this.eliteDungeonBestDepth[config.id], Math.min(depth, config.maxDepth));
+            return;
+        }
         this.dungeonBestDepth[config.id] = Math.max(this.dungeonBestDepth[config.id], Math.min(depth, config.maxDepth));
     }
 
@@ -7101,7 +7292,89 @@ export class GrottoExpeditionDemo extends Component {
         return this.combatSlotIndex >= 0 && this.combatSlotIndex < choices.length ? choices[this.combatSlotIndex] : null;
     }
 
+    private getCurrentDungeonMode() {
+        return this.state === 'home' ? this.selectedDungeonMode : this.activeDungeonMode;
+    }
+
+    private isEliteDungeonActive() {
+        return this.getCurrentDungeonMode() === 'elite';
+    }
+
+    private getCurrentBossInterval() {
+        return this.isEliteDungeonActive() ? 5 : 10;
+    }
+
+    private getEliteMoodDeltaByDepth(depth: number, isBoss: boolean) {
+        const stage = Math.max(1, Math.ceil(depth / 5));
+        return isBoss ? 6 + stage * 2 : 4 + stage;
+    }
+
+    private applyEliteDeathPressure(depth: number, isBoss: boolean) {
+        if (this.activeDungeonMode !== 'elite') return { counted: false, mood: this.eliteDungeonMoodValues[this.activeDungeonId] ?? ELITE_BASELINE_MOOD };
+        this.ensureEliteDungeonDailyState();
+        const today = this.getTodayKey();
+        if (this.eliteDungeonFirstDeathKeys[this.activeDungeonId] === today) {
+            return { counted: false, mood: this.eliteDungeonMoodValues[this.activeDungeonId] ?? ELITE_BASELINE_MOOD };
+        }
+        this.eliteDungeonFirstDeathKeys[this.activeDungeonId] = today;
+        const mood = this.adjustEliteMoodValue(this.activeDungeonId, this.getEliteMoodDeltaByDepth(depth, isBoss));
+        return { counted: true, mood };
+    }
+
+    private applyEliteRetreatRelief(depth: number) {
+        if (this.activeDungeonMode !== 'elite') return this.eliteDungeonMoodValues[this.activeDungeonId] ?? ELITE_BASELINE_MOOD;
+        const stage = Math.max(1, Math.floor(depth / 5));
+        return this.adjustEliteMoodValue(this.activeDungeonId, -(4 + stage * 2));
+    }
+
+    private getEliteDifficultyMultiplier(value: number) {
+        return 1.2 + this.getEliteMoodTierIndex(value) * 0.08;
+    }
+
+    private getEliteRewardMultiplier(value: number) {
+        return 1.28 + this.getEliteMoodTierIndex(value) * 0.12;
+    }
+
+    private getEliteStageIndex(depth: number, interval = 5) {
+        return Math.max(1, Math.ceil(depth / interval));
+    }
+
+    private getEliteStageRewardMultiplier(depth: number) {
+        return 1 + (this.getEliteStageIndex(depth) - 1) * 0.3;
+    }
+
+    private getEliteNextBossDepth(depth: number, maxDepth: number) {
+        return Math.min(maxDepth, Math.max(5, Math.ceil(depth / 5) * 5));
+    }
+
+    private getEliteHomeSummary(id: DungeonId) {
+        this.ensureEliteDungeonDailyState();
+        const moodValue = this.eliteDungeonMoodValues[id] ?? ELITE_BASELINE_MOOD;
+        const moodTier = this.getEliteMoodTier(moodValue);
+        const difficultyPct = Math.round(this.getEliteDifficultyMultiplier(moodValue) * 100);
+        const rewardPct = Math.round(this.getEliteRewardMultiplier(moodValue) * 100);
+        const nextBossDepth = this.getEliteNextBossDepth(1, this.getEliteMaxDepth(id));
+        return `共享状态 ${moodTier} ${moodValue}/100 | 难度 ${difficultyPct}% | 奖励 ${rewardPct}%\n每 5 层 1 个 Boss，首次死亡才会抬高灵性，下一次封门者在 ${nextBossDepth} 层`;
+    }
+
+    private getEliteRunSummary(depth: number, maxDepth: number) {
+        const difficultyPct = Math.round(this.getEliteDifficultyMultiplier(this.activeEliteMoodValue) * 100);
+        const rewardPct = Math.round(this.getEliteRewardMultiplier(this.activeEliteMoodValue) * 100);
+        const stageRewardPct = Math.round(this.getEliteStageRewardMultiplier(depth) * 100);
+        const nextBossDepth = this.getEliteNextBossDepth(depth, maxDepth);
+        return `本局锁定 ${this.activeEliteMoodTier} ${this.activeEliteMoodValue}/100 · 难度 ${difficultyPct}% · 奖励 ${rewardPct}% · 阶段收益 ${stageRewardPct}% · 下个 Boss ${nextBossDepth} 层`;
+    }
+
+    private getEliteBossPrompt(depth: number, maxDepth: number) {
+        const stage = this.getEliteStageIndex(depth);
+        const nextBossDepth = this.getEliteNextBossDepth(depth, maxDepth);
+        const stageRewardPct = Math.round(this.getEliteStageRewardMultiplier(nextBossDepth) * 100);
+        return `当前第 ${stage} 阶段 · 封门者位于 ${nextBossDepth} 层 · 击败后方可撤出 · 阶段奖励 ${stageRewardPct}%`;
+    }
+
     private refreshHomeStatus() {
+        this.ensureEliteDungeonDailyState();
+        if (!this.isCurrentRealmDungeon(this.selectedDungeonId)) this.selectedDungeonId = this.getCurrentRealmDungeonId();
         this.ensureShopRefreshState();
         this.ensureTaskRefreshState();
         const artifactBonuses = this.getEquippedArtifactBonuses();
@@ -7114,7 +7387,8 @@ export class GrottoExpeditionDemo extends Component {
         this.actionPointMax = ACTION_POINT_BASE + (this.realmLevel - 1) * 10 + this.shopBonusAction + artifactBonuses.action;
         this.playerHp = Math.min(this.playerHp || this.playerMaxHp, this.playerMaxHp);
         this.playerMana = Math.min(this.playerMana || this.playerMaxMana, this.playerMaxMana);
-        const current = this.getDungeonConfig();
+        const current = this.getDungeonConfig(this.selectedDungeonId);
+        const preview = this.getDungeonPreviewConfig(this.selectedDungeonId, this.selectedDungeonMode);
         const best = this.dungeonBestDepth[current.id] || 0;
         const milestones = this.getProgressMilestones(current.id);
         const nextUnclaimed = milestones.find((milestone) => !this.claimedProgressChests[this.getProgressChestKey(current.id, milestone)]);
@@ -7130,6 +7404,9 @@ export class GrottoExpeditionDemo extends Component {
         if (this.roleDungeonLabel) {
             this.roleDungeonLabel.string = `突破成功率 ${(this.getTribulationSuccessRate() * 100).toFixed(0)}%  |  清心台 Lv.${this.getBuildingLevel('gather')}  |  护山大阵 Lv.${this.getBuildingLevel('ward')}`;
         }
+        const expeditionPetText = this.equippedSpiritPetId && this.spiritPetUnlocked[this.equippedSpiritPetId]
+            ? this.getSpiritPetDef(this.equippedSpiritPetId).name
+            : '未出战';
         if (this.roleDungeonProgressLabel) this.roleDungeonProgressLabel.string = `当前功法 ${kungfu.name} Lv.${this.getKungfuLevel(kungfu.id)}  |  参悟需灵石 ${this.getKungfuUpgradeCost(kungfu.id)}  |  灵宠 ${expeditionPetText}`;
         if (this.roleRealmButton && this.roleRealmButtonLabel) {
             const canBreakthrough = this.realmExp >= this.realmExpNeed;
@@ -7156,28 +7433,54 @@ export class GrottoExpeditionDemo extends Component {
         if (this.spiritPetNameLabel) this.spiritPetNameLabel.string = `${selectedPet.name} Lv.${this.getSpiritPetLevel(selectedPet.id)}${this.equippedSpiritPetId === selectedPet.id ? ' · 出战中' : this.spiritPetUnlocked[selectedPet.id] ? '' : ' · 未收服'}`;
         if (this.spiritPetInfoLabel) this.spiritPetInfoLabel.string = `${selectedPet.title}\n${selectedPet.summary}`;
         if (this.spiritPetEffectLabel) this.spiritPetEffectLabel.string = this.getSpiritPetEffectSummary(selectedPet.id);
-        const expeditionPetText = this.equippedSpiritPetId && this.spiritPetUnlocked[this.equippedSpiritPetId]
-            ? this.getSpiritPetDef(this.equippedSpiritPetId).name
-            : '未出战';
-        this.selectedDungeonInfoLabel.string = `当前：${current.label} | 功法 ${kungfu.name} | 灵宠 ${expeditionPetText} | 总层数 ${current.maxDepth}\n${this.getCurrentMainlineGoalText()}`;
+        if (this.selectedDungeonInfoLabel) {
+            if (this.selectedDungeonMode === 'elite') {
+                const eliteBest = this.eliteDungeonBestDepth[current.id] || 0;
+                this.selectedDungeonInfoLabel.string = `当前：${preview.label} | 当前境界专属 | 总层数 ${preview.maxDepth} | 历史最深 ${eliteBest}/${preview.maxDepth}\n${this.getEliteHomeSummary(current.id)}`;
+            } else {
+                this.selectedDungeonInfoLabel.string = `当前：${current.label} | 功法 ${kungfu.name} | 灵宠 ${expeditionPetText} | 总层数 ${current.maxDepth}\n${this.getCurrentMainlineGoalText()}`;
+            }
+        }
+        (['normal', 'elite'] as DungeonMode[]).forEach((mode) => {
+            const button = this.dungeonModeButtonNodes[mode];
+            const label = this.dungeonModeButtonLabels[mode];
+            if (!button || !label) return;
+            const selected = this.selectedDungeonMode === mode;
+            const accent = mode === 'elite' ? new Color(214, 148, 140, 255) : new Color(148, 198, 214, 255);
+            this.styleSelectionButton(button, selected, accent, new Color(54, 60, 70, 255), new Color(220, 230, 240, 255), false);
+            label.color = selected ? new Color(255, 248, 220, 255) : new Color(214, 224, 234, 255);
+        });
         DUNGEON_CONFIGS.forEach((config) => {
             const button = this.dungeonButtonNodes[config.id];
             const label = this.dungeonButtonLabels[config.id];
             if (!button || !label) return;
             const unlocked = this.isDungeonUnlocked(config.id);
+            const currentRealm = this.isCurrentRealmDungeon(config.id);
             const selected = this.selectedDungeonId === config.id;
-            this.styleSelectionButton(button, selected && unlocked, config.accent, new Color(54, 60, 70, 255), new Color(220, 230, 240, 255), !unlocked);
-            label.string = unlocked ? `${config.label} ${config.maxDepth}层` : `${config.label} (${config.unlockRealm}层解锁)`;
-            label.color = !unlocked
+            const locked = !unlocked || !currentRealm;
+            this.styleSelectionButton(button, selected && !locked, config.accent, new Color(54, 60, 70, 255), new Color(220, 230, 240, 255), locked);
+            label.string = !unlocked
+                ? `${config.label} (${config.unlockRealm}层解锁)`
+                : !currentRealm
+                    ? `${config.label} · 非当前境界`
+                    : this.selectedDungeonMode === 'elite'
+                        ? `${config.label}·精英 ${this.getEliteMaxDepth(config.id)}层`
+                        : `${config.label} ${config.maxDepth}层`;
+            label.color = locked
                 ? new Color(130, 130, 140, 255)
                 : selected ? new Color(255, 248, 220, 255) : new Color(220, 230, 240, 255);
         });
 
-        this.progressChestTitleLabel.string = `${current.label} 进度宝箱`;
-        if (nextUnclaimed) {
+        if (this.selectedDungeonMode === 'elite') {
+            const eliteBest = this.eliteDungeonBestDepth[current.id] || 0;
+            this.progressChestTitleLabel.string = `${current.label}·精英 状态总览`;
+            this.progressChestInfoLabel.string = `历史最深 ${eliteBest}/${this.getEliteMaxDepth(current.id)} | ${this.getEliteMoodSummary(current.id)} | 进入后锁定当局状态。`;
+        } else if (nextUnclaimed) {
             const rewards = this.getProgressChestRewards(current, nextUnclaimed);
+            this.progressChestTitleLabel.string = `${current.label} 进度宝箱`;
             this.progressChestInfoLabel.string = `历史最深 ${best}/${current.maxDepth} 层 | ${nextUnclaimed}层奖励：灵石折值+${rewards.spiritStone} 修为+${rewards.exp} 秘晶+${rewards.mysticCrystal}`;
         } else {
+            this.progressChestTitleLabel.string = `${current.label} 进度宝箱`;
             this.progressChestInfoLabel.string = `历史最深 ${best}/${current.maxDepth} 层 | 本秘境进度宝箱已全部领取`;
         }
         for (let i = 0; i < MAX_PROGRESS_CHESTS; i++) {
@@ -7185,6 +7488,10 @@ export class GrottoExpeditionDemo extends Component {
             const chestLabel = this.progressChestLabels[i];
             const milestone = milestones[i];
             if (!chestNode || !chestLabel) continue;
+            if (this.selectedDungeonMode === 'elite') {
+                chestNode.active = false;
+                continue;
+            }
             if (!milestone) {
                 chestNode.active = false;
                 continue;
@@ -7239,6 +7546,12 @@ export class GrottoExpeditionDemo extends Component {
 
     private startExpedition() {
         const artifactBonuses = this.getEquippedArtifactBonuses();
+        this.ensureEliteDungeonDailyState();
+        this.activeDungeonMode = this.selectedDungeonMode;
+        this.activeDungeonId = this.selectedDungeonId;
+        this.activeDungeonRuntimeConfig = this.getDungeonPreviewConfig(this.activeDungeonId, this.activeDungeonMode);
+        this.activeEliteMoodValue = this.eliteDungeonMoodValues[this.activeDungeonId] ?? ELITE_BASELINE_MOOD;
+        this.activeEliteMoodTier = this.getEliteMoodTier(this.activeEliteMoodValue);
         const dungeon = this.getDungeonConfig();
         this.resetFixedFullMapCache();
         this.slotContainer.removeAllChildren();
@@ -7247,7 +7560,7 @@ export class GrottoExpeditionDemo extends Component {
         this.expeditionLayer.active = true;
         this.combatLayer.active = false;
         this.resultLayer.active = false;
-        const dungeonBg = this.selectedDungeonId === 'qi' ? 'dungeon-qi-bg' : 'dungeon-deep-bg';
+        const dungeonBg = this.activeDungeonId === 'qi' ? 'dungeon-qi-bg' : 'dungeon-deep-bg';
         this.setBgTexture(dungeonBg, dungeonBg === 'dungeon-deep-bg' ? 'dungeon-qi-bg' : undefined);
 
         _nextNodeId = 0;
@@ -7378,21 +7691,23 @@ export class GrottoExpeditionDemo extends Component {
         const nextDepth = node.depth + 1;
         const dungeon = this.getDungeonConfig();
         if (dungeon.mapMode === 'fixed') return;
-        const isBossDepth = nextDepth >= 10 && nextDepth % 10 === 0;
+        const bossInterval = this.getCurrentBossInterval();
+        const isBossDepth = nextDepth >= bossInterval && nextDepth % bossInterval === 0;
         if (isBossDepth) {
             const bossId = nextNodeId();
             this.nodePool.set(bossId, { id: bossId, depth: nextDepth, type: 'boss', revealed: false, nextIds: [] });
             node.nextIds = [bossId];
             return;
         }
-        const count = Math.max(nextDepth >= 5 && nextDepth % 10 === 5 ? 2 : 1, 1 + Math.floor(Math.random() * 3));
+        const elitePreviewDepth = bossInterval - 1;
+        const count = Math.max(nextDepth >= elitePreviewDepth && nextDepth % bossInterval === elitePreviewDepth ? 2 : 1, 1 + Math.floor(Math.random() * 3));
         const existingAtDepth = this.getNodesAtDepth(nextDepth);
         const useMerge = existingAtDepth.length > 0 && Math.random() < MERGE_PROB;
         const newCount = useMerge ? Math.max(1, count - 1) : count;
-        const isInterceptLayer = nextDepth >= 5 && nextDepth % 10 === 5;
+        const isInterceptLayer = !this.isEliteDungeonActive() && nextDepth >= 5 && nextDepth % 10 === 5;
         const hasInterceptAlready = existingAtDepth.some((n) => n.type === 'intercept');
         const interceptIndex = isInterceptLayer && !hasInterceptAlready ? Math.floor(Math.random() * newCount) : -1;
-        const battleType: SlotType = nextDepth % 5 === 0 ? 'elite' : 'monster';
+        const battleType: SlotType = nextDepth % bossInterval === elitePreviewDepth ? 'elite' : 'monster';
         const battleCandidates: number[] = [];
         for (let i = 0; i < newCount; i++) {
             if (i !== interceptIndex) battleCandidates.push(i);
@@ -8403,9 +8718,14 @@ export class GrottoExpeditionDemo extends Component {
         this.expeditionResLabel.string = `灵石 ${this.getSpiritStoneSummary(this.expeditionSpiritStoneInventory, 2)} · 材料 ${this.getMaterialSummary(this.expeditionMaterials, 2)} · 器经验 ${this.expeditionArtifactExp}${this.buffAtkPercent > 0 ? ' · 攻+' + Math.round(this.buffAtkPercent * 100) + '%' : ''}`;
         if (this.expeditionApLabel) this.expeditionApLabel.string = `行动力 ${this.actionPoints}/${this.actionPointMax}`;
         if (this.expeditionRatioLabel) {
-            this.expeditionRatioLabel.string = this.shouldUseFullMapView()
-                ? `${dungeon.label} · 完整纵向地图 · 标签含小怪/精英/Boss/资源/问号/邪修 · 历史最高 ${this.dungeonBestDepth[dungeon.id]}/${dungeon.maxDepth} · ${this.getWithdrawAssessmentText()}`
-                : `${dungeon.label} · 下一层卡牌预览 · ${this.getSlotRatioText()} · 历史最高 ${this.dungeonBestDepth[dungeon.id]}/${dungeon.maxDepth} · ${this.getWithdrawAssessmentText()}`;
+            const historyDepth = this.activeDungeonMode === 'elite' ? this.eliteDungeonBestDepth[dungeon.id] || 0 : this.dungeonBestDepth[dungeon.id] || 0;
+            if (this.activeDungeonMode === 'elite') {
+                this.expeditionRatioLabel.string = `${dungeon.label} · ${this.getEliteRunSummary(this.getCurrentDepth(), dungeon.maxDepth)} · 历史最高 ${historyDepth}/${dungeon.maxDepth}`;
+            } else {
+                this.expeditionRatioLabel.string = this.shouldUseFullMapView()
+                    ? `${dungeon.label} · 完整纵向地图 · 标签含小怪/精英/Boss/资源/问号/邪修 · 历史最高 ${historyDepth}/${dungeon.maxDepth} · ${this.getWithdrawAssessmentText()}`
+                    : `${dungeon.label} · 下一层卡牌预览 · ${this.getSlotRatioText()} · 历史最高 ${historyDepth}/${dungeon.maxDepth} · ${this.getWithdrawAssessmentText()}`;
+            }
         }
 
         if (this.shouldUseFullMapView()) {
@@ -8426,8 +8746,12 @@ export class GrottoExpeditionDemo extends Component {
             this.withdrawBtn.active = true;
             if (this.withdrawBtnLabel) {
                 if (this.canWithdrawSafelyAtCurrentNode()) {
-                    this.withdrawBtnLabel.string = '稳妥撤离(100%)';
+                    this.withdrawBtnLabel.string = this.activeDungeonMode === 'elite' ? '镇压撤出' : '稳妥撤离(100%)';
                     this.withdrawBtnLabel.color = new Color(180, 255, 180, 255);
+                } else if (this.activeDungeonMode === 'elite') {
+                    const nextBossDepth = Math.ceil(this.getCurrentDepth() / 5) * 5;
+                    this.withdrawBtnLabel.string = `需先击败 ${nextBossDepth} 层Boss`;
+                    this.withdrawBtnLabel.color = new Color(150, 150, 150, 255);
                 } else {
                     const ratioPct = 50 + (this.getCurrentDepth() - 1) * 0.5;
                     this.withdrawBtnLabel.string = `冒险撤离(${ratioPct.toFixed(0)}%)`;
@@ -8639,8 +8963,12 @@ export class GrottoExpeditionDemo extends Component {
         this.withdrawBtn.active = true;
         if (this.withdrawBtnLabel) {
             if (this.canWithdrawSafelyAtCurrentNode()) {
-                this.withdrawBtnLabel.string = '稳妥撤离(100%)';
+                this.withdrawBtnLabel.string = this.activeDungeonMode === 'elite' ? '镇压撤出' : '稳妥撤离(100%)';
                 this.withdrawBtnLabel.color = new Color(180, 255, 180, 255);
+            } else if (this.activeDungeonMode === 'elite') {
+                const nextBossDepth = Math.ceil(this.getCurrentDepth() / 5) * 5;
+                this.withdrawBtnLabel.string = `需先击败 ${nextBossDepth} 层Boss`;
+                this.withdrawBtnLabel.color = new Color(150, 150, 150, 255);
             } else {
                 const ratioPct = 50 + (this.getCurrentDepth() - 1) * 0.5;
                 this.withdrawBtnLabel.string = `冒险撤离(${ratioPct.toFixed(0)}%)`;
@@ -9424,6 +9752,12 @@ export class GrottoExpeditionDemo extends Component {
 
     private withdrawExpedition() {
         if (this.interceptPanelVisible) return;
+        if (this.activeDungeonMode === 'elite' && !this.canWithdrawSafelyAtCurrentNode()) {
+            const nextBossDepth = Math.ceil(this.getCurrentDepth() / 5) * 5;
+            this.hintLabel.string = `精英秘境不可紧急撤离，需先击败 ${nextBossDepth} 层 Boss 才能撤出。`;
+            this.refreshLayerUI();
+            return;
+        }
         this.endExpeditionWithdraw(this.canWithdrawSafelyAtCurrentNode());
     }
 
@@ -9454,9 +9788,10 @@ export class GrottoExpeditionDemo extends Component {
         this.dungeonBadge += takeBadge;
 
         const dungeon = this.getDungeonConfig();
+        const moodValue = safe ? this.applyEliteRetreatRelief(this.getCurrentDepth()) : this.eliteDungeonMoodValues[this.activeDungeonId] ?? ELITE_BASELINE_MOOD;
         const ratioPct = (ratio * 100).toFixed(0);
         this.resultLabel.string = safe
-            ? `${dungeon.label} 安全撤离（击败Boss）\n深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n带走灵石 ${this.getSpiritStoneSummary(takenSpiritStone, 3)}，材料 ${this.getMaterialSummary(takenMaterials, 3)}\n修为 +${takeExp}，徽记 +${takeBadge}，法器经验 +${faqiRewards.expGain}\n${faqiRewards.shardText}`
+            ? `${dungeon.label} 安全撤离（击败Boss）\n深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n带走灵石 ${this.getSpiritStoneSummary(takenSpiritStone, 3)}，材料 ${this.getMaterialSummary(takenMaterials, 3)}\n修为 +${takeExp}，徽记 +${takeBadge}，法器经验 +${faqiRewards.expGain}\n${faqiRewards.shardText}${this.activeDungeonMode === 'elite' ? `\n共享灵性回落至 ${this.getEliteMoodTier(moodValue)} ${moodValue}/100` : ''}`
             : `${dungeon.label} 紧急撤离（带走 ${ratioPct}%）\n深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n带走灵石 ${this.getSpiritStoneSummary(takenSpiritStone, 3)}，材料 ${this.getMaterialSummary(takenMaterials, 3)}\n修为 +${takeExp}，徽记 +${takeBadge}，法器经验 +${faqiRewards.expGain}\n${faqiRewards.shardText}`;
     }
 
@@ -9478,7 +9813,8 @@ export class GrottoExpeditionDemo extends Component {
         this.realmExp += expGain;
         this.dungeonBadge += badgeGain;
         const dungeon = this.getDungeonConfig();
-        this.resultLabel.string = `${dungeon.label}\n深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n获得灵石 ${this.getSpiritStoneSummary(gainedSpiritStone, 3)}，材料 ${this.getMaterialSummary(gainedMaterials, 3)}\n修为 +${expGain}，徽记 +${badgeGain}，法器经验 +${faqiRewards.expGain}\n${faqiRewards.shardText}\n${reachedExit ? `通关${dungeon.maxDepth}层！` : '已撤出秘境'}`;
+        const moodValue = this.applyEliteRetreatRelief(this.getCurrentDepth());
+        this.resultLabel.string = `${dungeon.label}\n深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n获得灵石 ${this.getSpiritStoneSummary(gainedSpiritStone, 3)}，材料 ${this.getMaterialSummary(gainedMaterials, 3)}\n修为 +${expGain}，徽记 +${badgeGain}，法器经验 +${faqiRewards.expGain}\n${faqiRewards.shardText}\n${reachedExit ? `通关${dungeon.maxDepth}层！` : '已撤出秘境'}${this.activeDungeonMode === 'elite' ? `\n共享灵性回落至 ${this.getEliteMoodTier(moodValue)} ${moodValue}/100` : ''}`;
     }
 
     private endExpeditionDeath() {
@@ -9497,7 +9833,9 @@ export class GrottoExpeditionDemo extends Component {
         const faqiRewards = this.applyExpeditionArtifactRewards(0.5 + artifactBonuses.rewardMultiplier * 0.5);
         this.dungeonBadge += badgeGain;
         const dungeon = this.getDungeonConfig();
-        this.resultLabel.string = `神识受损，撤回避难洞府\n${dungeon.label} 深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n保留部分收获：灵石 ${this.getSpiritStoneSummary(gainedSpiritStone, 3)}，材料 ${this.getMaterialSummary(gainedMaterials, 3)}，修为 +${Math.floor((this.expeditionHerbs * EXP_PER_HERB + this.expeditionTreasure * EXP_PER_TREASURE) * 0.5)}，徽记 +${badgeGain}，法器经验 +${faqiRewards.expGain}\n${faqiRewards.shardText}`;
+        const eliteMoodValue = this.eliteDungeonMoodValues[this.activeDungeonId] ?? ELITE_BASELINE_MOOD;
+        const eliteCounted = this.eliteDungeonFirstDeathKeys[this.activeDungeonId] === this.getTodayKey();
+        this.resultLabel.string = `神识受损，撤回避难洞府\n${dungeon.label} 深度 ${this.getCurrentDepth()}/${dungeon.maxDepth}\n保留部分收获：灵石 ${this.getSpiritStoneSummary(gainedSpiritStone, 3)}，材料 ${this.getMaterialSummary(gainedMaterials, 3)}，修为 +${Math.floor((this.expeditionHerbs * EXP_PER_HERB + this.expeditionTreasure * EXP_PER_TREASURE) * 0.5)}，徽记 +${badgeGain}，法器经验 +${faqiRewards.expGain}\n${faqiRewards.shardText}${this.activeDungeonMode === 'elite' ? `\n共享灵性${eliteCounted ? '已抬升' : '未再抬升'}：${this.getEliteMoodTier(eliteMoodValue)} ${eliteMoodValue}/100` : ''}`;
     }
 
     private enterCombat() {
@@ -9976,7 +10314,9 @@ export class GrottoExpeditionDemo extends Component {
 
     private endCombatPlayerDeath() {
         const wasIntercept = this.combatIsIntercept;
+        const wasBoss = this.combatIsBoss;
         const slotIndex = this.combatSlotIndex;
+        const eliteDeath = this.applyEliteDeathPressure(this.getCurrentDepth(), wasBoss);
         this.playerNode.destroy();
         this.playerRig = null;
         for (const e of this.enemies) {
@@ -10003,6 +10343,9 @@ export class GrottoExpeditionDemo extends Component {
                 this.state = 'expedition_path';
                 this.combatLayer.active = false;
                 this.expeditionLayer.active = true;
+                if (eliteDeath.counted) {
+                    this.hintLabel.string = `本日首次陨落已计入共享灵性，当前状态 ${this.getEliteMoodTier(eliteDeath.mood)} ${eliteDeath.mood}/100。`;
+                }
                 this.advanceToNode(slot.id);
                 return;
             }
