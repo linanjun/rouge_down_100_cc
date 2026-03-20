@@ -1481,6 +1481,7 @@ export class GrottoExpeditionDemo extends Component {
     private homeShopView!: Node;
     private homeFaqiView!: Node;
     private homeFishingView!: Node;
+    private homeShopQuickButton: Node | null = null;
     private homeAlchemyQuickButton: Node | null = null;
     private homeForgeQuickButton: Node | null = null;
     private homeKungfuQuickButton: Node | null = null;
@@ -1649,16 +1650,14 @@ export class GrottoExpeditionDemo extends Component {
         daily: null,
         weekly: null,
     };
-    private homeNavIcons: Record<'shop' | 'faqi' | 'role' | 'mijing' | 'dongtian' | 'fishing', Node | null> = {
-        shop: null,
+    private homeNavIcons: Record<'faqi' | 'role' | 'mijing' | 'dongtian' | 'fishing', Node | null> = {
         faqi: null,
         role: null,
         mijing: null,
         dongtian: null,
         fishing: null,
     };
-    private homeNavButtons: Record<'shop' | 'faqi' | 'role' | 'mijing' | 'dongtian' | 'fishing', Node | null> = {
-        shop: null,
+    private homeNavButtons: Record<'faqi' | 'role' | 'mijing' | 'dongtian' | 'fishing', Node | null> = {
         faqi: null,
         role: null,
         mijing: null,
@@ -1948,8 +1947,7 @@ export class GrottoExpeditionDemo extends Component {
         this.buildHomeSpiritPetPanel();
 
         const navBar = this.createPanel(this.homeLayer, HOME_LAYOUT.navBarWidth, HOME_LAYOUT.navBarHeight, 0, HOME_LAYOUT.navBarY, new Color(32, 38, 48, 250));
-        const tabs: Array<{ key: 'shop' | 'faqi' | 'role' | 'mijing' | 'dongtian' | 'fishing'; label: string }> = [
-            { key: 'shop', label: '商城' },
+        const tabs: Array<{ key: 'faqi' | 'role' | 'mijing' | 'dongtian' | 'fishing'; label: string }> = [
             { key: 'faqi', label: '法器' },
             { key: 'role', label: '角色' },
             { key: 'mijing', label: '秘境' },
@@ -1957,7 +1955,7 @@ export class GrottoExpeditionDemo extends Component {
             { key: 'fishing', label: '独钓' },
         ];
         tabs.forEach((tab, index) => {
-            const x = -350 + index * 140;
+            const x = -280 + index * 140;
             const btn = this.createPanel(navBar, HOME_LAYOUT.navButtonWidth, HOME_LAYOUT.navButtonHeight, x, 0, new Color(45, 52, 62, 255));
             const iconNode = new Node(`${tab.key}Icon`);
             iconNode.layer = Layers.Enum.UI_2D;
@@ -1996,7 +1994,23 @@ export class GrottoExpeditionDemo extends Component {
         taskBtn.on(Node.EventType.TOUCH_END, () => this.toggleTaskPanel(), this);
         this.homeTaskButton = taskBtn;
 
-        const alchemyBtn = this.createPanel(this.homeLayer, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonStartX + HOME_LAYOUT.quickButtonGap, HOME_LAYOUT.quickButtonY, new Color(66, 52, 42, 248));
+        const shopBtn = this.createPanel(this.homeLayer, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonStartX + HOME_LAYOUT.quickButtonGap, HOME_LAYOUT.quickButtonY, new Color(84, 70, 46, 248));
+        const shopIcon = new Node('ShopIcon');
+        shopIcon.layer = Layers.Enum.UI_2D;
+        shopBtn.addChild(shopIcon);
+        shopIcon.setPosition(0, 12, 0);
+        shopIcon.addComponent(UITransform).setContentSize(40, 40);
+        this.drawHomeNavIcon(shopIcon, 'shop', false);
+        this.createLabel(shopBtn, '商城', 18, new Vec3(0, -24, 0), new Color(242, 230, 198, 255), 80);
+        shopBtn.on(Node.EventType.TOUCH_END, () => {
+            this.closeRoleFeaturePanels();
+            this.toggleAlchemyPanel(false);
+            this.toggleTaskPanel(false);
+            this.switchHomeTab('shop');
+        }, this);
+        this.homeShopQuickButton = shopBtn;
+
+        const alchemyBtn = this.createPanel(this.homeLayer, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonStartX + HOME_LAYOUT.quickButtonGap * 2, HOME_LAYOUT.quickButtonY, new Color(66, 52, 42, 248));
         const alchemyIcon = new Node('AlchemyIcon');
         alchemyIcon.layer = Layers.Enum.UI_2D;
         alchemyBtn.addChild(alchemyIcon);
@@ -2007,7 +2021,7 @@ export class GrottoExpeditionDemo extends Component {
         alchemyBtn.on(Node.EventType.TOUCH_END, () => this.openWorkshopPanel('furnace'), this);
         this.homeAlchemyQuickButton = alchemyBtn;
 
-        const forgeBtn = this.createPanel(this.homeLayer, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonStartX + HOME_LAYOUT.quickButtonGap * 2, HOME_LAYOUT.quickButtonY, new Color(52, 58, 72, 248));
+        const forgeBtn = this.createPanel(this.homeLayer, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonStartX + HOME_LAYOUT.quickButtonGap * 3, HOME_LAYOUT.quickButtonY, new Color(52, 58, 72, 248));
         const forgeIcon = new Node('ForgeIcon');
         forgeIcon.layer = Layers.Enum.UI_2D;
         forgeBtn.addChild(forgeIcon);
@@ -2018,7 +2032,7 @@ export class GrottoExpeditionDemo extends Component {
         forgeBtn.on(Node.EventType.TOUCH_END, () => this.openWorkshopPanel('forge'), this);
         this.homeForgeQuickButton = forgeBtn;
 
-        const kungfuBtn = this.createPanel(this.homeLayer, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonStartX + HOME_LAYOUT.quickButtonGap * 3, HOME_LAYOUT.quickButtonY, new Color(72, 58, 42, 248));
+        const kungfuBtn = this.createPanel(this.homeLayer, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonStartX + HOME_LAYOUT.quickButtonGap * 4, HOME_LAYOUT.quickButtonY, new Color(72, 58, 42, 248));
         const kungfuIcon = new Node('KungfuIcon');
         kungfuIcon.layer = Layers.Enum.UI_2D;
         kungfuBtn.addChild(kungfuIcon);
@@ -2029,7 +2043,7 @@ export class GrottoExpeditionDemo extends Component {
         kungfuBtn.on(Node.EventType.TOUCH_END, () => this.openRoleFeature('kungfu'), this);
         this.homeKungfuQuickButton = kungfuBtn;
 
-        const spiritPetBtn = this.createPanel(this.homeLayer, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonStartX + HOME_LAYOUT.quickButtonGap * 4, HOME_LAYOUT.quickButtonY, new Color(48, 70, 66, 248));
+        const spiritPetBtn = this.createPanel(this.homeLayer, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonSize, HOME_LAYOUT.quickButtonStartX + HOME_LAYOUT.quickButtonGap * 5, HOME_LAYOUT.quickButtonY, new Color(48, 70, 66, 248));
         const spiritPetIcon = new Node('SpiritPetIcon');
         spiritPetIcon.layer = Layers.Enum.UI_2D;
         spiritPetBtn.addChild(spiritPetIcon);
@@ -4689,6 +4703,13 @@ export class GrottoExpeditionDemo extends Component {
                 this.drawHomeNavIcon(iconNode, key, active);
             }
         });
+
+        if (this.homeShopQuickButton) {
+            const active = tab === 'shop';
+            const icon = this.homeShopQuickButton.getChildByName('ShopIcon');
+            this.styleQuickButton(this.homeShopQuickButton, active, 'gold');
+            if (icon) this.drawHomeNavIcon(icon, 'shop', active);
+        }
 
         this.refreshWorkshopQuickButtons();
         this.refreshRoleQuickButtons();
