@@ -4260,10 +4260,11 @@ export class GrottoExpeditionDemo extends Component {
         node.setScale(scale, scale, 1);
     }
 
-    private setAssetSprite(node: Node | null, assetName: string | null, onLoaded?: () => void) {
+    private setAssetSprite(node: Node | null, assetName: string | null, onLoaded?: () => void, onMissing?: () => void) {
         if (!node?.isValid) return;
         if (!assetName) {
             node.active = false;
+            onMissing?.();
             return;
         }
         const sprite = node.getComponent(Sprite);
@@ -4271,6 +4272,7 @@ export class GrottoExpeditionDemo extends Component {
         this.loadXianxiaTexture(assetName, (sf) => {
             if (!sf || !node.isValid) {
                 if (node.isValid) node.active = false;
+                onMissing?.();
                 return;
             }
             sprite.spriteFrame = sf;
@@ -4278,6 +4280,122 @@ export class GrottoExpeditionDemo extends Component {
             node.active = true;
             onLoaded?.();
         });
+    }
+
+    private drawExpeditionTileGlyph(node: Node, type: SlotType, accent: Color) {
+        if (!node.isValid) return;
+        node.active = true;
+        const sprite = node.getComponent(Sprite);
+        if (sprite) sprite.spriteFrame = null;
+        let g = node.getComponent(Graphics);
+        if (!g) g = node.addComponent(Graphics);
+        g.enabled = true;
+        g.clear();
+        g.lineWidth = 3;
+        g.strokeColor = accent;
+        g.fillColor = new Color(accent.r, accent.g, accent.b, 56);
+
+        switch (type) {
+            case 'empty':
+                g.circle(0, 0, 10);
+                g.stroke();
+                g.moveTo(-6, 0);
+                g.lineTo(6, 0);
+                g.stroke();
+                break;
+            case 'herb':
+                g.moveTo(0, -24);
+                g.lineTo(0, 12);
+                g.stroke();
+                g.moveTo(0, -8);
+                g.bezierCurveTo(-18, -20, -22, 8, 0, 2);
+                g.fill();
+                g.stroke();
+                g.moveTo(0, 2);
+                g.bezierCurveTo(18, -12, 22, 16, 0, 12);
+                g.fill();
+                g.stroke();
+                break;
+            case 'stone':
+                g.moveTo(-20, 12);
+                g.lineTo(-10, -16);
+                g.lineTo(8, -20);
+                g.lineTo(22, -4);
+                g.lineTo(12, 20);
+                g.lineTo(-10, 18);
+                g.close();
+                g.fill();
+                g.stroke();
+                g.moveTo(-8, 4);
+                g.lineTo(0, -8);
+                g.lineTo(10, 8);
+                g.stroke();
+                break;
+            case 'treasure':
+                g.roundRect(-20, -6, 40, 24, 6);
+                g.fill();
+                g.stroke();
+                g.moveTo(-20, -2);
+                g.lineTo(20, -2);
+                g.stroke();
+                g.moveTo(0, -6);
+                g.lineTo(0, 18);
+                g.stroke();
+                break;
+            case 'monster':
+            case 'elite':
+                g.circle(0, -8, 12);
+                g.fill();
+                g.stroke();
+                g.moveTo(-14, 18);
+                g.lineTo(-8, 2);
+                g.lineTo(0, 18);
+                g.lineTo(8, 2);
+                g.lineTo(14, 18);
+                g.stroke();
+                break;
+            case 'trap':
+                g.moveTo(-20, 18);
+                g.lineTo(-10, -16);
+                g.lineTo(0, 18);
+                g.lineTo(10, -16);
+                g.lineTo(20, 18);
+                g.stroke();
+                break;
+            case 'buff':
+                g.circle(0, 0, 18);
+                g.stroke();
+                g.moveTo(0, -18);
+                g.lineTo(0, 18);
+                g.moveTo(-18, 0);
+                g.lineTo(18, 0);
+                g.stroke();
+                break;
+            case 'intercept':
+                g.moveTo(-18, 18);
+                g.lineTo(-2, -2);
+                g.lineTo(-10, -2);
+                g.lineTo(4, -20);
+                g.lineTo(2, 0);
+                g.lineTo(18, 0);
+                g.stroke();
+                break;
+            case 'boss':
+                g.moveTo(0, -22);
+                g.lineTo(8, -4);
+                g.lineTo(22, -2);
+                g.lineTo(12, 10);
+                g.lineTo(14, 24);
+                g.lineTo(0, 16);
+                g.lineTo(-14, 24);
+                g.lineTo(-12, 10);
+                g.lineTo(-22, -2);
+                g.lineTo(-8, -4);
+                g.close();
+                g.fill();
+                g.stroke();
+                break;
+        }
     }
 
     private addTitleBarArt(parent: Node | null, width: number, y: number, alpha = 255) {
@@ -8482,7 +8600,15 @@ export class GrottoExpeditionDemo extends Component {
                 const frameNode = this.createAssetSpriteNode(panel, 'RarityFrame', 170, 170, new Vec3(0, 16, 0));
                 const iconNode = this.createAssetSpriteNode(panel, 'TileIcon', 102, 102, new Vec3(0, 26, 0));
                 this.setAssetSprite(frameNode, hasRarity ? this.getRarityFrameAsset(slot.rarity!) : null);
-                this.setAssetSprite(iconNode, this.getSlotTileIconAsset(slot.type));
+                this.setAssetSprite(
+                    iconNode,
+                    this.getSlotTileIconAsset(slot.type),
+                    () => {
+                        const graphics = iconNode.getComponent(Graphics);
+                        if (graphics) graphics.enabled = false;
+                    },
+                    () => this.drawExpeditionTileGlyph(iconNode, slot.type, accent),
+                );
             } else {
                 this.createLabel(panel, '？', 48, new Vec3(0, 22, 0), new Color(255, 240, 180, 255));
             }
