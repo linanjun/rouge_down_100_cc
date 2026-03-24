@@ -29,8 +29,10 @@ import {
     tween,
     view,
 } from 'cc';
+import { OverviewPagesHub } from './OverviewPagesHub';
 
 const { ccclass } = _decorator;
+const AUTO_BOOT_ENTRY: 'grotto' | 'overview' = 'overview';
 
 /** 抽奖效果类型 */
 type LotteryEffectType = 'restoreHp' | 'restoreMana' | 'restoreAction' | 'reduceHp' | 'reduceMana' | 'reduceAction';
@@ -1464,16 +1466,18 @@ export class GrottoExpeditionDemo extends Component {
     private bgSprite: Sprite | null = null;
     private homeRoleSparkles: Node[] = [];
 
-    private statusLabel!: Label;
     private hintLabel!: Label;
     private roleHpLabel!: Label;
     private roleManaLabel!: Label;
     private roleAttackLabel!: Label;
     private roleExpLabel!: Label;
-    private roleApLabel!: Label;
-    private roleBreakLabel!: Label;
-    private roleDungeonLabel!: Label;
-    private roleDungeonProgressLabel!: Label;
+    /** 角色页「功法进阶」四行：丹师 / 炼器 / 运转功法 / 灵宠 */
+    private roleAdvAlchemyLabel!: Label;
+    private roleAdvForgeLabel!: Label;
+    private roleAdvKungfuLabel!: Label;
+    private roleAdvPetLabel!: Label;
+    private rolePracticeRealmLabel!: Label;
+    private rolePracticeHintLabel!: Label;
     private roleRealmButton: Node | null = null;
     private roleRealmButtonLabel: Label | null = null;
     private rolePrepareButton: Node | null = null;
@@ -1937,6 +1941,7 @@ export class GrottoExpeditionDemo extends Component {
         goldIconNode.addComponent(UITransform).setContentSize(40, 40);
         goldIconNode.addComponent(Sprite).sizeMode = Sprite.SizeMode.CUSTOM;
         this.loadXianxiaTexture('icon-spirit-stone', (sf) => { const s = goldIconNode.getComponent(Sprite); if (sf && s && goldIconNode.isValid) { s.spriteFrame = sf; this.applyAssetDisplayScale(goldIconNode, 'icon-spirit-stone'); } });
+        this.createLabel(topBar, '金', 16, new Vec3(-268, 0, 0), new Color(232, 210, 160, 255), 28);
         this.homeGoldLabel = this.createLabel(topBar, '0', 24, new Vec3(-172, 0, 0), new Color(255, 220, 120, 255), 116);
         const diamondIconNode = new Node('DiamondIcon');
         diamondIconNode.layer = Layers.Enum.UI_2D;
@@ -1945,6 +1950,7 @@ export class GrottoExpeditionDemo extends Component {
         diamondIconNode.addComponent(UITransform).setContentSize(40, 40);
         diamondIconNode.addComponent(Sprite).sizeMode = Sprite.SizeMode.CUSTOM;
         this.loadXianxiaTexture('icon-mystic-crystal', (sf) => { const s = diamondIconNode.getComponent(Sprite); if (sf && s && diamondIconNode.isValid) { s.spriteFrame = sf; this.applyAssetDisplayScale(diamondIconNode, 'icon-mystic-crystal'); } });
+        this.createLabel(topBar, '钻', 16, new Vec3(-104, 0, 0), new Color(188, 220, 248, 255), 28);
         this.homeDiamondLabel = this.createLabel(topBar, '0', 24, new Vec3(-6, 0, 0), new Color(160, 210, 255, 255), 116);
 
         this.homeContentRoot = new Node('HomeContentRoot');
@@ -3424,14 +3430,14 @@ export class GrottoExpeditionDemo extends Component {
             if (!label) continue;
             const id = this.artifactEquipped[slot];
             if (!id) {
-                label.string = '未装配\n点击前往';
+                label.string = '未装配 · 点击前往';
                 label.color = new Color(172, 188, 204, 255);
                 if (panel) this.styleCardPanel(panel, 'neutral', tabAccent[slot]);
                 continue;
             }
             const state = this.artifactStates[id];
             const selected = this.artifactListTab === slot && this.homeTab === 'faqi';
-            label.string = `${this.getArtifactDef(id).name}\nLv.${state.level}  ${'★'.repeat(state.star)}`;
+            label.string = `${this.getArtifactDef(id).name} Lv.${state.level} ${'★'.repeat(state.star)}`;
             label.color = selected ? new Color(248, 242, 228, 255) : new Color(204, 218, 232, 255);
             if (panel) this.styleCardPanel(panel, selected ? 'selected' : 'neutral', tabAccent[slot]);
         }
@@ -3563,24 +3569,37 @@ export class GrottoExpeditionDemo extends Component {
     }
 
     private buildHomeRoleView() {
-        this.createStandardHomeHeader(this.homeRoleView, '角色总览', '顶部展示角色核心形象与法器槽位，中段展示属性分区，底部固定放置修炼与参悟操作。', new Color(38, 46, 56, 245));
-        const upperPanel = this.createPanel(this.homeRoleView, 648, 278, 0, 146, new Color(38, 46, 56, 245));
-        this.createLabel(upperPanel, '角色形象', 20, new Vec3(108, 108, 0), new Color(180, 205, 225, 255));
-        this.buildHomeAnimatedPortrait(upperPanel, 108, -18);
-        this.createLabel(upperPanel, '本命法器', 18, new Vec3(-198, 108, 0), new Color(196, 210, 224, 255), 130);
+        const panelBase = new Color(34, 44, 54, 250);
+        const panelJade = new Color(36, 50, 60, 248);
+        const titleInk = new Color(232, 238, 244, 255);
+        const subInk = new Color(186, 204, 218, 255);
+
+        this.createStandardHomeHeader(
+            this.homeRoleView,
+            '角色总览',
+            '顶部展示角色核心形象与法器槽位，中段保留两项操作，底部按三栏展示养成信息。',
+            panelBase,
+            new Color(244, 236, 220, 255),
+            new Color(168, 188, 206, 255),
+        );
+
+        const upperPanel = this.createPanel(this.homeRoleView, 656, 246, 0, 170, panelJade);
+        this.createLabel(upperPanel, '本命法器', 18, new Vec3(-210, 124, 0), subInk, 140);
+        this.createLabel(upperPanel, '角色形象', 18, new Vec3(118, 124, 0), subInk, 120);
+        this.buildHomeAnimatedPortrait(upperPanel, 118, -4);
 
         const artifactSlots: Array<{ slot: ArtifactSlot; title: string; glyph: string; accent: Color; x: number; y: number }> = [
-            { slot: 'sword', title: '飞剑位', glyph: '剑', accent: new Color(214, 198, 160, 255), x: -196, y: 42 },
-            { slot: 'talisman', title: '护符位', glyph: '符', accent: new Color(176, 214, 238, 255), x: -196, y: -28 },
-            { slot: 'lamp', title: '灵灯位', glyph: '灯', accent: new Color(176, 226, 196, 255), x: -196, y: -98 },
+            { slot: 'sword', title: '飞剑位', glyph: '剑', accent: new Color(214, 198, 160, 255), x: -208, y: 42 },
+            { slot: 'talisman', title: '护符位', glyph: '符', accent: new Color(176, 214, 238, 255), x: -208, y: -18 },
+            { slot: 'lamp', title: '灵灯位', glyph: '灯', accent: new Color(176, 226, 196, 255), x: -208, y: -78 },
         ];
         for (let i = 0; i < artifactSlots.length; i++) {
             const slot = artifactSlots[i];
-            const slotPanel = this.createPanel(upperPanel, 160, 62, slot.x, slot.y, new Color(52, 60, 72, 248));
-            this.decorateRoleInfoCard(slotPanel, slot.accent, slot.glyph, '点击养成');
-            this.createLabel(slotPanel, slot.title, 17, new Vec3(12, 12, 0), new Color(240, 240, 230, 255), 100);
-            const label = this.createLabel(slotPanel, '', 13, new Vec3(10, -10, 0), new Color(186, 202, 220, 255), 108);
-            label.lineHeight = 16;
+            const slotPanel = this.createPanel(upperPanel, 182, 46, slot.x, slot.y, new Color(46, 58, 70, 252));
+            const mark = this.createPanel(slotPanel, 28, 28, -64, 0, new Color(slot.accent.r, slot.accent.g, slot.accent.b, 44));
+            this.createLabel(mark, slot.glyph, 15, new Vec3(0, 0, 0), new Color(246, 244, 236, 255), 20);
+            const label = this.createLabel(slotPanel, '', 15, new Vec3(14, 0, 0), new Color(200, 216, 230, 255), 132);
+            label.horizontalAlign = HorizontalTextAlignment.LEFT;
             this.faqiSlotPanels[slot.slot] = slotPanel;
             this.faqiSlotLabels[slot.slot] = label;
             slotPanel.on(Node.EventType.TOUCH_END, () => {
@@ -3589,53 +3608,47 @@ export class GrottoExpeditionDemo extends Component {
             }, this);
         }
 
-        const basicPanel = this.createPanel(this.homeRoleView, 204, HOME_LAYOUT.secondarySectionHeight, -228, HOME_LAYOUT.secondarySectionY, new Color(40, 50, 62, 245));
-        this.decorateRoleInfoCard(basicPanel, new Color(188, 214, 238, 255), '体', '筋骨凝实');
-        this.createLabel(basicPanel, '基础属性', 20, new Vec3(0, 74, 0), new Color(180, 205, 225, 255));
-        this.statusLabel = this.createLabel(basicPanel, '', 25, new Vec3(0, 34, 0), new Color(255, 240, 220, 255), 176);
-        this.roleHpLabel = this.createRoleStatRow(basicPanel, 0, new Color(220, 146, 146, 255), 'hp');
-        this.roleManaLabel = this.createRoleStatRow(basicPanel, -32, new Color(142, 188, 234, 255), 'mana');
-        this.roleAttackLabel = this.createRoleStatRow(basicPanel, -64, new Color(174, 220, 174, 255), 'ap');
-
-        const practicePanel = this.createPanel(this.homeRoleView, 204, HOME_LAYOUT.secondarySectionHeight, 0, HOME_LAYOUT.secondarySectionY, new Color(44, 50, 66, 245));
-        this.decorateRoleInfoCard(practicePanel, new Color(220, 210, 170, 255), '道', '丹田运转');
-        this.createLabel(practicePanel, '丹器造诣', 20, new Vec3(0, 74, 0), new Color(180, 205, 225, 255));
-        this.roleExpLabel = this.createRoleStatRow(practicePanel, 12, new Color(208, 200, 154, 255), 'exp');
-        this.roleApLabel = this.createRoleStatRow(practicePanel, -20, new Color(214, 186, 128, 255), 'atk');
-        this.roleBreakLabel = this.createRoleStatRow(practicePanel, -52, new Color(216, 176, 232, 255), 'break');
-
-        const dungeonPanel = this.createPanel(this.homeRoleView, 204, HOME_LAYOUT.secondarySectionHeight, 228, HOME_LAYOUT.secondarySectionY, new Color(40, 50, 64, 245));
-        this.decorateRoleInfoCard(dungeonPanel, new Color(168, 214, 200, 255), '境', '周天运转');
-        this.createLabel(dungeonPanel, '境界养成', 20, new Vec3(0, 74, 0), new Color(180, 205, 225, 255));
-        this.roleDungeonLabel = this.createRoleStatRow(dungeonPanel, 8, new Color(160, 216, 194, 255), 'dungeon');
-        this.roleDungeonProgressLabel = this.createRoleStatRow(dungeonPanel, -40, new Color(184, 212, 228, 255), 'progress');
-
-        this.roleRealmButton = this.createPanel(this.homeRoleView, 206, 62, -116, HOME_LAYOUT.actionRowY, new Color(50, 55, 65, 255));
+        this.roleRealmButton = this.createPanel(this.homeRoleView, 148, 42, -92, -2, new Color(94, 104, 126, 255));
         this.roleRealmButton.addComponent(Button).transition = Button.Transition.NONE;
-        this.roleRealmButtonLabel = this.createLabel(this.roleRealmButton, '修炼突破', 24, new Vec3(0, 0, 0), new Color(200, 230, 255, 255));
+        this.roleRealmButtonLabel = this.createLabel(this.roleRealmButton, '修炼突破', 18, new Vec3(0, 0, 0), new Color(246, 234, 220, 255));
         this.roleRealmButton.on(Node.EventType.TOUCH_END, () => this.tryRealmUp(), this);
 
-        this.rolePrepareButton = this.createPanel(this.homeRoleView, 206, 62, 116, HOME_LAYOUT.actionRowY, new Color(64, 74, 58, 255));
+        this.rolePrepareButton = this.createPanel(this.homeRoleView, 148, 42, 92, -2, new Color(142, 96, 88, 255));
         this.rolePrepareButton.addComponent(Button).transition = Button.Transition.NONE;
-        this.rolePrepareButtonLabel = this.createLabel(this.rolePrepareButton, '参悟功法', 24, new Vec3(0, 0, 0), new Color(220, 242, 214, 255));
+        this.rolePrepareButtonLabel = this.createLabel(this.rolePrepareButton, '参悟功法', 18, new Vec3(0, 0, 0), new Color(246, 234, 220, 255));
         this.rolePrepareButton.on(Node.EventType.TOUCH_END, () => this.tryStudyEquippedKungfu(), this);
+
+        const sectionY = -176;
+        const basicPanel = this.createPanel(this.homeRoleView, 204, 174, -226, sectionY, new Color(38, 50, 62, 248));
+        this.createLabel(basicPanel, '基础属性', 18, new Vec3(0, 66, 0), titleInk, 130);
+        this.roleHpLabel = this.createRoleStatRow(basicPanel, 28, new Color(220, 146, 146, 255), 'hp', 150, -52);
+        this.roleManaLabel = this.createRoleStatRow(basicPanel, -2, new Color(142, 188, 234, 255), 'mana', 150, -52);
+        this.roleAttackLabel = this.createRoleStatRow(basicPanel, -32, new Color(174, 220, 174, 255), 'ap', 150, -52);
+        this.roleExpLabel = this.createRoleStatRow(basicPanel, -62, new Color(208, 200, 154, 255), 'progress', 150, -52);
+
+        const craftPanel = this.createPanel(this.homeRoleView, 204, 174, 0, sectionY, new Color(40, 52, 64, 248));
+        this.createLabel(craftPanel, '丹器造诣', 18, new Vec3(0, 66, 0), titleInk, 130);
+        this.roleAdvAlchemyLabel = this.createRoleAdvancementLine(craftPanel, 26, new Color(232, 186, 128, 255), 158, -64);
+        this.roleAdvForgeLabel = this.createRoleAdvancementLine(craftPanel, -4, new Color(188, 210, 236, 255), 158, -64);
+        this.roleAdvKungfuLabel = this.createRoleAdvancementLine(craftPanel, -34, new Color(200, 228, 210, 255), 158, -64);
+
+        const practicePanel = this.createPanel(this.homeRoleView, 204, 174, 226, sectionY, new Color(42, 54, 66, 248));
+        this.createLabel(practicePanel, '功法运转', 18, new Vec3(0, 66, 0), titleInk, 130);
+        this.roleAdvPetLabel = this.createRoleAdvancementLine(practicePanel, 26, new Color(200, 190, 236, 255), 158, -64);
+        this.rolePracticeRealmLabel = this.createRoleAdvancementLine(practicePanel, -4, new Color(220, 214, 184, 255), 158, -64);
+        this.rolePracticeHintLabel = this.createRoleAdvancementLine(practicePanel, -34, new Color(176, 198, 214, 255), 158, -64);
     }
 
-    private createRoleStatRow(parent: Node, y: number, accent: Color, icon: 'hp' | 'mana' | 'atk' | 'exp' | 'ap' | 'break' | 'dungeon' | 'progress') {
-        const row = new Node('RoleStatRow');
-        row.layer = Layers.Enum.UI_2D;
-        parent.addChild(row);
-        row.setPosition(0, y, 0);
-        row.addComponent(UITransform).setContentSize(164, 28);
+    /** 角色页右栏功法进阶单行（左对齐） */
+    private createRoleAdvancementLine(parent: Node, y: number, ink: Color, width = 300, x = -136): Label {
+        const label = this.createLabel(parent, '', 16, new Vec3(x, y, 0), ink, width);
+        label.horizontalAlign = HorizontalTextAlignment.LEFT;
+        label.lineHeight = 20;
+        return label;
+    }
 
-        const iconNode = new Node('RoleStatIcon');
-        iconNode.layer = Layers.Enum.UI_2D;
-        row.addChild(iconNode);
-        iconNode.setPosition(-62, 0, 0);
-        iconNode.addComponent(UITransform).setContentSize(20, 20);
-        this.drawRoleStatIcon(iconNode, icon, accent);
-
-        const label = this.createLabel(row, '', 17, new Vec3(16, 0, 0), new Color(214, 224, 236, 255), 124);
+    private createRoleStatRow(parent: Node, y: number, accent: Color, icon: 'hp' | 'mana' | 'atk' | 'exp' | 'ap' | 'break' | 'dungeon' | 'progress', width = 168, x = -68) {
+        const label = this.createLabel(parent, '', 17, new Vec3(x, y, 0), new Color(214, 224, 236, 255), width);
         label.horizontalAlign = HorizontalTextAlignment.LEFT;
         return label;
     }
@@ -7394,25 +7407,38 @@ export class GrottoExpeditionDemo extends Component {
         const nextUnclaimed = milestones.find((milestone) => !this.claimedProgressChests[this.getProgressChestKey(current.id, milestone)]);
         if (this.homeGoldLabel) this.homeGoldLabel.string = `${this.getSpiritStoneItemCount(this.spiritStoneInventory)}`;
         if (this.homeDiamondLabel) this.homeDiamondLabel.string = `${this.mysticCrystal}`;
-        this.statusLabel.string = `${this.getRealmTitle()}`;
         if (this.roleHpLabel) this.roleHpLabel.string = `气血 ${this.playerMaxHp}`;
         if (this.roleManaLabel) this.roleManaLabel.string = `法力 ${this.playerMaxMana}`;
         if (this.roleAttackLabel) this.roleAttackLabel.string = `行动力 ${this.actionPointMax}`;
-        if (this.roleExpLabel) this.roleExpLabel.string = `境界进度 ${this.realmExp}/${this.realmExpNeed}`;
-        if (this.roleApLabel) this.roleApLabel.string = `丹师 Lv.${this.alchemyMasteryLevel} ${this.alchemyMasteryExp}/${this.getAlchemyMasteryNeed()}`;
-        if (this.roleBreakLabel) this.roleBreakLabel.string = `炼器 Lv.${this.forgeMasteryLevel} ${this.forgeMasteryExp}/${this.getForgeMasteryNeed()}`;
-        if (this.roleDungeonLabel) {
-            this.roleDungeonLabel.string = `突破成功率 ${(this.getTribulationSuccessRate() * 100).toFixed(0)}%  |  清心台 Lv.${this.getBuildingLevel('gather')}  |  护山大阵 Lv.${this.getBuildingLevel('ward')}`;
+        if (this.roleExpLabel) this.roleExpLabel.string = `修为 ${this.realmExp}/${this.realmExpNeed}`;
+        if (this.roleAdvAlchemyLabel) {
+            this.roleAdvAlchemyLabel.string = `丹师 Lv.${this.alchemyMasteryLevel} ${this.alchemyMasteryExp}/${this.getAlchemyMasteryNeed()}`;
+        }
+        if (this.roleAdvForgeLabel) {
+            this.roleAdvForgeLabel.string = `炼器 Lv.${this.forgeMasteryLevel} ${this.forgeMasteryExp}/${this.getForgeMasteryNeed()}`;
+        }
+        if (this.roleAdvKungfuLabel) {
+            this.roleAdvKungfuLabel.string = `${kungfu.name} Lv.${this.getKungfuLevel(kungfu.id)}`;
         }
         const expeditionPetText = this.equippedSpiritPetId && this.spiritPetUnlocked[this.equippedSpiritPetId]
             ? this.getSpiritPetDef(this.equippedSpiritPetId).name
             : '未出战';
-        if (this.roleDungeonProgressLabel) this.roleDungeonProgressLabel.string = `当前功法 ${kungfu.name} Lv.${this.getKungfuLevel(kungfu.id)}  |  参悟需灵石 ${this.getKungfuUpgradeCost(kungfu.id)}  |  灵宠 ${expeditionPetText}`;
+        if (this.roleAdvPetLabel) {
+            const petId = this.equippedSpiritPetId;
+            const petLv = petId && this.spiritPetUnlocked[petId] ? this.getSpiritPetLevel(petId) : 1;
+            this.roleAdvPetLabel.string = `灵宠 ${expeditionPetText} Lv.${petLv}`;
+        }
+        if (this.rolePracticeRealmLabel) {
+            this.rolePracticeRealmLabel.string = `境界 ${this.getRealmTitle()}`;
+        }
+        if (this.rolePracticeHintLabel) {
+            this.rolePracticeHintLabel.string = `秘境最深 ${best}/${current.maxDepth}`;
+        }
         if (this.roleRealmButton && this.roleRealmButtonLabel) {
             const canBreakthrough = this.realmExp >= this.realmExpNeed;
             const button = this.roleRealmButton.getComponent(Button);
             if (button) button.interactable = canBreakthrough;
-            this.roleRealmButtonLabel.string = canBreakthrough ? '修炼突破' : '修为不足';
+            this.roleRealmButtonLabel.string = canBreakthrough ? '修炼突破' : '修为未满';
             this.styleActionButton(this.roleRealmButton, canBreakthrough ? 'ready' : 'disabled', 'azure');
         }
         if (this.rolePrepareButton && this.rolePrepareButtonLabel) {
@@ -10435,11 +10461,16 @@ function mountDemo() {
     const scene = director.getScene();
     if (!scene) return;
     const canvas = find('Canvas', scene);
-    if (!canvas || canvas.getChildByName('DemoRoot')) return;
-    const root = new Node('DemoRoot');
+    if (!canvas || canvas.getChildByName('DemoRoot') || canvas.getChildByName('OverviewPagesRoot')) return;
+    const rootName = AUTO_BOOT_ENTRY === 'overview' ? 'OverviewPagesRoot' : 'DemoRoot';
+    const root = new Node(rootName);
     root.layer = Layers.Enum.UI_2D;
     canvas.addChild(root);
     root.addComponent(UITransform).setContentSize(DESIGN_WIDTH, DESIGN_HEIGHT);
+    if (AUTO_BOOT_ENTRY === 'overview') {
+        root.addComponent(OverviewPagesHub);
+        return;
+    }
     root.addComponent(GrottoExpeditionDemo);
 }
 director.on(Director.EVENT_AFTER_SCENE_LAUNCH, mountDemo);

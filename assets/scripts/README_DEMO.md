@@ -2,7 +2,8 @@
 
 ## 运行方式
 - 用 Cocos Creator 3.8 打开工程，运行任意**带 Canvas 节点的场景**即可。
-- 脚本 `GrottoExpeditionDemo.ts` 会在场景加载后自动挂到 `Canvas` 下（创建 `DemoRoot` 节点），无需在编辑器里手动挂组件。
+- 当前默认启动入口已切到概览页 Hub：场景加载后会自动挂到 `Canvas` 下并创建 `OverviewPagesRoot`，无需在编辑器里手动挂组件。
+- 若要切回旧搜打撤 Demo，可修改 `assets/scripts/GrottoExpeditionDemo.ts` 里的 `AUTO_BOOT_ENTRY` 为 `grotto`。
 
 ## 玩法流程
 1. **洞府（局外）**  
