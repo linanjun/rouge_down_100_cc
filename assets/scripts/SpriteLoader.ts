@@ -8,6 +8,7 @@
  * 可通过 resources.load(path + '/spriteFrame', SpriteFrame) 直接加载。
  */
 import {
+    Graphics,
     Layers,
     Node,
     resources,
@@ -78,7 +79,7 @@ export const SP = {
 
 /**
  * 在已有节点上异步加载切片精灵。
- * Graphics 底色仍保留，Sprite 加载后覆盖在上层。
+ * 若节点存在 Graphics 占位底色，加载成功后会自动清除。
  *
  * @param node       目标节点（需已有 UITransform）
  * @param spriteNum  切片编号（1-44）
@@ -92,6 +93,13 @@ export function loadSpriteToNode(
     const path = `${SPRITE_PATH}${spriteNum}/spriteFrame`;
     resources.load(path, SpriteFrame, (err, sf) => {
         if (err || !sf || !node.isValid) return;
+
+        // Replace Graphics placeholder — clear and disable so sprite is visible
+        const g = node.getComponent(Graphics);
+        if (g) {
+            g.clear();
+            g.enabled = false;
+        }
 
         let sprite = node.getComponent(Sprite);
         if (!sprite) sprite = node.addComponent(Sprite);

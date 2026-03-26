@@ -64,22 +64,28 @@ export function buildCharacterPage(parent: Node): void {
 
     parent.removeAllChildren();
 
-    const PAD = 10;
+    const PAD = 16;
     const innerW = W - PAD * 2;
-    let curY = H / 2;
+    const colGap = 10;
+
+    // ── Dynamic vertical layout — fill available height ──
+    const titleH = 48;
+    const afterTitle = 14;
+    const sectionGap = 16;
+
+    const usableH = H - PAD * 2 - titleH - afterTitle - sectionGap;
+    const statsH = Math.min(Math.round(usableH * 0.35), 290);
+    const mainH = usableH - statsH;
+
+    let curY = H / 2 - PAD;
 
     // ─── 角色总览 标题 ───
-    curY -= 14;
-    const titleH = 34;
     curY -= titleH / 2;
-    const titleNode = makeSectionTitle(parent, '角色总览', innerW * 0.36, titleH, 0, curY);
-    loadSpriteToNode(titleNode, SP.titleBanner);
-    curY -= titleH / 2 + 8;
+    makeSectionTitle(parent, '角色总览', innerW * 0.38, titleH, 0, curY, SP.titleBanner);
+    curY -= titleH / 2 + afterTitle;
 
     // ─── 上半区：本命法器 (左) + 角色形象 (右) ───
-    const mainH = 390;
-    const colGap = 8;
-    const leftW = innerW * 0.40;
+    const leftW = innerW * 0.38;
     const rightW = innerW - leftW - colGap;
     const mainY = curY - mainH / 2;
     const leftX = -innerW / 2 + leftW / 2;
@@ -97,10 +103,9 @@ export function buildCharacterPage(parent: Node): void {
     loadSpriteToNode(charPanel, SP.charAreaPanel);
     buildCharacterImage(charPanel, rightW, mainH);
 
-    curY = mainY - mainH / 2 - 10;
+    curY = mainY - mainH / 2 - sectionGap;
 
     // ─── 下半区：基础属性 (左) + 功法造诣 (右) ───
-    const statsH = 180;
     const halfW = (innerW - colGap) / 2;
     const statsY = curY - statsH / 2;
     const sLeftX = -innerW / 2 + halfW / 2;
@@ -124,6 +129,7 @@ export function buildCharacterPage(parent: Node): void {
 function makeSectionTitle(
     parent: Node, text: string,
     w: number, h: number, x: number, y: number,
+    spriteOverride?: number,
 ): Node {
     const node = makeNode('Title_' + text, parent, w, h, x, y);
     const g = node.addComponent(Graphics);
@@ -142,9 +148,9 @@ function makeSectionTitle(
     g.lineTo(w / 2 + ext, 0);
     g.stroke();
 
-    loadSpriteToNode(node, SP.sectionHeader);
+    loadSpriteToNode(node, spriteOverride ?? SP.sectionHeader);
 
-    makeLabel(node, text, 15, 0, 0, TEXT_GOLD, w - 8);
+    makeLabel(node, text, 16, 0, 0, TEXT_GOLD, w - 8);
     return node;
 }
 
@@ -163,8 +169,9 @@ interface SlotData {
 }
 
 function buildArtifacts(parent: Node, W: number, H: number): void {
-    const titleH = 26;
-    const titleY = H / 2 - 8 - titleH / 2;
+    const titleH = 28;
+    const titleTopPad = 12;
+    const titleY = H / 2 - titleTopPad - titleH / 2;
     makeSectionTitle(parent, '本命法器', W * 0.62, titleH, 0, titleY);
 
     const slots: SlotData[] = [
@@ -173,13 +180,20 @@ function buildArtifacts(parent: Node, W: number, H: number): void {
         { type: '灵灯位', name: '寻宝灯', level: 1, stars: 1, iconBg: LAMP_BG, iconText: '灯', iconSprite: SP.equipLantern },
     ];
 
-    const slotH = 88;
-    const slotPad = 8;
-    let slotY = titleY - titleH / 2 - 14 - slotH / 2;
+    // Dynamic: distribute remaining height among slots
+    const contentTop = titleY - titleH / 2 - 16;
+    const contentBottom = -H / 2 + 12;
+    const availH = contentTop - contentBottom;
+    const slotGap = 12;
+    const totalGaps = slotGap * (slots.length - 1);
+    const slotH = Math.min(Math.floor((availH - totalGaps) / slots.length), 130);
+
+    const slotPad = 10;
+    let slotY = contentTop - slotH / 2;
 
     for (const slot of slots) {
         buildEquipSlot(parent, W - slotPad * 2, slotH, 0, slotY, slot);
-        slotY -= slotH + 8;
+        slotY -= slotH + slotGap;
     }
 }
 
@@ -190,31 +204,32 @@ function buildEquipSlot(
     const node = makePanel('Slot_' + data.type, parent, w, h, x, y, SLOT_BG, SLOT_BORDER, 4);
     loadSpriteToNode(node, SP.equipSlotBg);
 
-    // 图标
-    const iconSize = 62;
-    const iconX = -w / 2 + 8 + iconSize / 2;
+    // 图标 — scale with slot height
+    const iconSize = Math.min(Math.round(h * 0.65), 80);
+    const iconX = -w / 2 + 10 + iconSize / 2;
     const icon = makePanel('Icon', node, iconSize, iconSize, iconX, 0,
         data.iconBg, SLOT_BORDER, 4);
     loadSpriteToNode(icon, data.iconSprite);
-    makeLabel(icon, data.iconText, 26, 0, 0, TEXT_WHITE, iconSize - 4);
+    makeLabel(icon, data.iconText, Math.round(iconSize * 0.4), 0, 0, TEXT_WHITE, iconSize - 4);
 
     // 文字区
-    const textX = iconX + iconSize / 2 + 8;
-    const textW = w - iconSize - 26;
+    const textX = iconX + iconSize / 2 + 10;
+    const textW = w - iconSize - 30;
     const textCX = textX + textW / 2;
 
-    makeLabel(node, data.type, 12, textCX, 24,
+    const textSpread = Math.min(Math.round(h * 0.35), 28);
+    makeLabel(node, data.type, 13, textCX, textSpread,
         TEXT_GRAY, textW, HorizontalTextAlignment.LEFT);
-    makeLabel(node, data.name, 16, textCX, 4,
+    makeLabel(node, data.name, 17, textCX, 0,
         TEXT_WHITE, textW, HorizontalTextAlignment.LEFT);
 
     const starStr = '⭐'.repeat(data.stars);
-    makeLabel(node, `Lv.${data.level}  ${starStr}`, 12, textCX, -18,
+    makeLabel(node, `Lv.${data.level}  ${starStr}`, 13, textCX, -textSpread,
         STAR_COLOR, textW, HorizontalTextAlignment.LEFT);
 
     // 星级切片
     for (let s = 0; s < data.stars; s++) {
-        makeSpriteNode('Star', node, SP.star, 18, 18, textCX - textW / 2 + 42 + s * 20, -18);
+        makeSpriteNode('Star', node, SP.star, 18, 18, textCX - textW / 2 + 42 + s * 20, -textSpread);
     }
 }
 
@@ -223,14 +238,15 @@ function buildEquipSlot(
 // ═══════════════════════════════════════════════════
 
 function buildCharacterImage(parent: Node, W: number, H: number): void {
-    const titleH = 26;
-    const titleY = H / 2 - 8 - titleH / 2;
+    const titleH = 28;
+    const titleTopPad = 12;
+    const titleY = H / 2 - titleTopPad - titleH / 2;
     makeSectionTitle(parent, '角色形象', W * 0.42, titleH, 0, titleY);
 
     // 角色展示区
     const areaW = W - 24;
-    const areaH = H - titleH - 32;
-    const areaY = titleY - titleH / 2 - 8 - areaH / 2;
+    const areaH = H - titleH - titleTopPad - 20;
+    const areaY = titleY - titleH / 2 - 10 - areaH / 2;
     const charArea = makePanel('CharArea', parent, areaW, areaH, 0, areaY,
         CHAR_AREA_BG, SLOT_BORDER, 6);
 
@@ -247,8 +263,10 @@ function buildCharacterImage(parent: Node, W: number, H: number): void {
     // 底座切片
     makeSpriteNode('Pedestal', charArea, SP.pedestal, 159, 131, 0, -areaH * 0.18);
 
-    // 角色切片（打坐形象）
-    makeSpriteNode('CharFigure', charArea, SP.charFigure, 279, 332, 0, 8);
+    // 角色切片（打坐形象）— scale to fit
+    const figW = Math.min(areaW * 0.72, 279);
+    const figH = figW * (332 / 279);
+    makeSpriteNode('CharFigure', charArea, SP.charFigure, figW, figH, 0, areaH * 0.02);
 
     // 灵光点缀（使用切片小光点）
     makeSpriteNode('Sparkle1', charArea, SP.sparkle1, 10, 9, -areaW * 0.28, areaH * 0.2);
@@ -262,9 +280,10 @@ function buildCharacterImage(parent: Node, W: number, H: number): void {
 // ═══════════════════════════════════════════════════
 
 function buildBaseStats(parent: Node, W: number, H: number): void {
-    const titleH = 26;
-    const titleY = H / 2 - 6 - titleH / 2;
-    makeSectionTitle(parent, '基础属性', W * 0.58, titleH, 0, titleY);
+    const titleH = 28;
+    const titleTopPad = 10;
+    const titleY = H / 2 - titleTopPad - titleH / 2;
+    makeSectionTitle(parent, '基础属性', W * 0.60, titleH, 0, titleY);
 
     const stats = [
         { label: '气血', value: '160/160' },
@@ -272,15 +291,19 @@ function buildBaseStats(parent: Node, W: number, H: number): void {
         { label: '行动力', value: '180/180' },
     ];
 
-    const rowH = 30;
-    let rowY = titleY - titleH / 2 - 18;
-    const pad = 14;
+    const contentTop = titleY - titleH / 2 - 20;
+    const contentBottom = -H / 2 + 16;
+    const availH = contentTop - contentBottom;
+    const rowH = Math.min(Math.floor(availH / stats.length), 50);
+    const pad = 16;
+
+    let rowY = contentTop - rowH / 2;
 
     for (const s of stats) {
-        makeLabel(parent, s.label, 15, -W / 2 + pad + 30, rowY,
-            TEXT_GOLD, 70, HorizontalTextAlignment.LEFT);
-        makeLabel(parent, s.value, 15, W / 2 - pad - 48, rowY,
-            TEXT_WHITE, 100, HorizontalTextAlignment.RIGHT);
+        makeLabel(parent, s.label, 16, -W / 2 + pad + 32, rowY,
+            TEXT_GOLD, 80, HorizontalTextAlignment.LEFT);
+        makeLabel(parent, s.value, 16, W / 2 - pad - 50, rowY,
+            TEXT_WHITE, 110, HorizontalTextAlignment.RIGHT);
         rowY -= rowH;
     }
 }
@@ -290,9 +313,10 @@ function buildBaseStats(parent: Node, W: number, H: number): void {
 // ═══════════════════════════════════════════════════
 
 function buildSkills(parent: Node, W: number, H: number): void {
-    const titleH = 26;
-    const titleY = H / 2 - 6 - titleH / 2;
-    makeSectionTitle(parent, '功法造诣', W * 0.58, titleH, 0, titleY);
+    const titleH = 28;
+    const titleTopPad = 10;
+    const titleY = H / 2 - titleTopPad - titleH / 2;
+    makeSectionTitle(parent, '功法造诣', W * 0.60, titleH, 0, titleY);
 
     const skills = [
         { name: '炼丹术', level: 1, progress: '0/13' },
@@ -301,16 +325,20 @@ function buildSkills(parent: Node, W: number, H: number): void {
         { name: '清心诀', level: 1, progress: '0/13' },
     ];
 
-    const rowH = 26;
-    let rowY = titleY - titleH / 2 - 14;
-    const pad = 10;
+    const contentTop = titleY - titleH / 2 - 16;
+    const contentBottom = -H / 2 + 16;
+    const availH = contentTop - contentBottom;
+    const rowH = Math.min(Math.floor(availH / skills.length), 46);
+    const pad = 14;
+
+    let rowY = contentTop - rowH / 2;
 
     for (const s of skills) {
         const text = `${s.name} Lv.${s.level}`;
-        makeLabel(parent, text, 13, -W / 2 + pad + 56, rowY,
-            TEXT_WHITE, 110, HorizontalTextAlignment.LEFT);
-        makeLabel(parent, s.progress, 13, W / 2 - pad - 20, rowY,
-            TEXT_GRAY, 50, HorizontalTextAlignment.RIGHT);
+        makeLabel(parent, text, 14, -W / 2 + pad + 58, rowY,
+            TEXT_WHITE, 120, HorizontalTextAlignment.LEFT);
+        makeLabel(parent, s.progress, 14, W / 2 - pad - 22, rowY,
+            TEXT_GRAY, 56, HorizontalTextAlignment.RIGHT);
         rowY -= rowH;
     }
 }
