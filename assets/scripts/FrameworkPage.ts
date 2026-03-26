@@ -24,6 +24,7 @@ import {
     view,
 } from 'cc';
 import { buildCharacterPage } from './CharacterPage';
+import { loadSpriteToNode, makeSpriteNode, SP } from './SpriteLoader';
 
 const { ccclass } = _decorator;
 
@@ -98,8 +99,7 @@ export class FrameworkPage extends Component {
         const avatarSize = 76;
         const avatarX = -W / 2 + 6 + avatarSize / 2;
         const avatar = this.makePanel('Avatar', bar, avatarSize, avatarSize, avatarX, 0, new Color(60, 64, 78, 255), BORDER_COLOR, 6);
-        this.makeLabel(avatar, 'R', 28, 0, 10, TEXT_LIGHT, avatarSize);
-        this.makeLabel(avatar, '头像', 12, 0, -18, TEXT_LIGHT, avatarSize);
+        loadSpriteToNode(avatar, SP.avatar);
 
         // Name + Realm — 左对齐
         const nameW = 110;
@@ -110,12 +110,14 @@ export class FrameworkPage extends Component {
         // Gold
         const goldX = W / 2 - 210;
         const goldBox = this.makePanel('Gold', bar, 110, 42, goldX, 0, new Color(50, 54, 66, 255), BORDER_COLOR, 4);
-        this.makeLabel(goldBox, '💰 999', 14, 0, 0, new Color(255, 220, 120, 255), 100);
+        makeSpriteNode('CoinIcon', goldBox, SP.coinIcon, 24, 24, -38, 0);
+        this.makeLabel(goldBox, '999', 14, 10, 0, new Color(255, 220, 120, 255), 60);
 
         // Diamond
         const diamondX = W / 2 - 74;
         const diamondBox = this.makePanel('Diamond', bar, 110, 42, diamondX, 0, new Color(50, 54, 66, 255), BORDER_COLOR, 4);
-        this.makeLabel(diamondBox, '💎 999', 14, 0, 0, new Color(160, 220, 255, 255), 100);
+        makeSpriteNode('DiamondIcon', diamondBox, SP.diamondIcon, 24, 24, -38, 0);
+        this.makeLabel(diamondBox, '999', 14, 10, 0, new Color(160, 220, 255, 255), 60);
     }
 
     // ── Content Area ──
@@ -130,7 +132,14 @@ export class FrameworkPage extends Component {
 
     // ── Shortcut Row (活动栏) ──
     private buildShortcutRow() {
-        const items = ['任务', '商店', '炼丹', '炼器', '功法', '灵宠'];
+        const items: { label: string; sprite: number }[] = [
+            { label: '任务', sprite: SP.iconQuest },
+            { label: '商店', sprite: SP.iconShop },
+            { label: '炼丹', sprite: SP.iconPotion },
+            { label: '炼器', sprite: SP.iconForge },
+            { label: '功法', sprite: SP.iconTech },
+            { label: '灵宠', sprite: SP.iconPet },
+        ];
         const y = -H / 2 + SAFE_BOTTOM + BOTTOM_BAR_H + GAP + SHORTCUT_ROW_H / 2;
         const rowW = W - 16;
         const row = this.makeNode('ShortcutRow', this.node, rowW, SHORTCUT_ROW_H, 0, y);
@@ -142,21 +151,27 @@ export class FrameworkPage extends Component {
 
         for (let i = 0; i < items.length; i++) {
             const x = startX + i * (btnW + 6);
-            const btn = this.makePanel(items[i], row, btnW, btnH, x, 0, SHORTCUT_COLOR, BORDER_COLOR, 6);
+            const btn = this.makePanel(items[i].label, row, btnW, btnH, x, 0, SHORTCUT_COLOR, BORDER_COLOR, 6);
             btn.addComponent(Button).transition = Button.Transition.NONE;
 
-            // Icon placeholder
+            // 图标切片
             const iconSize = FUNC_ICON_L > btnW - 16 ? btnW - 16 : FUNC_ICON_L;
-            const icon = this.makePanel('Icon', btn, iconSize, iconSize, 0, 14, new Color(220, 220, 218, 255), BORDER_COLOR, 6);
-            this.makeLabel(icon, 'R', 24, 0, 0, TEXT_DARK, iconSize - 8);
+            const icon = this.makeNode('Icon', btn, iconSize, iconSize, 0, 14);
+            loadSpriteToNode(icon, items[i].sprite);
 
-            this.makeLabel(btn, items[i], 13, 0, -36, TEXT_DARK, btnW - 8);
+            this.makeLabel(btn, items[i].label, 13, 0, -36, TEXT_DARK, btnW - 8);
         }
     }
 
     // ── Bottom Bar (主导航) ──
     private buildBottomBar() {
-        const tabs = ['本命法器', '人物', '境界', '洞天', '钓鱼'];
+        const tabs: { label: string; sprite: number }[] = [
+            { label: '本命法器', sprite: SP.navWeapon },
+            { label: '人物', sprite: SP.navChar },
+            { label: '境界', sprite: SP.navRealm },
+            { label: '洞天', sprite: SP.navCave },
+            { label: '钓鱼', sprite: SP.navFish },
+        ];
         const y = -H / 2 + SAFE_BOTTOM + BOTTOM_BAR_H / 2;
         const bar = this.makePanel('BottomBar', this.node, W, BOTTOM_BAR_H, 0, y, BOTTOM_BAR_COLOR, BORDER_COLOR, 0);
 
@@ -167,14 +182,14 @@ export class FrameworkPage extends Component {
 
         for (let i = 0; i < tabs.length; i++) {
             const x = startX + i * (btnW + 6);
-            const btn = this.makePanel(tabs[i], bar, btnW, btnH, x, 0, new Color(252, 252, 250, 255), BORDER_COLOR, 6);
+            const btn = this.makePanel(tabs[i].label, bar, btnW, btnH, x, 0, new Color(252, 252, 250, 255), BORDER_COLOR, 6);
             btn.addComponent(Button).transition = Button.Transition.NONE;
 
-            // Icon on top, text below (vertical layout)
-            const icon = this.makePanel('Icon', btn, FUNC_ICON_S, FUNC_ICON_S, 0, 14, new Color(218, 218, 216, 255), BORDER_COLOR, 4);
-            this.makeLabel(icon, '🖼', 18, 0, 0, TEXT_DARK, FUNC_ICON_S - 6);
+            // 图标切片
+            const icon = this.makeNode('Icon', btn, FUNC_ICON_S, FUNC_ICON_S, 0, 14);
+            loadSpriteToNode(icon, tabs[i].sprite);
 
-            this.makeLabel(btn, tabs[i], 14, 0, -24, TEXT_DARK, btnW - 8);
+            this.makeLabel(btn, tabs[i].label, 14, 0, -24, TEXT_DARK, btnW - 8);
         }
     }
 

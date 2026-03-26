@@ -33,12 +33,13 @@ import {
     Node,
     UITransform,
 } from 'cc';
+import { loadSpriteToNode, makeSpriteNode, SP } from './SpriteLoader';
 
-// ── 深色仙侠像素风配色 ──
+// ── 深色仙侠像素风配色（Graphics 底色 / 加载前占位） ──
 const PANEL_BG      = new Color(34, 38, 52, 255);
-const PANEL_BORDER  = new Color(82, 76, 62, 255);   // 铜金包边
+const PANEL_BORDER  = new Color(82, 76, 62, 255);
 const TITLE_BG      = new Color(38, 42, 56, 255);
-const TITLE_BORDER  = new Color(96, 88, 68, 255);   // 标题装饰框
+const TITLE_BORDER  = new Color(96, 88, 68, 255);
 const SLOT_BG       = new Color(42, 46, 62, 255);
 const SLOT_BORDER   = new Color(66, 62, 52, 255);
 
@@ -47,7 +48,6 @@ const TEXT_GRAY     = new Color(168, 172, 184, 255);
 const TEXT_GOLD     = new Color(255, 216, 120, 255);
 const STAR_COLOR    = new Color(255, 200, 50, 255);
 
-// 装备图标占位配色
 const SWORD_BG      = new Color(50, 75, 65, 255);
 const SHIELD_BG     = new Color(50, 50, 78, 255);
 const LAMP_BG       = new Color(68, 58, 48, 255);
@@ -72,7 +72,8 @@ export function buildCharacterPage(parent: Node): void {
     curY -= 14;
     const titleH = 34;
     curY -= titleH / 2;
-    makeSectionTitle(parent, '角色总览', innerW * 0.36, titleH, 0, curY);
+    const titleNode = makeSectionTitle(parent, '角色总览', innerW * 0.36, titleH, 0, curY);
+    loadSpriteToNode(titleNode, SP.titleBanner);
     curY -= titleH / 2 + 8;
 
     // ─── 上半区：本命法器 (左) + 角色形象 (右) ───
@@ -87,11 +88,13 @@ export function buildCharacterPage(parent: Node): void {
     // 本命法器
     const artifactPanel = makePanel('本命法器Panel', parent,
         leftW, mainH, leftX, mainY, PANEL_BG, PANEL_BORDER, 4);
+    loadSpriteToNode(artifactPanel, SP.equipPanel);
     buildArtifacts(artifactPanel, leftW, mainH);
 
     // 角色形象
     const charPanel = makePanel('角色形象Panel', parent,
         rightW, mainH, rightX, mainY, PANEL_BG, PANEL_BORDER, 4);
+    loadSpriteToNode(charPanel, SP.charAreaPanel);
     buildCharacterImage(charPanel, rightW, mainH);
 
     curY = mainY - mainH / 2 - 10;
@@ -105,10 +108,12 @@ export function buildCharacterPage(parent: Node): void {
 
     const statsPanel = makePanel('基础属性Panel', parent,
         halfW, statsH, sLeftX, statsY, PANEL_BG, PANEL_BORDER, 4);
+    loadSpriteToNode(statsPanel, SP.statsPanel);
     buildBaseStats(statsPanel, halfW, statsH);
 
     const skillPanel = makePanel('功法造诣Panel', parent,
         halfW, statsH, sRightX, statsY, PANEL_BG, PANEL_BORDER, 4);
+    loadSpriteToNode(skillPanel, SP.statsPanel);
     buildSkills(skillPanel, halfW, statsH);
 }
 
@@ -119,7 +124,7 @@ export function buildCharacterPage(parent: Node): void {
 function makeSectionTitle(
     parent: Node, text: string,
     w: number, h: number, x: number, y: number,
-): void {
+): Node {
     const node = makeNode('Title_' + text, parent, w, h, x, y);
     const g = node.addComponent(Graphics);
     g.fillColor = TITLE_BG;
@@ -137,7 +142,10 @@ function makeSectionTitle(
     g.lineTo(w / 2 + ext, 0);
     g.stroke();
 
+    loadSpriteToNode(node, SP.sectionHeader);
+
     makeLabel(node, text, 15, 0, 0, TEXT_GOLD, w - 8);
+    return node;
 }
 
 // ═══════════════════════════════════════════════════
@@ -151,6 +159,7 @@ interface SlotData {
     stars: number;
     iconBg: Color;
     iconText: string;
+    iconSprite: number;  // SP 切片编号
 }
 
 function buildArtifacts(parent: Node, W: number, H: number): void {
@@ -159,9 +168,9 @@ function buildArtifacts(parent: Node, W: number, H: number): void {
     makeSectionTitle(parent, '本命法器', W * 0.62, titleH, 0, titleY);
 
     const slots: SlotData[] = [
-        { type: '飞剑位', name: '青霜剑', level: 1, stars: 1, iconBg: SWORD_BG, iconText: '剑' },
-        { type: '护符位', name: '玄甲符', level: 1, stars: 1, iconBg: SHIELD_BG, iconText: '符' },
-        { type: '灵灯位', name: '寻宝灯', level: 1, stars: 1, iconBg: LAMP_BG, iconText: '灯' },
+        { type: '飞剑位', name: '青霜剑', level: 1, stars: 1, iconBg: SWORD_BG, iconText: '剑', iconSprite: SP.equipSword },
+        { type: '护符位', name: '玄甲符', level: 1, stars: 1, iconBg: SHIELD_BG, iconText: '符', iconSprite: SP.equipShield },
+        { type: '灵灯位', name: '寻宝灯', level: 1, stars: 1, iconBg: LAMP_BG, iconText: '灯', iconSprite: SP.equipLantern },
     ];
 
     const slotH = 88;
@@ -179,12 +188,14 @@ function buildEquipSlot(
     data: SlotData,
 ): void {
     const node = makePanel('Slot_' + data.type, parent, w, h, x, y, SLOT_BG, SLOT_BORDER, 4);
+    loadSpriteToNode(node, SP.equipSlotBg);
 
     // 图标
     const iconSize = 62;
     const iconX = -w / 2 + 8 + iconSize / 2;
     const icon = makePanel('Icon', node, iconSize, iconSize, iconX, 0,
         data.iconBg, SLOT_BORDER, 4);
+    loadSpriteToNode(icon, data.iconSprite);
     makeLabel(icon, data.iconText, 26, 0, 0, TEXT_WHITE, iconSize - 4);
 
     // 文字区
@@ -200,6 +211,11 @@ function buildEquipSlot(
     const starStr = '⭐'.repeat(data.stars);
     makeLabel(node, `Lv.${data.level}  ${starStr}`, 12, textCX, -18,
         STAR_COLOR, textW, HorizontalTextAlignment.LEFT);
+
+    // 星级切片
+    for (let s = 0; s < data.stars; s++) {
+        makeSpriteNode('Star', node, SP.star, 18, 18, textCX - textW / 2 + 42 + s * 20, -18);
+    }
 }
 
 // ═══════════════════════════════════════════════════
@@ -218,7 +234,7 @@ function buildCharacterImage(parent: Node, W: number, H: number): void {
     const charArea = makePanel('CharArea', parent, areaW, areaH, 0, areaY,
         CHAR_AREA_BG, SLOT_BORDER, 6);
 
-    // 底座圆环
+    // 底座圆环（Graphics 保留作为占位/底层）
     const g = charArea.getComponent(Graphics)!;
     g.strokeColor = new Color(72, 66, 52, 255);
     g.lineWidth = 2;
@@ -228,15 +244,17 @@ function buildCharacterImage(parent: Node, W: number, H: number): void {
     g.ellipse(0, -areaH * 0.22, areaW * 0.30, areaH * 0.06);
     g.fill();
 
-    // 角色占位
-    makeLabel(charArea, '🧘', 72, 0, 8, TEXT_WHITE, areaW);
+    // 底座切片
+    makeSpriteNode('Pedestal', charArea, SP.pedestal, 159, 131, 0, -areaH * 0.18);
 
-    // 灵光点缀
-    const sparkle = new Color(255, 240, 180, 180);
-    makeLabel(charArea, '✦', 14, -areaW * 0.28, areaH * 0.2, sparkle, 20);
-    makeLabel(charArea, '✦', 10, areaW * 0.32, areaH * 0.12, sparkle, 20);
-    makeLabel(charArea, '✦', 12, areaW * 0.18, areaH * 0.32, sparkle, 20);
-    makeLabel(charArea, '✦', 8, -areaW * 0.16, -areaH * 0.06, sparkle, 20);
+    // 角色切片（打坐形象）
+    makeSpriteNode('CharFigure', charArea, SP.charFigure, 279, 332, 0, 8);
+
+    // 灵光点缀（使用切片小光点）
+    makeSpriteNode('Sparkle1', charArea, SP.sparkle1, 10, 9, -areaW * 0.28, areaH * 0.2);
+    makeSpriteNode('Sparkle2', charArea, SP.sparkle2, 6, 7, areaW * 0.32, areaH * 0.12);
+    makeSpriteNode('Sparkle3', charArea, SP.sparkle3, 6, 7, areaW * 0.18, areaH * 0.32);
+    makeSpriteNode('Sparkle4', charArea, SP.sparkle1, 10, 9, -areaW * 0.16, -areaH * 0.06);
 }
 
 // ═══════════════════════════════════════════════════
