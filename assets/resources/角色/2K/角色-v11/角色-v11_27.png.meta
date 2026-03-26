@@ -1,0 +1,42 @@
+{
+  "ver": "1.0.27",
+  "importer": "image",
+  "imported": true,
+  "uuid": "27126e4c-6967-49d2-84ea-181d6fe7abe4",
+  "files": [
+    ".json",
+    ".png"
+  ],
+  "subMetas": {
+    "6c48a": {
+      "importer": "texture",
+      "uuid": "27126e4c-6967-49d2-84ea-181d6fe7abe4@6c48a",
+      "displayName": "角色-v11_27",
+      "id": "6c48a",
+      "name": "texture",
+      "userData": {
+        "wrapModeS": "repeat",
+        "wrapModeT": "repeat",
+        "minfilter": "linear",
+        "magfilter": "linear",
+        "mipfilter": "none",
+        "anisotropy": 0,
+        "isUuid": true,
+        "imageUuidOrDatabaseUri": "27126e4c-6967-49d2-84ea-181d6fe7abe4",
+        "visible": false
+      },
+      "ver": "1.0.22",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    }
+  },
+  "userData": {
+    "hasAlpha": true,
+    "type": "texture",
+    "fixAlphaTransparencyArtifacts": false,
+    "redirect": "27126e4c-6967-49d2-84ea-181d6fe7abe4@6c48a"
+  }
+}
