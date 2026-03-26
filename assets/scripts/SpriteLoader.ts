@@ -1,8 +1,11 @@
 /**
- * SpriteLoader — 运行时从 resources 目录加载角色页切片纹理
+ * SpriteLoader — 运行时从 resources 目录加载角色页切片精灵
  *
  * 资源路径：assets/resources/角色/1K/角色-v11/角色-v11_{num}.png
- * 加载方式：resources.load → Texture2D → SpriteFrame → Sprite
+ * 加载方式：resources.load → SpriteFrame → Sprite
+ *
+ * meta 文件已配置为 "type": "sprite-frame"，包含 spriteFrame 子资源，
+ * 可通过 resources.load(path + '/spriteFrame', SpriteFrame) 直接加载。
  */
 import {
     Layers,
@@ -11,7 +14,6 @@ import {
     Size,
     Sprite,
     SpriteFrame,
-    Texture2D,
     UITransform,
 } from 'cc';
 
@@ -75,7 +77,7 @@ export const SP = {
 } as const;
 
 /**
- * 在已有节点上异步加载切片纹理并设为 Sprite。
+ * 在已有节点上异步加载切片精灵。
  * Graphics 底色仍保留，Sprite 加载后覆盖在上层。
  *
  * @param node       目标节点（需已有 UITransform）
@@ -87,12 +89,9 @@ export function loadSpriteToNode(
     spriteNum: number,
     fitSize = false,
 ): void {
-    const path = `${SPRITE_PATH}${spriteNum}`;
-    resources.load(path, Texture2D, (err, tex) => {
-        if (err || !tex || !node.isValid) return;
-
-        const sf = new SpriteFrame();
-        sf.texture = tex;
+    const path = `${SPRITE_PATH}${spriteNum}/spriteFrame`;
+    resources.load(path, SpriteFrame, (err, sf) => {
+        if (err || !sf || !node.isValid) return;
 
         let sprite = node.getComponent(Sprite);
         if (!sprite) sprite = node.addComponent(Sprite);
@@ -102,9 +101,9 @@ export function loadSpriteToNode(
 
         if (fitSize) {
             const ut = node.getComponent(UITransform);
-            if (ut) {
+            if (ut && sf.rect) {
                 ut.setContentSize(
-                    new Size(tex.width, tex.height),
+                    new Size(sf.rect.width, sf.rect.height),
                 );
             }
         }
@@ -112,9 +111,9 @@ export function loadSpriteToNode(
 }
 
 /**
- * 创建新节点并异步加载切片纹理。
+ * 创建新节点并异步加载切片精灵。
  *
- * @returns 新节点（Sprite 在纹理加载完成后才出现）
+ * @returns 新节点（Sprite 在精灵加载完成后才出现）
  */
 export function makeSpriteNode(
     name: string,

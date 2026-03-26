@@ -31,12 +31,88 @@
         ".json"
       ],
       "subMetas": {}
+    },
+    "f9941": {
+      "importer": "sprite-frame",
+      "uuid": "71793eca-7cc4-4da0-9f41-37dd8625087c@f9941",
+      "displayName": "角色-v11_11",
+      "id": "f9941",
+      "name": "spriteFrame",
+      "userData": {
+        "trimType": "auto",
+        "trimThreshold": 1,
+        "rotated": false,
+        "offsetX": 0,
+        "offsetY": 0,
+        "trimX": 0,
+        "trimY": 0,
+        "width": 247,
+        "height": 62,
+        "rawWidth": 247,
+        "rawHeight": 62,
+        "borderTop": 0,
+        "borderBottom": 0,
+        "borderLeft": 0,
+        "borderRight": 0,
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivotX": 0.5,
+        "pivotY": 0.5,
+        "meshType": 0,
+        "vertices": {
+          "rawPosition": [
+            -123.5,
+            -31.0,
+            123.5,
+            31.0
+          ],
+          "indexes": [
+            0,
+            1,
+            2,
+            1,
+            3,
+            2
+          ],
+          "uv": [
+            0,
+            62,
+            247,
+            0
+          ],
+          "nuv": [
+            0,
+            1,
+            1,
+            0
+          ],
+          "minPos": [
+            -123.5,
+            -31.0,
+            0
+          ],
+          "maxPos": [
+            123.5,
+            31.0,
+            0
+          ]
+        },
+        "isUuid": true,
+        "imageUuidOrDatabaseUri": "71793eca-7cc4-4da0-9f41-37dd8625087c@6c48a",
+        "atlasUuid": ""
+      },
+      "ver": "1.0.12",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
     }
   },
   "userData": {
     "hasAlpha": true,
-    "type": "texture",
+    "type": "sprite-frame",
     "fixAlphaTransparencyArtifacts": false,
-    "redirect": "71793eca-7cc4-4da0-9f41-37dd8625087c@6c48a"
+    "redirect": "71793eca-7cc4-4da0-9f41-37dd8625087c@f9941"
   }
 }
