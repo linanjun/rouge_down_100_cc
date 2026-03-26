@@ -8,30 +8,6 @@
     ".png"
   ],
   "subMetas": {
-    "6c48a": {
-      "importer": "texture",
-      "uuid": "71793eca-7cc4-4da0-9f41-37dd8625087c@6c48a",
-      "displayName": "角色-v11_11",
-      "id": "6c48a",
-      "name": "texture",
-      "userData": {
-        "wrapModeS": "repeat",
-        "wrapModeT": "repeat",
-        "minfilter": "linear",
-        "magfilter": "linear",
-        "mipfilter": "none",
-        "anisotropy": 0,
-        "isUuid": true,
-        "imageUuidOrDatabaseUri": "71793eca-7cc4-4da0-9f41-37dd8625087c",
-        "visible": false
-      },
-      "ver": "1.0.22",
-      "imported": true,
-      "files": [
-        ".json"
-      ],
-      "subMetas": {}
-    },
     "f9941": {
       "importer": "sprite-frame",
       "uuid": "71793eca-7cc4-4da0-9f41-37dd8625087c@f9941",
@@ -62,38 +38,54 @@
         "vertices": {
           "rawPosition": [
             -123.5,
-            -31.0,
+            -31,
+            0,
             123.5,
-            31.0
+            -31,
+            0,
+            -123.5,
+            31,
+            0,
+            123.5,
+            31,
+            0
           ],
           "indexes": [
             0,
             1,
             2,
+            2,
             1,
-            3,
-            2
+            3
           ],
           "uv": [
             0,
             62,
             247,
+            62,
+            0,
+            0,
+            247,
             0
           ],
           "nuv": [
             0,
+            0,
+            1,
+            0,
+            0,
             1,
             1,
-            0
+            1
           ],
           "minPos": [
             -123.5,
-            -31.0,
+            -31,
             0
           ],
           "maxPos": [
             123.5,
-            31.0,
+            31,
             0
           ]
         },
@@ -107,12 +99,36 @@
         ".json"
       ],
       "subMetas": {}
+    },
+    "6c48a": {
+      "importer": "texture",
+      "uuid": "71793eca-7cc4-4da0-9f41-37dd8625087c@6c48a",
+      "displayName": "角色-v11_11",
+      "id": "6c48a",
+      "name": "texture",
+      "userData": {
+        "wrapModeS": "repeat",
+        "wrapModeT": "repeat",
+        "minfilter": "linear",
+        "magfilter": "linear",
+        "mipfilter": "none",
+        "anisotropy": 0,
+        "isUuid": true,
+        "imageUuidOrDatabaseUri": "71793eca-7cc4-4da0-9f41-37dd8625087c",
+        "visible": false
+      },
+      "ver": "1.0.22",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
     }
   },
   "userData": {
     "hasAlpha": true,
     "type": "sprite-frame",
     "fixAlphaTransparencyArtifacts": false,
-    "redirect": "71793eca-7cc4-4da0-9f41-37dd8625087c@f9941"
+    "redirect": "71793eca-7cc4-4da0-9f41-37dd8625087c@6c48a"
   }
 }
