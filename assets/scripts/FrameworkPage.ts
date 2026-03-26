@@ -2,8 +2,8 @@
  * 框架页面 — 720×1280 竖屏
  * 顶部栏：头像 | 名字 + 境界 | 金币 | 钻石
  * 内容区：可由外部填充
- * 活动栏（快捷入口）：任务 | 商城 | 炼丹 | 炼器 | 功法 | 灵宠
- * 底部栏（主导航）：法器 | 角色 | 秘境 | 洞天 | 独钓
+ * 活动栏（快捷入口）：任务 | 商店 | 炼丹 | 炼器 | 功法 | 灵宠
+ * 底部栏（主导航）：本命法器 | 人物 | 境界 | 洞天 | 钓鱼
  */
 import {
     _decorator,
@@ -23,6 +23,7 @@ import {
     find,
     view,
 } from 'cc';
+import { buildCharacterPage } from './CharacterPage';
 
 const { ccclass } = _decorator;
 
@@ -47,7 +48,7 @@ const FUNC_ICON_S = 40;   // 功能图标（小）：底部导航栏、内联操
 
 const BG_COLOR        = new Color(18, 20, 28, 255);
 const TOP_BAR_COLOR   = new Color(32, 36, 46, 255);
-const CONTENT_COLOR   = new Color(248, 248, 246, 255);
+const CONTENT_COLOR   = new Color(26, 30, 42, 255);
 const SHORTCUT_COLOR  = new Color(255, 255, 255, 255);
 const BOTTOM_BAR_COLOR= new Color(240, 240, 238, 255);
 const BORDER_COLOR    = new Color(30, 30, 30, 255);
@@ -68,6 +69,11 @@ export class FrameworkPage extends Component {
         this.buildContent();
         this.buildShortcutRow();
         this.buildBottomBar();
+
+        // 默认显示角色页
+        if (this.contentNode) {
+            buildCharacterPage(this.contentNode);
+        }
     }
 
     public getContentRoot() { return this.contentNode; }
@@ -98,18 +104,18 @@ export class FrameworkPage extends Component {
         // Name + Realm — 左对齐
         const nameW = 110;
         const nameX = avatarX + avatarSize / 2 + 8 + nameW / 2;
-        this.makeLabel(bar, '名字', 18, nameX, 12, TEXT_LIGHT, nameW, HorizontalTextAlignment.LEFT);
-        this.makeLabel(bar, '练气一层', 12, nameX, -12, new Color(180, 186, 200, 255), nameW, HorizontalTextAlignment.LEFT);
+        this.makeLabel(bar, '来取快递', 18, nameX, 12, TEXT_LIGHT, nameW, HorizontalTextAlignment.LEFT);
+        this.makeLabel(bar, '练气一层 0/30', 12, nameX, -12, new Color(180, 186, 200, 255), nameW, HorizontalTextAlignment.LEFT);
 
         // Gold
         const goldX = W / 2 - 210;
         const goldBox = this.makePanel('Gold', bar, 110, 42, goldX, 0, new Color(50, 54, 66, 255), BORDER_COLOR, 4);
-        this.makeLabel(goldBox, '💰 1280', 14, 0, 0, new Color(255, 220, 120, 255), 100);
+        this.makeLabel(goldBox, '💰 999', 14, 0, 0, new Color(255, 220, 120, 255), 100);
 
         // Diamond
         const diamondX = W / 2 - 74;
         const diamondBox = this.makePanel('Diamond', bar, 110, 42, diamondX, 0, new Color(50, 54, 66, 255), BORDER_COLOR, 4);
-        this.makeLabel(diamondBox, '💎 300', 14, 0, 0, new Color(160, 220, 255, 255), 100);
+        this.makeLabel(diamondBox, '💎 999', 14, 0, 0, new Color(160, 220, 255, 255), 100);
     }
 
     // ── Content Area ──
@@ -124,7 +130,7 @@ export class FrameworkPage extends Component {
 
     // ── Shortcut Row (活动栏) ──
     private buildShortcutRow() {
-        const items = ['任务', '商城', '炼丹', '炼器', '功法', '灵宠'];
+        const items = ['任务', '商店', '炼丹', '炼器', '功法', '灵宠'];
         const y = -H / 2 + SAFE_BOTTOM + BOTTOM_BAR_H + GAP + SHORTCUT_ROW_H / 2;
         const rowW = W - 16;
         const row = this.makeNode('ShortcutRow', this.node, rowW, SHORTCUT_ROW_H, 0, y);
@@ -150,7 +156,7 @@ export class FrameworkPage extends Component {
 
     // ── Bottom Bar (主导航) ──
     private buildBottomBar() {
-        const tabs = ['法器', '角色', '秘境', '洞天', '独钓'];
+        const tabs = ['本命法器', '人物', '境界', '洞天', '钓鱼'];
         const y = -H / 2 + SAFE_BOTTOM + BOTTOM_BAR_H / 2;
         const bar = this.makePanel('BottomBar', this.node, W, BOTTOM_BAR_H, 0, y, BOTTOM_BAR_COLOR, BORDER_COLOR, 0);
 
