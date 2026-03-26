@@ -325,12 +325,15 @@ function makePanel(
     g.lineWidth = 1.6;
     if (radius > 0) {
         g.roundRect(-w / 2, -h / 2, w, h, radius);
+        g.fill();
+        g.roundRect(-w / 2, -h / 2, w, h, radius);
+        g.stroke();
     } else {
         g.rect(-w / 2, -h / 2, w, h);
+        g.fill();
+        g.rect(-w / 2, -h / 2, w, h);
+        g.stroke();
     }
-    g.fill();
-    g.roundRect(-w / 2, -h / 2, w, h, Math.max(radius, 0));
-    g.stroke();
     return node;
 }
 
