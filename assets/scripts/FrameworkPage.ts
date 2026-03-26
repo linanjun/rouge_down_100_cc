@@ -32,12 +32,14 @@ const W = 720;
 const H = 1280;
 
 // ── Layout constants ──
+// 四大区域从上到下：顶部栏(88) + 8 + 内容栏(940) + 8 + 活动栏(120) + 8 + 底部栏(108) = 1280
+// 详细尺寸参考：docs/布局尺寸参考.md
 const SAFE_TOP = 0;    // 刘海屏预留，可按需调整
 const SAFE_BOTTOM = 0; // Home指示条预留，可按需调整
-const TOP_BAR_H = 88;
-const BOTTOM_BAR_H = 108;
-const SHORTCUT_ROW_H = 120;
-const GAP = 8;
+const TOP_BAR_H = 88;          // 顶部栏  720×88   距顶 0→88
+const BOTTOM_BAR_H = 108;      // 底部栏  720×108  距顶 1172→1280
+const SHORTCUT_ROW_H = 120;    // 活动栏  704×120  距顶 1044→1164
+const GAP = 8;                 // 区域间距
 
 // ── Icon size standards (逻辑像素，设计分辨率 720×1280) ──
 const ITEM_ICON_L = 100;  // 道具图标（大）：背包格子、奖励展示、合成界面
@@ -120,7 +122,7 @@ export class FrameworkPage extends Component {
         this.makeLabel(diamondBox, '999', 14, 10, 0, new Color(160, 220, 255, 255), 60);
     }
 
-    // ── Content Area ──
+    // ── Content Area (内容栏 696×940，距顶 96→1036) ──
     private buildContent() {
         const topEdge = H / 2 - SAFE_TOP - TOP_BAR_H - GAP;
         const bottomEdge = -H / 2 + SAFE_BOTTOM + BOTTOM_BAR_H + GAP + SHORTCUT_ROW_H + GAP;

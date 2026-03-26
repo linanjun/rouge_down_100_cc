@@ -186,7 +186,7 @@ function buildArtifacts(parent: Node, W: number, H: number): void {
     const availH = contentTop - contentBottom;
     const slotGap = 12;
     const totalGaps = slotGap * (slots.length - 1);
-    const slotH = Math.min(Math.floor((availH - totalGaps) / slots.length), 130);
+    const slotH = Math.min(Math.floor((availH - totalGaps) / slots.length), 160);
 
     const slotPad = 10;
     let slotY = contentTop - slotH / 2;
@@ -294,7 +294,7 @@ function buildBaseStats(parent: Node, W: number, H: number): void {
     const contentTop = titleY - titleH / 2 - 20;
     const contentBottom = -H / 2 + 16;
     const availH = contentTop - contentBottom;
-    const rowH = Math.min(Math.floor(availH / stats.length), 50);
+    const rowH = Math.min(Math.floor(availH / stats.length), 80);
     const pad = 16;
 
     let rowY = contentTop - rowH / 2;
@@ -328,7 +328,7 @@ function buildSkills(parent: Node, W: number, H: number): void {
     const contentTop = titleY - titleH / 2 - 16;
     const contentBottom = -H / 2 + 16;
     const availH = contentTop - contentBottom;
-    const rowH = Math.min(Math.floor(availH / skills.length), 46);
+    const rowH = Math.min(Math.floor(availH / skills.length), 62);
     const pad = 14;
 
     let rowY = contentTop - rowH / 2;
