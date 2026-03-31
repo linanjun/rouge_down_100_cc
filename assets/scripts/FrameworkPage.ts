@@ -216,8 +216,8 @@ export class FrameworkPage extends Component {
     }
 }
 
-// ── Auto‑mount ──
-function mount() {
+// ── Auto‑mount（保留工具函数，由 GrottoExpeditionDemo.ts 统一调用 view.setDesignResolutionSize）──
+export function mountFrameworkPage() {
     const scene = director.getScene();
     if (!scene) return;
     const canvas = find('Canvas', scene);
@@ -229,5 +229,3 @@ function mount() {
     root.addComponent(UITransform).setContentSize(W, H);
     root.addComponent(FrameworkPage);
 }
-director.on(Director.EVENT_AFTER_SCENE_LAUNCH, mount);
-setTimeout(() => mount(), 0);
