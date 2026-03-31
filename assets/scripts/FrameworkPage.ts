@@ -76,15 +76,23 @@ export class FrameworkPage extends Component {
 
     public getContentRoot() { return this.contentNode; }
 
-    // ── Background: slate-800 纯色 ──
+    // ── Background: slate-900 纯色 + 2px amber-600 外边框 ──
     private drawBackground() {
         const safeW = W * 2;
         const safeH = H * 2;
         const bg = this.makeNode('BG', this.node, safeW, safeH, 0, 0);
         const g = bg.addComponent(Graphics);
-        g.fillColor = SLATE_800;
+        g.fillColor = SLATE_900;
         g.rect(-safeW / 2, -safeH / 2, safeW, safeH);
         g.fill();
+
+        // 2px 金色外边框 (amber-600 #D97706)，包裹整个 720×1280 区域
+        const frame = this.makeNode('OuterFrame', this.node, W, H, 0, 0);
+        const fg = frame.addComponent(Graphics);
+        fg.strokeColor = AMBER_600;
+        fg.lineWidth = 2;
+        fg.rect(-W / 2, -H / 2, W, H);
+        fg.stroke();
     }
 
     // ── HeaderSection: 720×84 ──
