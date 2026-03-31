@@ -151,7 +151,7 @@ export class FrameworkPage extends Component {
     // 位置: TopBar 下方, NavigationBar 上方
     private buildContent() {
         const topEdge    = H / 2 - TOPBAR_H - GAP;
-        const bottomEdge = -H / 2 + BOTTOM_NAV_H + GAP + NAV_BAR_H + GAP;
+        const bottomEdge = -H / 2 + BOTTOM_NAV_H + NAV_BAR_H + GAP;
         const contentH   = topEdge - bottomEdge;
         const contentY   = (topEdge + bottomEdge) / 2;
 
@@ -173,7 +173,7 @@ export class FrameworkPage extends Component {
     // 位置: ContentArea 下方, BottomNavBar 上方
     private buildNavBar() {
         const items = ['任务', '商店', '炼丹', '炼器', '功法', '灵宠'];
-        const y = -H / 2 + BOTTOM_NAV_H + GAP + NAV_BAR_H / 2;
+        const y = -H / 2 + BOTTOM_NAV_H + NAV_BAR_H / 2;
         const nav = this.makeNode('NavigationBar', this.node, W, NAV_BAR_H, 0, y);
         // 背景: slate-800
         const navBg = nav.addComponent(Graphics);
