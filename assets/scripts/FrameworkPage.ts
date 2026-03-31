@@ -135,14 +135,20 @@ export class FrameworkPage extends Component {
         this.makeLabel(diaB, '999', 18, 12, 0, CYAN_100, rightW - 60);
     }
 
-    // ── Content Area ──
+    // ── Content Area: border 3px amber-700 ──
     private buildContent() {
         const topEdge    = H / 2 - HEADER_H - GAP;
         const bottomEdge = -H / 2 + BOTTOM_NAV_H + GAP + NAV_BAR_H + GAP;
         const contentH   = topEdge - bottomEdge;
         const contentY   = (topEdge + bottomEdge) / 2;
         const contentW   = W - 24; // 696
-        this.contentNode = this.makeNode('Content', this.node, contentW, contentH, 0, contentY);
+
+        // Border background: amber-700 (3px border via layered rects)
+        const border = this.makeRect('ContentBorder', this.node, contentW, contentH, 0, contentY, AMBER_700);
+        this.makeRect('ContentBg', border, contentW - 6, contentH - 6, 0, 0, SLATE_800);
+
+        // Content node: direct child of FrameworkRoot for CharacterPage auto-mount
+        this.contentNode = this.makeNode('Content', this.node, contentW - 6, contentH - 6, 0, contentY);
     }
 
     // ── NavigationBar: 696×100, 6 buttons ──
