@@ -1,9 +1,10 @@
 /**
  * 框架页面 — 720×1280 竖屏 · 扁平化设计（无圆角/无渐变/无阴影）
- * 顶部栏：头像 | 名字 + 境界 | 金币 | 钻石
- * 内容区：可由外部填充
- * 功能导航栏（快捷入口）：任务 | 商店 | 炼丹 | 炼器 | 功法 | 灵宠
- * 底部标签栏（主导航）：本命法器 | 人物 | 境界 | 洞天 | 钓鱼
+ * 按照 docs/Cocos_Creator_重建指南.md 规范重建
+ * 顶部栏（106px）：头像 | 名字面板 | 金币面板 | 钻石面板
+ * 内容区（动态高度）：可由外部填充（带装饰角标记）
+ * 功能导航栏（80px）：任务 | 商店 | 炼丹 | 炼器 | 功法 | 灵宠
+ * 底部标签栏（80px）：本命法器 | 人物 | 境界 | 洞天 | 钓鱼
  */
 import {
     _decorator,
@@ -28,13 +29,14 @@ const { ccclass } = _decorator;
 const W = 720;
 const H = 1280;
 
-// ── Layout constants ──
-const HEADER_H     = 84;
-const NAV_BAR_H    = 100;
-const BOTTOM_NAV_H = 90;
+// ── Layout constants (按重建指南 §1-§7) ──
+const HEADER_H     = 106;
+const NAV_BAR_H    = 80;
+const BOTTOM_NAV_H = 80;
 const GAP          = 8;
+const CONTENT_PAD  = 16;
 
-// ── Color palette (扁平化纯色，对齐指南规范) ──
+// ── Color palette (扁平化纯色，按指南色彩规范) ──
 const SLATE_200  = new Color(226, 232, 240, 255);  // #e2e8f0
 const SLATE_300  = new Color(203, 213, 225, 255);  // #cbd5e1
 const SLATE_400  = new Color(148, 163, 184, 255);  // #94a3b8
@@ -76,167 +78,186 @@ export class FrameworkPage extends Component {
 
     public getContentRoot() { return this.contentNode; }
 
-    // ── Background: slate-900 纯色 + 2px amber-600 外边框 ──
+    // ── 背景: slate-800 (外背景) + 4px amber-600 外边框 (粗边框, 主容器) ──
     private drawBackground() {
         const safeW = W * 2;
         const safeH = H * 2;
         const bg = this.makeNode('BG', this.node, safeW, safeH, 0, 0);
         const g = bg.addComponent(Graphics);
-        g.fillColor = SLATE_900;
+        g.fillColor = SLATE_800;
         g.rect(-safeW / 2, -safeH / 2, safeW, safeH);
         g.fill();
 
-        // 2px 金色外边框 (amber-600 #D97706)，包裹整个 720×1280 区域
+        // 4px 金色外边框 (amber-600, 粗边框: 主容器边框)
         const frame = this.makeNode('OuterFrame', this.node, W, H, 0, 0);
         const fg = frame.addComponent(Graphics);
         fg.strokeColor = AMBER_600;
-        fg.lineWidth = 2;
+        fg.lineWidth = 4;
         fg.rect(-W / 2, -H / 2, W, H);
         fg.stroke();
     }
 
-    // ── HeaderSection: 720×84 ──
+    // ── 顶部栏: 720×106 ──
     private buildHeader() {
         const y = H / 2 - HEADER_H / 2;
         const header = this.makeNode('HeaderSection', this.node, W, HEADER_H, 0, y);
 
-        // Avatar: 80×80, border 3px amber-600, bg slate-800
-        const avatarSize = 80;
-        const avatarX = -W / 2 + 8 + avatarSize / 2;
-        const avatarBorder = this.makeRect('AvatarBorder', header, avatarSize, avatarSize, avatarX, 0, AMBER_600);
-        this.makeRect('AvatarBg', avatarBorder, avatarSize - 6, avatarSize - 6, 0, 0, SLATE_800);
-        this.makeLabel(avatarBorder, '头像', 14, 0, 0, AMBER_100, avatarSize - 10);
+        const pad = 8;
+        const innerH = HEADER_H - pad * 2; // 90
+        const innerW = W - pad * 2;         // 704
 
-        // Middle column: NameBar + LevelBar
-        const midX = avatarX + avatarSize / 2 + 8;
-        const midW = 220;
-        const midCX = midX + midW / 2;
+        // 头像: 90×90, 4px amber-600 边框, slate-800 背景
+        const avatarSize = innerH;
+        const avatarX = -innerW / 2 + avatarSize / 2;
+        const avatarOuter = this.makeRect('AvatarBorder', header, avatarSize, avatarSize, avatarX, 0, AMBER_600);
+        this.makeRect('AvatarBg', avatarOuter, avatarSize - 8, avatarSize - 8, 0, 0, SLATE_800);
+        this.makeLabel(avatarOuter, '头像', 14, 0, 0, AMBER_100, avatarSize - 16);
 
-        // NameBar: h40, bg amber-900, border 2px amber-600, text "来取快递"
-        const nameH = 40;
-        const nameY = (HEADER_H - 8) / 2 - nameH / 2 - 2;
-        const nameBorder = this.makeRect('NameBorder', header, midW, nameH, midCX, nameY, AMBER_600);
-        this.makeRect('NameBg', nameBorder, midW - 4, nameH - 4, 0, 0, AMBER_900);
-        this.makeLabel(nameBorder, '来取快递', 18, 0, 0, AMBER_100, midW - 20);
+        // 三列面板: 名字 | 金币 | 钻石
+        const panelGap = 8;
+        const panelW = Math.floor((innerW - avatarSize - panelGap * 3) / 3);
+        const baseX = avatarX + avatarSize / 2 + panelGap + panelW / 2;
 
-        // LevelBar: h36, bg slate-700, border 2px slate-500, text "练气一层 0/30"
-        const lvlH = 36;
-        const lvlY = nameY - nameH / 2 - 4 - lvlH / 2;
-        const lvlBorder = this.makeRect('LevelBorder', header, midW, lvlH, midCX, lvlY, SLATE_500);
-        this.makeRect('LevelBg', lvlBorder, midW - 4, lvlH - 4, 0, 0, SLATE_700);
-        this.makeLabel(lvlBorder, '练气一层 0/30', 12, 0, 0, SLATE_200, midW - 20);
+        // 名字面板: amber-900 背景, 3px amber-600 边框
+        const np = this.makeRect('NameBorder', header, panelW, innerH, baseX, 0, AMBER_600);
+        this.makeRect('NameBg', np, panelW - 6, innerH - 6, 0, 0, AMBER_900);
+        this.makeLabel(np, '来取快递', 18, 0, 0, AMBER_100, panelW - 20);
 
-        // Right column: GoldBar + DiamondBar
-        const rightW = 150;
-        const rightX = W / 2 - 8 - rightW / 2;
+        // 金币面板: amber-900 背景, 3px amber-600 边框
+        const gpX = baseX + panelW + panelGap;
+        const gp = this.makeRect('GoldBorder', header, panelW, innerH, gpX, 0, AMBER_600);
+        this.makeRect('GoldBg', gp, panelW - 6, innerH - 6, 0, 0, AMBER_900);
+        this.makeLabel(gp, '💰', 20, -panelW / 2 + 30, 0, AMBER_400, 32);
+        this.makeLabel(gp, '999', 18, 14, 0, AMBER_100, panelW - 64);
 
-        // GoldBar: h40, bg amber-900, border 2px amber-600
-        const goldBorder = this.makeRect('GoldBorder', header, rightW, nameH, rightX, nameY, AMBER_600);
-        this.makeRect('GoldBg', goldBorder, rightW - 4, nameH - 4, 0, 0, AMBER_900);
-        this.makeLabel(goldBorder, '💰', 16, -rightW / 2 + 24, 0, AMBER_400, 30);
-        this.makeLabel(goldBorder, '999', 18, 12, 0, AMBER_100, rightW - 60);
-
-        // DiamondBar: h36, bg cyan-900, border 2px cyan-600
-        const diaB = this.makeRect('DiaBorder', header, rightW, lvlH, rightX, lvlY, CYAN_600);
-        this.makeRect('DiaBg', diaB, rightW - 4, lvlH - 4, 0, 0, CYAN_900);
-        this.makeLabel(diaB, '💎', 16, -rightW / 2 + 24, 0, CYAN_400, 30);
-        this.makeLabel(diaB, '999', 18, 12, 0, CYAN_100, rightW - 60);
+        // 钻石面板: cyan-900 背景, 3px cyan-600 边框
+        const dpX = gpX + panelW + panelGap;
+        const dp = this.makeRect('DiaBorder', header, panelW, innerH, dpX, 0, CYAN_600);
+        this.makeRect('DiaBg', dp, panelW - 6, innerH - 6, 0, 0, CYAN_900);
+        this.makeLabel(dp, '💎', 20, -panelW / 2 + 30, 0, CYAN_400, 32);
+        this.makeLabel(dp, '999', 18, 14, 0, CYAN_100, panelW - 64);
     }
 
-    // ── Content Area: border 3px amber-700 ──
+    // ── 内容区: slate-900 背景 + 装饰角标记 ──
     private buildContent() {
         const topEdge    = H / 2 - HEADER_H - GAP;
         const bottomEdge = -H / 2 + BOTTOM_NAV_H + GAP + NAV_BAR_H + GAP;
         const contentH   = topEdge - bottomEdge;
         const contentY   = (topEdge + bottomEdge) / 2;
-        const contentW   = W - 24; // 696
 
-        // Border background: amber-700 (3px border via layered rects)
-        const border = this.makeRect('ContentBorder', this.node, contentW, contentH, 0, contentY, AMBER_700);
-        this.makeRect('ContentBg', border, contentW - 6, contentH - 6, 0, 0, SLATE_800);
+        // 内容区背景: slate-900 (比外背景 slate-800 略深)
+        const bg = this.makeRect('ContentBg', this.node, W, contentH, 0, contentY, SLATE_900);
 
-        // Content node: direct child of FrameworkRoot for CharacterPage auto-mount
-        this.contentNode = this.makeNode('Content', this.node, contentW - 6, contentH - 6, 0, contentY);
+        // 四角装饰 (L形, 3px amber-500)
+        this.drawCorner(bg, W, contentH, 'TL');
+        this.drawCorner(bg, W, contentH, 'TR');
+        this.drawCorner(bg, W, contentH, 'BL');
+        this.drawCorner(bg, W, contentH, 'BR');
+
+        // 外部可填充内容节点 (FrameworkRoot 直接子节点, CharacterPage 自动挂载)
+        this.contentNode = this.makeNode('Content', this.node,
+            W - CONTENT_PAD * 2, contentH - CONTENT_PAD * 2, 0, contentY);
     }
 
-    // ── NavigationBar: 696×100, 6 buttons ──
+    // ── 功能导航栏: 720×80, 6 按钮 ──
     private buildNavBar() {
         const items = ['任务', '商店', '炼丹', '炼器', '功法', '灵宠'];
         const y = -H / 2 + BOTTOM_NAV_H + GAP + NAV_BAR_H / 2;
-        const rowW = W - 24; // 696
+        const nav = this.makeNode('NavBar', this.node, W, NAV_BAR_H, 0, y);
 
-        // Outer border: amber-700
-        const outer = this.makeRect('NavBarBorder', this.node, rowW, NAV_BAR_H, 0, y, AMBER_700);
-        // Inner bg: slate-800
-        const row = this.makeRect('NavBarBg', outer, rowW - 6, NAV_BAR_H - 6, 0, 0, SLATE_800);
-
-        const innerW = rowW - 6 - 16; // available width inside padding
-        const btnW = (innerW - 5 * 6) / 6;
-        const btnH = NAV_BAR_H - 22;
-        const totalW = 6 * btnW + 5 * 6;
+        const pad = 8;
+        const innerW = W - pad * 2;
+        const btnGap = 6;
+        const btnW = Math.floor((innerW - (items.length - 1) * btnGap) / items.length);
+        const btnH = NAV_BAR_H - pad * 2;
+        const totalW = items.length * btnW + (items.length - 1) * btnGap;
         const startX = -totalW / 2 + btnW / 2;
 
         for (let i = 0; i < items.length; i++) {
-            const bx = startX + i * (btnW + 6);
+            const bx = startX + i * (btnW + btnGap);
 
-            // Button bg: slate-700, border: slate-600
-            const btnBg = this.makeRect('Nav_' + items[i], row, btnW, btnH, bx, 0, SLATE_700);
-            this.drawBorder(btnBg, btnW, btnH, SLATE_600, 2);
-            btnBg.addComponent(Button).transition = Button.Transition.NONE;
+            // 按钮: slate-700 背景, 3px slate-600 边框
+            const btn = this.makeRect('Nav_' + items[i], nav, btnW, btnH, bx, 0, SLATE_700);
+            this.drawBorder(btn, btnW, btnH, SLATE_600, 3);
+            btn.addComponent(Button).transition = Button.Transition.NONE;
 
-            // Icon container: 36×36, bg slate-900, border amber-600
-            const iconS = 36;
-            const iconBg = this.makeRect('IconBg', btnBg, iconS, iconS, 0, 10, SLATE_900);
-            this.drawBorder(iconBg, iconS, iconS, AMBER_600, 2);
-            this.makeLabel(iconBg, '◈', 18, 0, 0, AMBER_400, iconS - 4);
+            // 图标容器: 40×40, slate-900 背景, 3px amber-600 边框
+            const iconS = 40;
+            const iconBg = this.makeRect('IconBg', btn, iconS, iconS, 0, 8, SLATE_900);
+            this.drawBorder(iconBg, iconS, iconS, AMBER_600, 3);
+            this.makeLabel(iconBg, '◈', 20, 0, 0, AMBER_400, iconS - 8);
 
-            // Label: 10px amber-100
-            this.makeLabel(btnBg, items[i], 10, 0, -22, AMBER_100, btnW - 4);
+            // 标签: 10px amber-100
+            this.makeLabel(btn, items[i], 10, 0, -20, AMBER_100, btnW - 4);
         }
     }
 
-    // ── BottomNavBar: 696×90, 5 tabs ──
+    // ── 底部标签栏: 720×80, 5 标签 ──
     private buildBottomNav() {
         const tabs = ['本命法器', '人物', '境界', '洞天', '钓鱼'];
         const y = -H / 2 + BOTTOM_NAV_H / 2;
-        const barW = W - 24; // 696
+        const bar = this.makeNode('BottomNav', this.node, W, BOTTOM_NAV_H, 0, y);
 
-        // Outer border: amber-700
-        const outer = this.makeRect('BottomBorder', this.node, barW, BOTTOM_NAV_H, 0, y, AMBER_700);
-        // Inner bg: slate-800
-        const bar = this.makeRect('BottomBg', outer, barW - 6, BOTTOM_NAV_H - 6, 0, 0, SLATE_800);
-
-        const innerW = barW - 6 - 16;
-        const btnW = (innerW - 4 * 6) / 5;
-        const btnH = BOTTOM_NAV_H - 20;
-        const totalW = 5 * btnW + 4 * 6;
+        const pad = 8;
+        const innerW = W - pad * 2;
+        const btnGap = 6;
+        const btnW = Math.floor((innerW - (tabs.length - 1) * btnGap) / tabs.length);
+        const btnH = BOTTOM_NAV_H - pad * 2;
+        const totalW = tabs.length * btnW + (tabs.length - 1) * btnGap;
         const startX = -totalW / 2 + btnW / 2;
 
         for (let i = 0; i < tabs.length; i++) {
-            const bx = startX + i * (btnW + 6);
-            const isActive = (i === 0); // 本命法器 is active by default
+            const bx = startX + i * (btnW + btnGap);
+            const isActive = (i === 0);
 
-            // Colors per state
             const bgColor     = isActive ? AMBER_800 : SLATE_700;
             const borderColor = isActive ? AMBER_500 : SLATE_600;
             const iconBgColor = isActive ? AMBER_900 : SLATE_900;
             const iconBdColor = isActive ? AMBER_600 : SLATE_700;
-            const iconColor   = isActive ? AMBER_200 : SLATE_400;
+            const iconColor   = isActive ? AMBER_200 : SLATE_500;
             const labelColor  = isActive ? AMBER_100 : SLATE_300;
 
-            const btnBg = this.makeRect('Tab_' + tabs[i], bar, btnW, btnH, bx, 0, bgColor);
-            this.drawBorder(btnBg, btnW, btnH, borderColor, 2);
-            btnBg.addComponent(Button).transition = Button.Transition.NONE;
+            const btn = this.makeRect('Tab_' + tabs[i], bar, btnW, btnH, bx, 0, bgColor);
+            this.drawBorder(btn, btnW, btnH, borderColor, 3);
+            btn.addComponent(Button).transition = Button.Transition.NONE;
 
-            // Icon container: 36×36
-            const iconS = 36;
-            const iconBg = this.makeRect('IconBg', btnBg, iconS, iconS, 0, 8, iconBgColor);
-            this.drawBorder(iconBg, iconS, iconS, iconBdColor, 2);
-            this.makeLabel(iconBg, '◈', 18, 0, 0, iconColor, iconS - 4);
+            // 图标容器: 40×40
+            const iconS = 40;
+            const iconBg = this.makeRect('IconBg', btn, iconS, iconS, 0, 8, iconBgColor);
+            this.drawBorder(iconBg, iconS, iconS, iconBdColor, 3);
+            this.makeLabel(iconBg, '◈', 20, 0, 0, iconColor, iconS - 8);
 
-            // Label: 10px
-            this.makeLabel(btnBg, tabs[i], 10, 0, -22, labelColor, btnW - 4);
+            // 标签: 10px
+            this.makeLabel(btn, tabs[i], 10, 0, -20, labelColor, btnW - 4);
         }
+    }
+
+    // ── 装饰角: L形, 3px amber-500 ──
+    private drawCorner(parent: Node, pw: number, ph: number, corner: string) {
+        const size = 12;
+        const hs = size / 2;
+
+        let cx: number, cy: number;
+        if (corner === 'TL')      { cx = -pw / 2 + hs; cy =  ph / 2 - hs; }
+        else if (corner === 'TR') { cx =  pw / 2 - hs; cy =  ph / 2 - hs; }
+        else if (corner === 'BL') { cx = -pw / 2 + hs; cy = -ph / 2 + hs; }
+        else                      { cx =  pw / 2 - hs; cy = -ph / 2 + hs; }
+
+        const node = this.makeNode('Corner_' + corner, parent, size, size, cx, cy);
+        const g = node.addComponent(Graphics);
+        g.strokeColor = AMBER_500;
+        g.lineWidth = 3;
+
+        if (corner === 'TL') {
+            g.moveTo(-hs, -hs); g.lineTo(-hs, hs); g.lineTo(hs, hs);
+        } else if (corner === 'TR') {
+            g.moveTo(-hs, hs); g.lineTo(hs, hs); g.lineTo(hs, -hs);
+        } else if (corner === 'BL') {
+            g.moveTo(-hs, hs); g.lineTo(-hs, -hs); g.lineTo(hs, -hs);
+        } else {
+            g.moveTo(hs, hs); g.lineTo(hs, -hs); g.lineTo(-hs, -hs);
+        }
+        g.stroke();
     }
 
     // ── Helpers ──
@@ -249,7 +270,7 @@ export class FrameworkPage extends Component {
         return node;
     }
 
-    /** 创建纯色矩形节点（无圆角）。 */
+    /** 纯色矩形节点（无圆角）*/
     private makeRect(name: string, parent: Node, w: number, h: number, x: number, y: number, fill: Color): Node {
         const node = this.makeNode(name, parent, w, h, x, y);
         const g = node.addComponent(Graphics);
@@ -259,7 +280,7 @@ export class FrameworkPage extends Component {
         return node;
     }
 
-    /** 在已有节点上绘制矩形边框。 */
+    /** 矩形描边边框 */
     private drawBorder(node: Node, w: number, h: number, color: Color, lineWidth: number) {
         const g = node.getComponent(Graphics);
         if (!g) return;
