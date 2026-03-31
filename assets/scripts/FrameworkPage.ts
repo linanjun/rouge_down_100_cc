@@ -1,7 +1,7 @@
 /**
  * 框架页面 — 720×1280 竖屏 · 扁平化设计（无圆角/无渐变/无阴影）
  * 按照 docs/COCOS_CREATOR_COMPLETE_GUIDE.md 规范重建
- * 布局顺序：TopBar → NavigationBar → ContentArea → BottomNavBar
+ * 布局顺序：TopBar → ContentArea → NavigationBar → BottomNavBar
  * 顶部栏(98px)：头像 | 名字栏 | 金币栏 | 钻石栏
  * 内容区：可由外部填充（带装饰角标记）
  * 功能导航栏(72px)：任务 | 商店 | 炼丹 | 炼器 | 功法 | 灵宠
@@ -70,8 +70,8 @@ export class FrameworkPage extends Component {
 
         this.drawBackground();
         this.buildTopBar();
-        this.buildNavBar();
         this.buildContent();
+        this.buildNavBar();
         this.buildBottomNav();
     }
 
@@ -148,10 +148,10 @@ export class FrameworkPage extends Component {
     }
 
     // ── Content Area (内容区): slate-900 背景 + 装饰角标记 ──
-    // 位置: NavigationBar 下方, BottomNavBar 上方
+    // 位置: TopBar 下方, NavigationBar 上方
     private buildContent() {
-        const topEdge    = H / 2 - TOPBAR_H - GAP - NAV_BAR_H - GAP;
-        const bottomEdge = -H / 2 + BOTTOM_NAV_H + GAP;
+        const topEdge    = H / 2 - TOPBAR_H - GAP;
+        const bottomEdge = -H / 2 + BOTTOM_NAV_H + GAP + NAV_BAR_H + GAP;
         const contentH   = topEdge - bottomEdge;
         const contentY   = (topEdge + bottomEdge) / 2;
 
@@ -170,10 +170,10 @@ export class FrameworkPage extends Component {
     }
 
     // ── NavigationBar (功能导航栏): 720×72, 6 按钮 ──
-    // 位置: TopBar 下方, ContentArea 上方
+    // 位置: ContentArea 下方, BottomNavBar 上方
     private buildNavBar() {
         const items = ['任务', '商店', '炼丹', '炼器', '功法', '灵宠'];
-        const y = H / 2 - TOPBAR_H - GAP - NAV_BAR_H / 2;
+        const y = -H / 2 + BOTTOM_NAV_H + GAP + NAV_BAR_H / 2;
         const nav = this.makeNode('NavigationBar', this.node, W, NAV_BAR_H, 0, y);
         // 背景: slate-800
         const navBg = nav.addComponent(Graphics);
