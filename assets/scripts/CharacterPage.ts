@@ -308,7 +308,7 @@ export class CharacterPage extends Component {
         return node;
     }
 
-    /** 创建纯色矩形节点（无圆角）。 */
+    /** 纯色矩形节点（无圆角）*/
     private makeRect(name: string, parent: Node, w: number, h: number, x: number, y: number, fill: Color): Node {
         const node = this.makeNode(name, parent, w, h, x, y);
         const g = node.addComponent(Graphics);
@@ -318,7 +318,7 @@ export class CharacterPage extends Component {
         return node;
     }
 
-    /** 在已有节点上绘制矩形边框。 */
+    /** 矩形描边边框 */
     private drawBorder(node: Node, w: number, h: number, color: Color, lineWidth: number) {
         const g = node.getComponent(Graphics);
         if (!g) return;
