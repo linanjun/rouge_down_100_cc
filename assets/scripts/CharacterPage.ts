@@ -1,7 +1,8 @@
 /**
- * 角色总览页面 — 填充 FrameworkPage 内容区域
+ * 角色页面 — 填充 FrameworkPage 内容区域
+ * 按照 docs/COCOS_CREATOR_GUIDE.md 规范重建
  * 扁平化设计（无圆角/无渐变/无阴影）
- * 包含：标题横幅 | 本命法器 | 角色形象 | 基础属性 | 功法造诣 | 四角装饰
+ * 包含：角色形象展示区（带4个装备槽位） + 属性面板
  */
 import {
     _decorator,
@@ -20,7 +21,7 @@ import {
 
 const { ccclass } = _decorator;
 
-// ── Color palette (扁平化纯色，对齐指南规范) ──
+// ── Color palette (扁平化纯色，按指南配色系统) ──
 const SLATE_300  = new Color(203, 213, 225, 255);  // #cbd5e1
 const SLATE_400  = new Color(148, 163, 184, 255);  // #94a3b8
 const SLATE_600  = new Color( 71,  85, 105, 255);  // #475569
@@ -39,39 +40,21 @@ const AMBER_800  = new Color(146,  64,  14, 255);  // #92400e
 const AMBER_900  = new Color(120,  53,  15, 255);  // #78350f
 const AMBER_950  = new Color( 69,  26,   3, 255);  // #451a03
 
-const BLUE_100   = new Color(219, 234, 254, 255);  // #dbeafe
-const BLUE_200   = new Color(191, 219, 254, 255);  // #bfdbfe
-const BLUE_600   = new Color( 37,  99, 235, 255);  // #2563eb
 const BLUE_700   = new Color( 29,  78, 216, 255);  // #1d4ed8
-const BLUE_800   = new Color( 30,  64, 175, 255);  // #1e40af
-const BLUE_900   = new Color( 30,  58, 138, 255);  // #1e3a8a
-const BLUE_950   = new Color( 23,  37,  84, 255);  // #172554
-
-const RED_800    = new Color(153,  27,  27, 255);  // #991b1b
-const GREEN_800  = new Color( 22, 101,  52, 255);  // #166534
 
 const YELLOW_300 = new Color(253, 224,  71, 255);  // #fde047
 
-const TEXT_WHITE = new Color(248, 248, 248, 255);
-
-interface StatInfo {
-    name: string;
-    cur: number;
-    max: number;
-    barColor: Color;
-}
+const RED_600    = new Color(220,  38,  38, 255);  // #dc2626
+const GREEN_600  = new Color( 22, 163,  74, 255);  // #16a34a
 
 interface EquipSlotInfo {
     slot: string;
     name: string;
-    level: number;
 }
 
-interface SkillInfo {
+interface StatInfo {
     name: string;
-    level: number;
-    cur: number;
-    max: number;
+    value: string;
 }
 
 @ccclass('CharacterPage')
@@ -82,57 +65,115 @@ export class CharacterPage extends Component {
 
     private buildPage() {
         const t = this.node.getComponent(UITransform);
-        const w = t ? t.width : 696;
-        const h = t ? t.height : 990;
+        const w = t ? t.width : 688;
+        const h = t ? t.height : 958;
         const PAD = 12;
 
-        let curY = h / 2; // cursor at top edge
+        let curY = h / 2;
 
-        // ── 1. MainContent: border + TitleBanner + EquipPanel + CharPanel ──
-        const mainH = 360;
-        curY -= PAD + mainH / 2;
-        this.buildMainContent(this.node, w - PAD * 2, mainH, 0, curY);
-        curY -= mainH / 2;
+        // ── 1. 角色形象展示区（带4个装备槽位）──
+        const displayH = Math.min(h * 0.55, 480);
+        curY -= PAD + displayH / 2;
+        this.buildCharacterDisplay(this.node, w - PAD * 2, displayH, 0, curY);
+        curY -= displayH / 2;
 
-        // ── 2. BottomPanels: StatsPanel + SkillsPanel side by side ──
-        const bottomH = 240;
-        curY -= PAD + bottomH / 2;
-        this.buildBottomPanels(this.node, w - PAD * 2, bottomH, 0, curY);
-        curY -= bottomH / 2;
+        // ── 2. 属性面板 ──
+        const attrsH = h - PAD * 3 - displayH;
+        curY -= PAD + attrsH / 2;
+        this.buildAttributePanel(this.node, w - PAD * 2, attrsH, 0, curY);
+        curY -= attrsH / 2;
 
         // ── Corner decorations ──
-        this.buildCornerDecorations(this.node, w - PAD * 2, mainH + PAD + bottomH + PAD * 2, 0,
-            h / 2 - PAD - (mainH + PAD + bottomH + PAD * 2) / 2);
+        this.buildCornerDecorations(this.node, w - PAD * 2, displayH + PAD + attrsH + PAD * 2, 0,
+            h / 2 - PAD - (displayH + PAD + attrsH + PAD * 2) / 2);
     }
 
     // ══════════════════════════════════════════════════
-    //  MainContent: 696×360, border 3px amber-700
+    //  角色形象展示区: 带4个装备槽位在四角
     // ══════════════════════════════════════════════════
-    private buildMainContent(parent: Node, w: number, h: number, x: number, y: number) {
+    private buildCharacterDisplay(parent: Node, w: number, h: number, x: number, y: number) {
         // Outer border: amber-700
-        const outer = this.makeRect('MainBorder', parent, w, h, x, y, AMBER_700);
+        const outer = this.makeRect('DisplayBorder', parent, w, h, x, y, AMBER_700);
         // Inner bg: slate-800
-        const inner = this.makeRect('MainBg', outer, w - 6, h - 6, 0, 0, SLATE_800);
+        const panel = this.makeRect('DisplayBg', outer, w - 6, h - 6, 0, 0, SLATE_800);
 
         const pad = 10;
-        const usableW = w - 6 - pad * 2;
+        const innerW = w - 6 - pad * 2;
+        const innerH = h - 6 - pad * 2;
 
-        // TitleBanner at top
+        // 标题: "角色总览", bg blue-700, border 2px amber-400
         const bannerH = 36;
-        const bannerY = (h - 6) / 2 - pad - bannerH / 2;
-        this.buildTitleBanner(inner, usableW, bannerH, 0, bannerY);
+        const bannerY = innerH / 2 - bannerH / 2;
+        this.buildTitleBanner(panel, innerW, bannerH, 0, bannerY);
 
-        // Two columns below banner
-        const colGap = 8;
-        const colH = h - 6 - pad * 2 - bannerH - pad;
-        const colW = (usableW - colGap) / 2;
-        const colY = bannerY - bannerH / 2 - pad - colH / 2;
+        // 角色形象: 居中显示
+        const charAreaH = innerH - bannerH - pad;
+        const charAreaY = bannerY - bannerH / 2 - pad - charAreaH / 2;
 
-        this.buildEquipmentPanel(inner, colW, colH, -usableW / 2 + colW / 2, colY);
-        this.buildCharacterPanel(inner, colW, colH,  usableW / 2 - colW / 2, colY);
+        const displaySize = Math.min(innerW * 0.4, charAreaH * 0.6, 128);
+        this.makeRect('CharDisplay', panel, displaySize, displaySize, 0, charAreaY + 10, SLATE_700);
+        this.makeLabel(panel, '角色\n展示', 16, 0, charAreaY + 10, SLATE_400, displaySize - 12);
+
+        // 修炼台座: 128×28
+        const pedW = 128;
+        const pedH = 28;
+        const pedY = charAreaY + 10 - displaySize / 2 - pedH / 2 - 4;
+        const pedBorder = this.makeRect('PedestalBd', panel, pedW, pedH, 0, pedY, AMBER_700);
+        this.makeRect('PedestalBg', pedBorder, pedW - 6, pedH - 6, 0, 0, AMBER_900);
+        const decBorder = this.makeRect('PedestalDec', pedBorder, pedW - 18, pedH - 12, 0, 0, AMBER_600);
+        this.makeRect('PedestalDecBg', decBorder, pedW - 22, pedH - 16, 0, 0, AMBER_900);
+
+        // 4个装备槽位: 在四角分布
+        const slots: EquipSlotInfo[] = [
+            { slot: '武器', name: '青霜剑' },
+            { slot: '防具', name: '金丝甲' },
+            { slot: '饰品', name: '玉佩' },
+            { slot: '法宝', name: '玄灵符' },
+        ];
+
+        const slotW = 80;
+        const slotH = 80;
+        const margin = 4;
+
+        const positions = [
+            { sx: -innerW / 2 + slotW / 2 + margin, sy:  charAreaH / 2 - slotH / 2 + charAreaY - margin },  // 左上: 武器
+            { sx:  innerW / 2 - slotW / 2 - margin, sy:  charAreaH / 2 - slotH / 2 + charAreaY - margin },  // 右上: 防具
+            { sx: -innerW / 2 + slotW / 2 + margin, sy: -charAreaH / 2 + slotH / 2 + charAreaY + margin },  // 左下: 饰品
+            { sx:  innerW / 2 - slotW / 2 - margin, sy: -charAreaH / 2 + slotH / 2 + charAreaY + margin },  // 右下: 法宝
+        ];
+
+        for (let i = 0; i < slots.length; i++) {
+            this.buildEquipSlot(panel, slotW, slotH, positions[i].sx, positions[i].sy, slots[i]);
+        }
+
+        // Sparkle decorations (4 stars)
+        const sparkles = [
+            { sx: -innerW / 2 + slotW + 20, sy: charAreaY + charAreaH / 2 - 20, size: 10 },
+            { sx:  innerW / 2 - slotW - 20, sy: charAreaY + charAreaH / 2 - 20, size: 12 },
+            { sx: -innerW / 2 + slotW + 24, sy: charAreaY - charAreaH / 2 + 20, size: 10 },
+            { sx:  innerW / 2 - slotW - 24, sy: charAreaY - charAreaH / 2 + 20, size: 12 },
+        ];
+        for (const sp of sparkles) {
+            this.makeLabel(panel, '✦', sp.size, sp.sx, sp.sy, YELLOW_300, sp.size + 4);
+        }
     }
 
-    // ── TitleBanner: bg blue-700, border 2px amber-400, text "角色总览" ──
+    // ── 装备槽位: 64×64 图标 + 名称 ──
+    private buildEquipSlot(parent: Node, w: number, h: number, x: number, y: number, info: EquipSlotInfo) {
+        const border = this.makeRect('Slot_' + info.slot, parent, w, h, x, y, SLATE_600);
+        const slot = this.makeRect('SlotBg', border, w - 4, h - 4, 0, 0, SLATE_900);
+
+        // Icon area: 48×48, border 2px amber-600
+        const iconSize = Math.min(w - 20, h - 32, 48);
+        const iconBd = this.makeRect('IconBd', slot, iconSize, iconSize, 0, 6, AMBER_600);
+        this.makeRect('IconBg', iconBd, iconSize - 4, iconSize - 4, 0, 0, SLATE_800);
+        this.makeLabel(iconBd, '✦', 18, 0, 0, AMBER_400, iconSize - 6);
+
+        // Slot name below icon
+        this.makeLabel(slot, info.slot, 10, 0, -iconSize / 2 - 4, AMBER_400, w - 12);
+    }
+
+    // ── 标题横幅: bg blue-700, border 2px amber-400, text "角色总览" ──
     private buildTitleBanner(parent: Node, w: number, h: number, x: number, y: number) {
         const border = this.makeRect('TitleBorder', parent, w, h, x, y, AMBER_400);
         const bg = this.makeRect('TitleBg', border, w - 4, h - 4, 0, 0, BLUE_700);
@@ -151,246 +192,86 @@ export class CharacterPage extends Component {
     }
 
     // ══════════════════════════════════════════════════
-    //  EquipmentPanel: bg slate-900, border 2px slate-600
+    //  属性面板: 战力/等级/经验 + 攻击/防御/速度/暴击
     // ══════════════════════════════════════════════════
-    private buildEquipmentPanel(parent: Node, w: number, h: number, x: number, y: number) {
-        const border = this.makeRect('EquipBorder', parent, w, h, x, y, SLATE_600);
-        const panel = this.makeRect('EquipBg', border, w - 4, h - 4, 0, 0, SLATE_900);
-
-        const pad = 8;
-        const innerW = w - 4 - pad * 2;
-
-        // Section title: "本命法器", bg amber-800, border 2px amber-300
-        const titleH = 28;
-        const titleY = (h - 4) / 2 - pad - titleH / 2;
-        const titleBorder = this.makeRect('EquipTitleBd', panel, innerW, titleH, 0, titleY, AMBER_300);
-        this.makeRect('EquipTitleBg', titleBorder, innerW - 4, titleH - 4, 0, 0, AMBER_800);
-        this.makeLabel(titleBorder, '本命法器', 14, 0, 0, AMBER_100, innerW - 20);
-
-        // Equipment slots
-        const slots: EquipSlotInfo[] = [
-            { slot: '飞剑位', name: '青霜剑', level: 1 },
-            { slot: '护符位', name: '玄甲符', level: 1 },
-            { slot: '灵灯位', name: '寻宝灯', level: 1 },
-        ];
-
-        const usableH = h - 4 - pad * 2 - titleH - pad;
-        const slotH = Math.min((usableH - (slots.length - 1) * 8) / slots.length, 52);
-
-        for (let i = 0; i < slots.length; i++) {
-            const slotY = titleY - titleH / 2 - pad - i * (slotH + 8) - slotH / 2;
-            this.buildEquipSlot(panel, innerW, slotH, 0, slotY, slots[i]);
-        }
-    }
-
-    private buildEquipSlot(parent: Node, w: number, h: number, x: number, y: number, info: EquipSlotInfo) {
-        // bg slate-800, border 2px slate-600
-        const border = this.makeRect('Slot_' + info.name, parent, w, h, x, y, SLATE_600);
-        const slot = this.makeRect('SlotBg', border, w - 4, h - 4, 0, 0, SLATE_800);
-
-        // Icon: 40×40, border 2px amber-600, bg slate-900
-        const iconSize = Math.min(h - 12, 40);
-        const iconX = -(w - 4) / 2 + 6 + iconSize / 2;
-        const iconBd = this.makeRect('IconBd', slot, iconSize, iconSize, iconX, 0, AMBER_600);
-        this.makeRect('IconBg', iconBd, iconSize - 4, iconSize - 4, 0, 0, SLATE_900);
-        this.makeLabel(iconBd, '✦', 16, 0, 0, AMBER_400, iconSize - 6);
-
-        // Text: slot name (amber-400), equip name (amber-100), level (slate-300)
-        const textLeft = iconX + iconSize / 2 + 6;
-        const textW = (w - 4) / 2 - textLeft - 4;
-        const textCX = textLeft + textW / 2;
-
-        this.makeLabel(slot, info.slot, 10, textCX, 12, AMBER_400, textW, HorizontalTextAlignment.LEFT);
-        this.makeLabel(slot, info.name, 12, textCX, -2, AMBER_100, textW, HorizontalTextAlignment.LEFT);
-        this.makeLabel(slot, 'Lv.' + info.level + ' ★', 10, textCX, -14, SLATE_300, textW, HorizontalTextAlignment.LEFT);
-    }
-
-    // ══════════════════════════════════════════════════
-    //  CharacterPanel: bg slate-800, border 2px slate-600
-    // ══════════════════════════════════════════════════
-    private buildCharacterPanel(parent: Node, w: number, h: number, x: number, y: number) {
-        const border = this.makeRect('CharBorder', parent, w, h, x, y, SLATE_600);
-        const panel = this.makeRect('CharBg', border, w - 4, h - 4, 0, 0, SLATE_800);
-
-        const pad = 8;
-        const innerW = w - 4 - pad * 2;
-
-        // Section title: "角色形象", bg amber-800, border 2px amber-300
-        const titleH = 28;
-        const titleY = (h - 4) / 2 - pad - titleH / 2;
-        const titleBorder = this.makeRect('CharTitleBd', panel, innerW, titleH, 0, titleY, AMBER_300);
-        this.makeRect('CharTitleBg', titleBorder, innerW - 4, titleH - 4, 0, 0, AMBER_800);
-        this.makeLabel(titleBorder, '角色形象', 14, 0, 0, AMBER_100, innerW - 20);
-
-        // Character display area
-        const displaySize = Math.min(innerW - 16, h - 4 - pad * 2 - titleH - pad - 40, 112);
-        const displayY = titleY - titleH / 2 - pad - displaySize / 2 - 8;
-        this.makeRect('CharDisplay', panel, displaySize, displaySize, 0, displayY, SLATE_700);
-        this.makeLabel(panel, '角色\n展示', 16, 0, displayY, SLATE_400, displaySize - 12);
-
-        // Pedestal: 112×28, bg amber-900, border 3px amber-700
-        const pedW = 112;
-        const pedH = 28;
-        const pedY = displayY - displaySize / 2 - pedH / 2 - 4;
-        const pedBorder = this.makeRect('PedestalBd', panel, pedW, pedH, 0, pedY, AMBER_700);
-        this.makeRect('PedestalBg', pedBorder, pedW - 6, pedH - 6, 0, 0, AMBER_900);
-        // Inner decoration
-        const decBorder = this.makeRect('PedestalDec', pedBorder, pedW - 18, pedH - 12, 0, 0, AMBER_600);
-        this.makeRect('PedestalDecBg', decBorder, pedW - 22, pedH - 16, 0, 0, AMBER_900);
-
-        // Sparkle decorations (4 stars)
-        const sparkles = [
-            { sx: -innerW / 2 + 16, sy: titleY - 20, size: 10 },
-            { sx:  innerW / 2 - 16, sy: titleY - 20, size: 12 },
-            { sx: -innerW / 2 + 24, sy: pedY + 16,   size: 10 },
-            { sx:  innerW / 2 - 24, sy: pedY + 16,   size: 12 },
-        ];
-        for (const sp of sparkles) {
-            this.makeLabel(panel, '✦', sp.size, sp.sx, sp.sy, YELLOW_300, sp.size + 4);
-        }
-    }
-
-    // ══════════════════════════════════════════════════
-    //  BottomPanels: StatsPanel + SkillsPanel side by side
-    // ══════════════════════════════════════════════════
-    private buildBottomPanels(parent: Node, w: number, h: number, x: number, y: number) {
-        const gap = 8;
-        const colW = (w - gap) / 2;
-        this.buildStatsPanel(parent, colW, h, x - w / 2 + colW / 2, y);
-        this.buildSkillsPanel(parent, colW, h, x + w / 2 - colW / 2, y);
-    }
-
-    // ── StatsPanel: bg amber-900, border 3px amber-700 ──
-    private buildStatsPanel(parent: Node, w: number, h: number, x: number, y: number) {
-        const outer = this.makeRect('StatsBorder', parent, w, h, x, y, AMBER_700);
-        const panel = this.makeRect('StatsBg', outer, w - 6, h - 6, 0, 0, AMBER_900);
+    private buildAttributePanel(parent: Node, w: number, h: number, x: number, y: number) {
+        const outer = this.makeRect('AttrsBorder', parent, w, h, x, y, AMBER_700);
+        const panel = this.makeRect('AttrsBg', outer, w - 6, h - 6, 0, 0, AMBER_900);
 
         const pad = 10;
         const innerW = w - 6 - pad * 2;
 
-        // Title: "基础属性", bg amber-800, border 2px amber-400
+        // Title: "角色属性", bg amber-800, border 2px amber-400
         const titleH = 28;
         const titleY = (h - 6) / 2 - pad - titleH / 2;
-        const titleBd = this.makeRect('StatsTitleBd', panel, innerW, titleH, 0, titleY, AMBER_400);
-        this.makeRect('StatsTitleBg', titleBd, innerW - 4, titleH - 4, 0, 0, AMBER_800);
-        this.makeLabel(titleBd, '基础属性', 14, 0, 0, AMBER_100, innerW - 20);
+        const titleBd = this.makeRect('AttrsTitleBd', panel, innerW, titleH, 0, titleY, AMBER_400);
+        this.makeRect('AttrsTitleBg', titleBd, innerW - 4, titleH - 4, 0, 0, AMBER_800);
+        this.makeLabel(titleBd, '角色属性', 14, 0, 0, AMBER_100, innerW - 20);
 
-        // Stat items
+        // 战力 (large, prominent)
+        const powerH = 40;
+        const powerY = titleY - titleH / 2 - pad - powerH / 2;
+        const powerBd = this.makeRect('PowerBd', panel, innerW, powerH, 0, powerY, AMBER_800);
+        this.makeRect('PowerBg', powerBd, innerW - 4, powerH - 4, 0, 0, AMBER_950);
+        this.makeLabel(powerBd, '战力', 14, -innerW / 2 + 50, 0, AMBER_400, 60, HorizontalTextAlignment.LEFT);
+        this.makeLabel(powerBd, '12580', 20, 30, 0, AMBER_100, innerW - 90);
+
+        // 等级 + 经验进度条
+        const levelH = 36;
+        const levelY = powerY - powerH / 2 - 8 - levelH / 2;
+        const levelBd = this.makeRect('LevelBd', panel, innerW, levelH, 0, levelY, AMBER_800);
+        const levelBg = this.makeRect('LevelBg', levelBd, innerW - 4, levelH - 4, 0, 0, AMBER_950);
+
+        this.makeLabel(levelBg, 'Lv.10', 14, -innerW / 2 + 50, 0, AMBER_200, 60, HorizontalTextAlignment.LEFT);
+
+        // Exp progress bar
+        const barLeft = -innerW / 2 + 100;
+        const barW = innerW - 180;
+        const barH = 8;
+        const barX = barLeft + barW / 2;
+        const barBg = this.makeRect('ExpBarBg', levelBg, barW, barH, barX, 0, SLATE_900);
+        this.drawBorder(barBg, barW, barH, SLATE_700, 1);
+        const pct = 0.85;
+        const fillW = Math.max(1, barW * pct);
+        this.makeRect('ExpBarFill', barBg, fillW, barH, -barW / 2 + fillW / 2, 0, GREEN_600);
+
+        this.makeLabel(levelBg, '8500/10000', 12, innerW / 2 - 60, 0, AMBER_200, 80, HorizontalTextAlignment.RIGHT);
+
+        // 属性列表: 攻击/防御/速度/暴击
         const stats: StatInfo[] = [
-            { name: '气血',   cur: 160, max: 160, barColor: RED_800   },
-            { name: '法力',   cur: 88,  max: 88,  barColor: BLUE_800  },
-            { name: '行动力', cur: 180, max: 180, barColor: GREEN_800 },
+            { name: '攻击', value: '850' },
+            { name: '防御', value: '620' },
+            { name: '速度', value: '75' },
+            { name: '暴击', value: '45%' },
         ];
 
-        const usableH = h - 6 - pad * 2 - titleH - pad;
-        const rowH = Math.min((usableH - (stats.length - 1) * 8) / stats.length, 44);
+        const usableH = h - 6 - pad * 2 - titleH - pad - powerH - 8 - levelH - 8;
+        const rowH = Math.min((usableH - (stats.length - 1) * 6) / stats.length, 36);
 
         for (let i = 0; i < stats.length; i++) {
-            const rowY = titleY - titleH / 2 - pad - i * (rowH + 8) - rowH / 2;
-            this.buildStatBar(panel, innerW, rowH, 0, rowY, stats[i]);
+            const rowY = levelY - levelH / 2 - 8 - i * (rowH + 6) - rowH / 2;
+            this.buildStatRow(panel, innerW, rowH, 0, rowY, stats[i]);
         }
     }
 
-    private buildStatBar(parent: Node, w: number, h: number, x: number, y: number, stat: StatInfo) {
-        // bg amber-950, border 2px amber-800
+    private buildStatRow(parent: Node, w: number, h: number, x: number, y: number, stat: StatInfo) {
         const border = this.makeRect('Stat_' + stat.name, parent, w, h, x, y, AMBER_800);
         const row = this.makeRect('StatBg', border, w - 4, h - 4, 0, 0, AMBER_950);
 
         const innerW = w - 4;
-        const pad = 6;
+        const pad = 8;
 
-        // Stat label: bg amber-900, border 1px amber-700
-        const labelW = 48;
-        const labelH = h - 12;
+        // Stat label
+        const labelW = 56;
         const labelX = -innerW / 2 + pad + labelW / 2;
-        const labelBd = this.makeRect('LabelBd', row, labelW, labelH, labelX, 0, AMBER_700);
-        this.makeRect('LabelBg', labelBd, labelW - 2, labelH - 2, 0, 0, AMBER_900);
+        const labelBd = this.makeRect('LabelBd', row, labelW, h - 12, labelX, 0, AMBER_700);
+        this.makeRect('LabelBg', labelBd, labelW - 2, h - 14, 0, 0, AMBER_900);
         this.makeLabel(labelBd, stat.name, 12, 0, 0, AMBER_100, labelW - 8);
 
-        // Progress bar: bg slate-900, border 1px slate-700
-        const valW = 60;
-        const barLeft = labelX + labelW / 2 + 6;
-        const barRight = innerW / 2 - pad - valW - 4;
-        const barW = barRight - barLeft;
-        const barH = 6;
-        const barX = barLeft + barW / 2;
-
-        const barBgNode = this.makeRect('BarBg', row, barW, barH, barX, 0, SLATE_900);
-        this.drawBorder(barBgNode, barW, barH, SLATE_700, 1);
-
-        // Progress fill
-        const pct = stat.cur / stat.max;
-        const fillW = Math.max(1, barW * pct);
-        this.makeRect('BarFill', barBgNode, fillW, barH, -barW / 2 + fillW / 2, 0, stat.barColor);
-
-        // Value text: amber-200
+        // Stat value
+        const valW = 80;
         const valX = innerW / 2 - pad - valW / 2;
-        this.makeLabel(row, stat.cur + '/' + stat.max, 14, valX, 0, AMBER_200, valW, HorizontalTextAlignment.RIGHT);
-    }
-
-    // ── SkillsPanel: bg blue-900, border 3px blue-700 ──
-    private buildSkillsPanel(parent: Node, w: number, h: number, x: number, y: number) {
-        const outer = this.makeRect('SkillsBorder', parent, w, h, x, y, BLUE_700);
-        const panel = this.makeRect('SkillsBg', outer, w - 6, h - 6, 0, 0, BLUE_900);
-
-        const pad = 10;
-        const innerW = w - 6 - pad * 2;
-
-        // Title: "功法造诣", bg blue-800, border 2px amber-400
-        const titleH = 28;
-        const titleY = (h - 6) / 2 - pad - titleH / 2;
-        const titleBd = this.makeRect('SkillsTitleBd', panel, innerW, titleH, 0, titleY, AMBER_400);
-        this.makeRect('SkillsTitleBg', titleBd, innerW - 4, titleH - 4, 0, 0, BLUE_800);
-        this.makeLabel(titleBd, '功法造诣', 14, 0, 0, AMBER_100, innerW - 20);
-
-        // Skill items
-        const skills: SkillInfo[] = [
-            { name: '炼丹术', level: 1, cur: 0, max: 13 },
-            { name: '炼器术', level: 1, cur: 0, max: 13 },
-            { name: '灵宠诀', level: 1, cur: 0, max: 13 },
-            { name: '清心诀', level: 1, cur: 0, max: 13 },
-        ];
-
-        const usableH = h - 6 - pad * 2 - titleH - pad;
-        const rowH = Math.min((usableH - (skills.length - 1) * 8) / skills.length, 40);
-
-        for (let i = 0; i < skills.length; i++) {
-            const rowY = titleY - titleH / 2 - pad - i * (rowH + 8) - rowH / 2;
-            this.buildSkillRow(panel, innerW, rowH, 0, rowY, skills[i]);
-        }
-    }
-
-    private buildSkillRow(parent: Node, w: number, h: number, x: number, y: number, skill: SkillInfo) {
-        // bg blue-950, border 2px blue-800
-        const border = this.makeRect('Skill_' + skill.name, parent, w, h, x, y, BLUE_800);
-        const row = this.makeRect('SkillBg', border, w - 4, h - 4, 0, 0, BLUE_950);
-
-        const innerW = w - 4;
-        const pad = 6;
-
-        // Skill name + level: blue-100
-        const nameW = innerW * 0.4;
-        const nameX = -innerW / 2 + pad + nameW / 2;
-        this.makeLabel(row, skill.name + ' Lv.' + skill.level, 12, nameX, 0, BLUE_100, nameW, HorizontalTextAlignment.LEFT);
-
-        // Progress bar: 96px, bg slate-900, border 1px slate-700
-        const barW = 96;
-        const barH = 6;
-        const barX = nameX + nameW / 2 + 6 + barW / 2;
-        const barBg = this.makeRect('BarBg', row, barW, barH, barX, 0, SLATE_900);
-        this.drawBorder(barBg, barW, barH, SLATE_700, 1);
-
-        // Fill: blue-600
-        const pct = skill.cur / skill.max;
-        if (pct > 0) {
-            const fillW = Math.max(1, barW * pct);
-            this.makeRect('BarFill', barBg, fillW, barH, -barW / 2 + fillW / 2, 0, BLUE_600);
-        }
-
-        // Value: blue-200
-        const valW = 45;
-        const valX = innerW / 2 - pad - valW / 2;
-        this.makeLabel(row, skill.cur + '/' + skill.max, 12, valX, 0, BLUE_200, valW, HorizontalTextAlignment.RIGHT);
+        this.makeLabel(row, stat.value, 16, valX, 0, AMBER_200, valW, HorizontalTextAlignment.RIGHT);
     }
 
     // ── Corner decorations: L-shaped, amber-500, 2px ──
@@ -488,8 +369,8 @@ function mountCharacterPage() {
     if (contentNode.getChildByName('CharacterContent')) return;
 
     const t = contentNode.getComponent(UITransform);
-    const cw = t ? t.width : 696;
-    const ch = t ? t.height : 990;
+    const cw = t ? t.width : 688;
+    const ch = t ? t.height : 958;
 
     const root = new Node('CharacterContent');
     root.layer = Layers.Enum.UI_2D;
